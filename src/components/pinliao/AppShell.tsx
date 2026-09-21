@@ -61,11 +61,24 @@ export function AppShell() {
   return (
     <div className="flex min-h-screen flex-col bg-pl-desk">
       <div className="mx-auto flex w-full max-w-[430px] flex-1 flex-col bg-background shadow-sm md:my-4 md:min-h-[calc(100vh-2rem)] md:rounded-xl md:overflow-hidden md:border md:border-border">
-        {/* 顶部视图（按 tab 切换） */}
+        {/* 顶部视图（按 tab 切换）+ 页面栈覆盖层，均用 absolute 定位避免内容撑高容器 */}
         <div className="relative flex-1 overflow-hidden">
-          {tab === 'jobs' && <JobsView />}
-          {tab === 'msgs' && <MessagesView />}
-          {tab === 'me' && <MeView />}
+          {/* tab 主视图 */}
+          {tab === 'jobs' && (
+            <div className="absolute inset-0 flex flex-col">
+              <JobsView />
+            </div>
+          )}
+          {tab === 'msgs' && (
+            <div className="absolute inset-0 flex flex-col">
+              <MessagesView />
+            </div>
+          )}
+          {tab === 'me' && (
+            <div className="absolute inset-0 flex flex-col">
+              <MeView />
+            </div>
+          )}
 
           {/* 页面栈覆盖层 */}
           {pageStack.map((p, i) => {

@@ -112,3 +112,43 @@ Stage Summary:
 - TypeScript 0 error，ESLint 0 error 0 warning
 - dev server 在端口 3000 运行，HTTP 200，无运行时错误
 - 等待用户在预览面板验收；如需调整，可直接修改对应组件，store 与 API 层已解耦。
+
+---
+Task ID: 2
+Agent: orchestrator (main)
+Task: 优化职位列表与详情页布局，解决"列表内容太多 + 详情页底部 CTA 需要滑动一大段才能投简历"
+
+Work Log:
+- 问题诊断：
+  1. 列表卡片信息过密（4 行：标题/薪资、城市·经验·学历、4 个标签、公司+stage/size+时间）→ 单卡 ~120px，51 条列表过长
+  2. 详情页 CTA（收藏/发送简历/立即沟通）位于页面底部，使用 static 布局，长内容时被推到 4300px 处，必须滑到底才能投递
+- JobRow 紧凑化（4 行 → 3 行，高度 ~82px）：
+  · L1 标题 + 薪资
+  · L2 城市·经验·学历 + 标签内联（最多 2 个 + "+N" 提示）
+  · L3 公司名 + 时间（去掉 stage/size，进详情页才看）
+- JobDetailPage 改造：
+  · 顶部 Header 加收藏图标（star 按钮，首屏可见）
+  · 标题区下方加"内联 HR + 立即沟通"小卡片，首屏可见即可发起沟通，无需滑到底部
+  · 保留底部 CTA footer 作为长内容滚动后的二次入口
+- 修复底部 CTA 不常驻问题：
+  · 原因：pageStack 与 tab 视图共用 relative flex-1 overflow-hidden 容器，
+    JobsView 用 static 布局把容器撑到 4223px，导致 absolute inset-0 的详情页
+    也撑到 4300px，footer 的 sticky/absolute bottom-0 失效
+  · 解决：AppShell 中给 tab 主视图也用 absolute inset-0 包裹，让所有兄弟元素
+    脱离文档流，容器高度由 flex-1 计算决定（视口高度），不再被内容撑高
+  · footer 改用 fixed + max-w-[430px] + mx-auto，常驻视口底部，桌面端居中
+- 验证（Agent Browser）：
+  · 列表卡片高度 82px（原 ~120px，节省 32%）
+  · 详情页内联"立即沟通"按钮在 231px（首屏即可见）
+  · 底部 CTA 常驻视口底部（移动端 781-844，桌面端居中宽 430px）
+  · 滚动到底部时最后一个 section bottom=655，在 footer top=737 之上，不遮挡
+  · 桌面端 430px 居中（left=425 right=855）
+  · 移动端 390px 全宽
+- 关键文件：
+  · src/components/pinliao/JobRow.tsx — 紧凑卡片
+  · src/components/pinliao/JobDetailPage.tsx — 顶部收藏 + 内联 HR+CTA + fixed footer
+  · src/components/pinliao/AppShell.tsx — tab 视图改 absolute 包裹
+
+Stage Summary:
+- 优化完成。列表更紧凑，详情页首屏即可发起沟通/收藏，底部 CTA 滚动时常驻可见。
+- 等待用户在预览面板验收。

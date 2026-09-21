@@ -165,7 +165,7 @@ export function JobsView() {
           </div>
         ) : (
           <>
-            <div className="px-4 py-2 text-[11px] text-pl-sub">
+            <div className="px-4 py-1.5 text-[11px] text-pl-sub">
               共 {list.length} 个职位
               {filters.sort === 'latest'
                 ? '，按发布时间排序'
