@@ -102,9 +102,29 @@ export function JobDetailPage({ jobId, onBack }: Props) {
   }
 
   return (
-    <PageShell title="职位详情" onBack={onBack}>
-      <div className="pl-scroll flex-1 overflow-y-auto bg-background">
-        {/* 标题区 */}
+    <PageShell
+      title="职位详情"
+      onBack={onBack}
+      extra={
+        <button
+          onClick={() => {
+            toggleFavorite(jobId)
+            toast(isFav ? '已取消收藏' : '已收藏')
+          }}
+          aria-label={isFav ? '取消收藏' : '收藏'}
+          aria-pressed={isFav}
+          className={cn(
+            'flex h-9 w-9 items-center justify-center rounded-md',
+            isFav ? 'text-primary' : 'text-pl-sub hover:text-foreground',
+          )}
+        >
+          <Star className="h-5 w-5" fill={isFav ? 'currentColor' : 'none'} />
+        </button>
+      }
+    >
+      {/* 滚动内容区 */}
+      <div className="pl-scroll relative flex-1 overflow-y-auto bg-background pb-16">
+        {/* 标题区 + 内联 HR 卡片 + 主 CTA（首屏可见，避免必须滑到底部才能投递） */}
         <section className="bg-card px-4 py-4">
           <h1 className="text-lg font-semibold text-foreground">{detail.title}</h1>
           <div className="mt-1 text-lg font-semibold text-pl-sal">{detail.salary}</div>
@@ -131,21 +151,22 @@ export function JobDetailPage({ jobId, onBack }: Props) {
               </span>
             ))}
           </div>
-        </section>
 
-        {/* HR 卡片 */}
-        <section className="mt-2 bg-card px-4 py-3">
-          <div className="flex items-center gap-3">
-            <AvatarBadge name={detail.hr.name} size={44} round />
-            <div className="flex-1">
-              <div className="text-sm font-medium text-foreground">{detail.hr.name}</div>
-              <div className="text-xs text-pl-sub">
+          {/* 内联 HR + 立即沟通（首屏即可见） */}
+          <div className="mt-3 flex items-center gap-2 rounded-md bg-muted/50 px-2.5 py-2">
+            <AvatarBadge name={detail.hr.name} size={32} round />
+            <div className="min-w-0 flex-1">
+              <div className="pl-line-clamp-1 text-[13px] font-medium text-foreground">{detail.hr.name}</div>
+              <div className="pl-line-clamp-1 text-[11px] text-pl-sub">
                 {detail.company.name} · {detail.hr.title}
               </div>
             </div>
-            <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] text-secondary-foreground">
-              刚刚活跃
-            </span>
+            <button
+              onClick={handleChat}
+              className="shrink-0 rounded-md bg-primary px-3.5 py-1.5 text-xs font-medium text-primary-foreground active:scale-95"
+            >
+              {hasConv ? '继续沟通' : '立即沟通'}
+            </button>
           </div>
         </section>
 
@@ -202,11 +223,11 @@ export function JobDetailPage({ jobId, onBack }: Props) {
           <p className="mt-0.5 text-[11px] text-pl-sub">发布于{whenText(detail.days)}</p>
         </section>
 
-        <div className="h-20" />
+        <div className="h-2" />
       </div>
 
-      {/* 底部 CTA */}
-      <footer className="flex items-center gap-3 border-t border-border bg-card px-4 py-2.5 pl-safe-bottom">
+      {/* 底部 CTA（fixed 固定在视口底部，居中限宽以适配桌面 430px 容器） */}
+      <footer className="fixed inset-x-0 bottom-0 z-30 mx-auto flex w-full max-w-[430px] items-center gap-3 border-t border-border bg-card/95 px-4 py-2.5 backdrop-blur pl-safe-bottom">
         <button
           onClick={() => {
             toggleFavorite(jobId)
@@ -216,6 +237,7 @@ export function JobDetailPage({ jobId, onBack }: Props) {
             'flex flex-col items-center justify-center rounded-md border px-4 py-2 text-xs',
             isFav ? 'border-primary text-primary' : 'border-border text-pl-sub',
           )}
+          aria-label={isFav ? '已收藏' : '收藏'}
         >
           <Star className="h-4 w-4" fill={isFav ? 'currentColor' : 'none'} />
           <span className="mt-0.5">{isFav ? '已收藏' : '收藏'}</span>
