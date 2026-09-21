@@ -1,8 +1,12 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// 聘聊 · 数据模型 ERD
+// =====================================================================
+// 用途：领域模型设计文档（与 docs/data-model.md 同步）。
+// 注意：
+// - 本沙箱 Prisma 当前 datasource 为 SQLite，仅用于本地原型/验证。
+// - 生产数据库为 PostgreSQL（Spring Boot + MyBatis-Plus 实际落库时另维护建表 SQL）。
+// - schema 内容（实体、字段、索引、关系）为框架无关设计，可由后端按此映射到任意 ORM。
+// - 多租户字段：companyId 标注 ✱，由 MyBatis-Plus 多租户拦截器自动注入。
+// =====================================================================
 
 generator client {
   provider = "prisma-client-js"
@@ -13,20 +17,441 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+// ============================================================
+// 枚举
+// ============================================================
+
+enum Role {
+  JOB_SEEKER
+  HR
+  COMPANY_ADMIN
+  PLATFORM_ADMIN
 }
 
-model Post {
+enum CompanyMemberRole {
+  ADMIN
+  HR
+}
+
+enum SeekingStatus {
+  ACTIVE
+  PASSIVE
+  NOT_LOOKING
+}
+
+enum JobStatus {
+  OPEN
+  CLOSED
+  DRAFT
+}
+
+enum CompanyStatus {
+  ACTIVE
+  SUSPENDED
+  PENDING
+}
+
+enum MessageType {
+  TEXT
+  RESUME
+  INTERVIEW_INVITE
+  JOB_CARD
+  SYSTEM
+}
+
+enum MessageFrom {
+  USER
+  HR
+  SYSTEM
+}
+
+enum ApplicationStatus {
+  SUBMITTED
+  VIEWED
+  INTERVIEW
+  OFFER
+  REJECTED
+  WITHDRAWN
+}
+
+enum InterviewFormat {
+  ONSITE
+  VIDEO
+  PHONE
+}
+
+enum InterviewStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  COMPLETED
+  CANCELLED
+}
+
+// ============================================================
+// 跨租户共享表（求职者侧）
+// ============================================================
+
+model User {
+  id           String         @id @default(cuid())
+  phone        String         @unique
+  email        String?
+  passwordHash String?
+  role         Role
+  status       String         @default("ACTIVE") // ACTIVE / SUSPENDED / DELETED
+  lastLoginAt  DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  deletedAt    DateTime?
+
+  userProfile  UserProfile?
+  hrProfile    HrProfile?
+  memberships   CompanyMember[]
+  conversations Conversation[] @relation("UserConversations")
+  messages      Message[]
+  applications  Application[]
+  favorites     Favorite[]
+  resumeViews   ResumeViewLog[]
+  auditLogs     AuditLog[]     @relation("ActorAudits")
+
+  @@index([phone])
+  @@index([role, status])
+}
+
+model UserProfile {
+  id                String        @id @default(cuid())
+  userId            String        @unique
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name              String
+  avatarUrl         String?
+  gender            String? // male / female / other
+  birthDate         DateTime?
+  workYears         Int?
+  edu               String? // 学历
+  expectCat         String? // 期望一级分类
+  expectSub         String? // 期望二级岗位
+  expectCity        String? // 期望城市
+  expectSalaryMin   Int? // K
+  expectSalaryMax   Int?
+  seekingStatus     SeekingStatus @default(ACTIVE)
+  defaultResumeId   String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@index([expectCat, expectSub])
+  @@index([expectCity])
+}
+
+model Resume {
+  id            String     @id @default(cuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name          String // "我的简历" / "PM版" 等
+  content       String // JSON: { basics, educations, experiences, projects, skills } —— SQLite 无 Json，用 String
+  attachmentUrl String?
+  isDefault     Boolean    @default(false)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  deletedAt     DateTime?
+
+  applications    Application[]
+  resumeViewLogs  ResumeViewLog[]
+
+  @@index([userId, isDefault])
+}
+
+model Favorite {
   id        String   @id @default(cuid())
-  title     String
-  content   String?
-  published Boolean  @default(false)
-  authorId  String
+  userId    String
+  jobId     String
+  createdAt DateTime @default(now())
+
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job       Job  @relation(fields: [jobId], references: [id])
+
+  @@unique([userId, jobId])
+  @@index([userId, createdAt])
+}
+
+model City {
+  id       String  @id @default(cuid())
+  code     String  @unique
+  name     String
+  province String?
+  hot      Boolean @default(false)
+  sort     Int     @default(0)
+}
+
+model Category {
+  id        String      @id @default(cuid())
+  parentId String?
+  parent    Category?   @relation("CategoryTree", fields: [parentId], references: [id])
+  children  Category[]  @relation("CategoryTree")
+  name      String
+  sort      Int         @default(0)
+  icon      String?
+  // 一级分类预设的职责模板文案（原型中 RESP 字典），便于发布职位时引用
+  responsibilitiesTemplate String?
+}
+
+model SysConfig {
+  id    String  @id @default(cuid())
+  key   String  @unique
+  value String
+  desc  String?
+}
+
+// ============================================================
+// 租户私有表（企业侧）—— 带 companyId
+// ============================================================
+
+model Company {
+  id           String         @id @default(cuid())
+  name         String
+  logoUrl      String?
+  intro        String?
+  industry     String?
+  stage        String? // 阶段：天使轮/A轮/已上市 等
+  size         String? // 规模：20-99人 等
+  website      String?
+  verified     Boolean        @default(false)
+  status       CompanyStatus  @default(PENDING)
+  customDomain String? // 白标预留
+  themeColor   String? // 白标预留
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  members       CompanyMember[]
+  hrProfiles    HrProfile[]
+  jobs          Job[]
+  conversations Conversation[]
+  applications  Application[]
+  interviews    Interview[]
+  resumeViews   ResumeViewLog[]
+  tenantConfig  TenantConfig?
+  usageLogs     UsageLog[]
+}
+
+model CompanyMember {
+  id         String           @id @default(cuid())
+  userId     String
+  companyId  String
+  role       CompanyMemberRole
+  joinedAt   DateTime         @default(now())
+
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, companyId])
+  @@index([companyId, role])
+}
+
+model HrProfile {
+  id        String   @id @default(cuid())
+  userId    String
+  companyId String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name      String
+  title     String // 招聘专员 / HRBP / 技术总监
+  avatarUrl String?
+  intro     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  jobs           Job[]
+  conversations  Conversation[] @relation("HrConversations")
+  messages       Message[]
+  resumeViews    ResumeViewLog[]
+  applications   Application[]
+
+  @@index([companyId])
+}
+
+model Job {
+  id              String     @id @default(cuid())
+  companyId       String
+  hrId            String
+  title           String
+  salaryMin       Int // K
+  salaryMax       Int
+  city            String
+  area            String?
+  exp             String // 应届 / 1-3年 / 3-5年 / 5-10年 / 经验不限
+  edu             String // 大专 / 本科 / 硕士 / 学历不限
+  cat             String // 一级分类
+  sub             String // 二级岗位
+  tags            String // JSON array string
+  responsibilities String?
+  requirements    String?
+  welfare         String // JSON array string
+  status          JobStatus @default(OPEN)
+  publishedAt     DateTime   @default(now())
+  viewCount       Int        @default(0)
+  applyCount      Int        @default(0)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  deletedAt       DateTime?
+
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  hr            HrProfile     @relation(fields: [hrId], references: [id])
+  conversations Conversation[]
+  applications   Application[]
+  favorites     Favorite[]
+
+  @@index([companyId, status])
+  @@index([hrId, status, publishedAt])
+  @@index([city, cat, status, publishedAt])
+  @@index([sub, status])
+}
+
+model Conversation {
+  id              String   @id @default(cuid())
+  jobId           String
+  userId          String
+  hrId            String
+  companyId       String // ✱ 多租户字段
+  lastMessageAt   DateTime @default(now())
+  userUnreadCount Int      @default(0)
+  hrUnreadCount   Int      @default(0)
+  closedByHr      Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  job       Job       @relation(fields: [jobId], references: [id])
+  user      User      @relation("UserConversations", fields: [userId], references: [id])
+  hr        HrProfile @relation("HrConversations", fields: [hrId], references: [id])
+  company   Company   @relation(fields: [companyId], references: [id])
+  messages  Message[]
+
+  @@unique([jobId, userId])
+  @@index([userId, lastMessageAt])
+  @@index([hrId, lastMessageAt])
+  @@index([companyId, lastMessageAt])
+}
+
+model Message {
+  id             String      @id @default(cuid())
+  conversationId String
+  fromType       MessageFrom
+  fromUserId     String?
+  fromHrId       String?
+  type           MessageType
+  content        String // 文本或 JSON
+  createdAt      DateTime    @default(now())
+  readByUser     Boolean     @default(false)
+  readByHr       Boolean     @default(false)
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user          User?        @relation(fields: [fromUserId], references: [id])
+  hr            HrProfile?   @relation(fields: [fromHrId], references: [id])
+
+  @@index([conversationId, createdAt])
+  @@index([fromType, createdAt])
+}
+
+model Application {
+  id          String            @id @default(cuid())
+  userId      String
+  jobId       String
+  companyId   String // ✱ 多租户字段（与 job.companyId 冗余，便于拦截器注入）
+  resumeId    String
+  status      ApplicationStatus @default(SUBMITTED)
+  coverLetter String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  deletedAt   DateTime?
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job       Job      @relation(fields: [jobId], references: [id])
+  company   Company  @relation(fields: [companyId], references: [id])
+  resume    Resume   @relation(fields: [resumeId], references: [id])
+  interviews Interview[]
+
+  @@unique([userId, jobId])
+  @@index([userId, createdAt])
+  @@index([companyId, status, createdAt])
+  @@index([jobId, status])
+}
+
+model Interview {
+  id            String          @id @default(cuid())
+  applicationId String
+  companyId     String // ✱ 多租户字段
+  scheduledAt   DateTime
+  format        InterviewFormat
+  location      String?
+  onlineUrl     String?
+  note          String?
+  status        InterviewStatus @default(PENDING)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  company     Company     @relation(fields: [companyId], references: [id])
+
+  @@index([companyId, status])
+  @@index([applicationId, status])
+}
+
+model ResumeViewLog {
+  id         String   @id @default(cuid())
+  companyId  String // ✱
+  hrId       String
+  userId     String
+  resumeId   String
+  createdAt  DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id])
+  hr      HrProfile @relation(fields: [hrId], references: [id])
+  user    User     @relation(fields: [userId], references: [id])
+  resume   Resume  @relation(fields: [resumeId], references: [id])
+
+  @@index([companyId, hrId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model TenantConfig {
+  id             String   @id @default(cuid())
+  companyId       String   @unique
+  maxJobs         Int      @default(50)
+  maxHrAccounts   Int      @default(5)
+  maxMonthlyReach Int      @default(1000)
+  features        String   @default("{}") // JSON: { publishJob, videoInterview, ... }
+  expiresAt       DateTime?
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+}
+
+model UsageLog {
+  id        String   @id @default(cuid())
+  companyId String
+  type      String // JOB_PUBLISH / RESUME_VIEW / MESSAGE_SEND ...
+  day       String // YYYY-MM-DD
+  count     Int      @default(0)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, type, day])
+  @@index([companyId, day])
+}
+
+// ============================================================
+// 全局表（不带 companyId）
+// ============================================================
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String
+  actorType  String // USER / HR / SYSTEM
+  action     String // JOB.PUBLISH / RESUME.VIEW / APPLICATION.WITHDRAW
+  targetType String?
+  targetId   String?
+  metadata   String? // JSON
+  ip         String?
+  createdAt   DateTime @default(now())
+
+  actor User @relation("ActorAudits", fields: [actorId], references: [id])
+
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
 }
