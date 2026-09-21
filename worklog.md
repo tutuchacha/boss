@@ -181,3 +181,30 @@ Work Log:
 
 Stage Summary:
 - 完成。列表保持原样，详情页"中间空白"已消除。footer 在短内容时紧贴底部，长内容时常驻视口。
+
+---
+Task ID: 4
+Agent: orchestrator (main)
+Task: 用户询问如何保存项目以便下次用其他模型继续开发；产出接续指南 + 打包下载
+
+Work Log:
+- 检查项目 git 状态：所有产出已 commit（系统自动 commit，message 为 UUID），无远程仓库
+- 创建 docs/HANDOFF.md（接续开发指南）：
+  · 一句话项目概览
+  · 当前状态（Step 0/1 完成，等验收）
+  · 关键决策清单（业务/平台/架构/契约，下一个模型无需重新问）
+  · 文件索引（文档 + 代码）
+  · 启动命令 + 环境变量 + dev server 持久启动方式
+  · 接续开发的"启动提示词"模板
+  · 三种保存迁移方案（打包/Git/仅文档）
+  · 已知限制与后续路线
+- 打包项目到 /home/z/my-project/download/pinliao-20260921.zip（281KB，130 文件）
+  排除：node_modules / .next / .git / db / upload / skills / examples / mini-services / 日志等
+- 给出三种保存方案的具体命令：
+  · 方案 A：打包下载（最直接，zip 已生成在 download/）
+  · 方案 B：推送到 GitHub/Gitee（最持久）
+  · 方案 C：仅保存关键文档（最小，任何框架可复用契约）
+
+Stage Summary:
+- 完成。HANDOFF.md + zip 包已就绪。用户可选择下载 zip 或推送到远程仓库。
+- 下一个模型只需读 docs/HANDOFF.md 即可无缝接续。
