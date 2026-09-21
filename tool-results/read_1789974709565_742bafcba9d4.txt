@@ -1,0 +1,602 @@
+     1→<!DOCTYPE html>
+     2→<html lang="zh-CN">
+     3→<head>
+     4→<meta charset="utf-8">
+     5→<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+     6→<title>聘聊 · 招聘App原型</title>
+     7→<style>
+     8→:root{
+     9→  --bg:#F2F5F5; --surface:#FFFFFF; --desk:#E2E9E9; --ink:#16282A; --sub:#5F7274;
+    10→  --line:#E3EAEA; --rule:#C9D5D5; --accent:#00857F; --accent-soft:#DDF2F1; --on-accent:#FFFFFF; --sal:#D63A22;
+    11→}
+    12→@media (prefers-color-scheme: dark){
+    13→  :root:not([data-theme="light"]){
+    14→    --bg:#0E1718; --surface:#152224; --desk:#081011; --ink:#E6F0F0; --sub:#8FA5A7;
+    15→    --line:#243638; --rule:#33494B; --accent:#2BBDB5; --accent-soft:#12302F; --on-accent:#032120; --sal:#FF7A63;
+    16→  }
+    17→}
+    18→:root[data-theme="dark"]{
+    19→  --bg:#0E1718; --surface:#152224; --desk:#081011; --ink:#E6F0F0; --sub:#8FA5A7;
+    20→  --line:#243638; --rule:#33494B; --accent:#2BBDB5; --accent-soft:#12302F; --on-accent:#032120; --sal:#FF7A63;
+    21→}
+    22→:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+    23→*,*::before,*::after{box-sizing:inherit}
+    24→html{height:100%;background:var(--desk);scroll-padding-top:env(safe-area-inset-top,0px)}
+    25→body{height:100%;margin:0;background:var(--desk);color:var(--ink);
+    26→  font:15px/1.5 "PingFang SC","HarmonyOS Sans SC","Noto Sans SC","Microsoft YaHei",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+    27→button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
+    28→input,select{font:inherit;color:inherit}
+    29→h1,h2,h3,p,ul{margin:0}
+    30→ul{padding:0;list-style:none}
+    31→[hidden]{display:none!important}
+    32→:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+    33→
+    34→#app{position:relative;height:100%;max-width:430px;margin:0 auto;display:flex;flex-direction:column;background:var(--bg);overflow:hidden}
+    35→@media (min-width:500px){#app{box-shadow:0 0 0 1px var(--line)}}
+    36→#view{flex:1;min-height:0;display:flex;flex-direction:column}
+    37→.scroll{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+    38→
+    39→.ic{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+    40→#tabbar{display:flex;flex:none;background:var(--surface);border-top:1px solid var(--line)}
+    41→#tabbar button{flex:1;min-height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:12px;color:var(--sub);position:relative}
+    42→#tabbar button.on{color:var(--accent);font-weight:600}
+    43→.badge{position:absolute;top:6px;left:calc(50% + 6px);min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--sal);color:#fff;font-size:11px;line-height:16px;text-align:center;font-weight:600}
+    44→
+    45→.head{flex:none;background:var(--surface);padding:10px 14px 0;border-bottom:1px solid var(--line)}
+    46→.head.plain{padding:14px 16px 12px}
+    47→.head h1{font-size:22px;font-weight:700}
+    48→.search-row{display:flex;gap:10px;align-items:center}
+    49→.city{display:flex;align-items:center;gap:2px;font-weight:600;min-height:40px}
+    50→.city .ic{width:16px;height:16px}
+    51→.search{flex:1;display:flex;align-items:center;gap:8px;background:var(--bg);border-radius:20px;padding:0 14px;height:40px;color:var(--sub)}
+    52→.search .ic{width:18px;height:18px}
+    53→.search input{flex:1;min-width:0;border:0;background:none;outline:none;font-size:15px}
+    54→.search:focus-within{outline:2px solid var(--accent)}
+    55→.chips-row{display:flex;align-items:center;gap:8px;margin-top:8px}
+    56→.chips{flex:1;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:2px 0 10px}
+    57→.chip{flex:none;padding:5px 13px;border-radius:16px;color:var(--sub);font-size:14px;min-height:32px}
+    58→.chip.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+    59→.chips2{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:0 0 10px}
+    60→.chip.s{font-size:13px;min-height:28px;padding:3px 11px;border:1px solid var(--line)}
+    61→.chip.s.on{border-color:var(--accent)}
+    62→.filter-btn{flex:none;display:flex;align-items:center;gap:4px;color:var(--sub);font-size:14px;min-height:40px;padding-bottom:8px}
+    63→.filter-btn .ic{width:17px;height:17px}
+    64→.filter-btn.on{color:var(--accent);font-weight:600}
+    65→.filter-btn b{background:var(--accent);color:var(--on-accent);border-radius:9px;min-width:18px;height:18px;line-height:18px;font-size:11px;text-align:center}
+    66→
+    67→.count{padding:10px 16px 6px;font-size:12.5px;color:var(--sub)}
+    68→.job{display:block;padding:14px 16px;background:var(--surface);border-bottom:1px solid var(--line);cursor:pointer}
+    69→.job:active{background:var(--accent-soft)}
+    70→.j1{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+    71→.j1 h3{font-size:16.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    72→.sal{color:var(--sal);font-weight:700;font-size:17px;font-variant-numeric:tabular-nums;flex:none}
+    73→.sal.big{font-size:26px;margin-top:4px}
+    74→.j2{display:flex;flex-wrap:wrap;margin-top:6px;font-size:12.5px;color:var(--sub)}
+    75→.j2 span+span{border-left:1px solid var(--rule);margin-left:8px;padding-left:8px}
+    76→.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+    77→.tags i{font-style:normal;font-size:12px;padding:2px 8px;border-radius:4px;background:var(--bg);color:var(--sub)}
+    78→.tags.welfare i{background:none;border:1px solid var(--accent);color:var(--accent)}
+    79→.j3{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px}
+    80→.j3 .co{font-weight:500}
+    81→.j3 .sub,.sub{color:var(--sub)}
+    82→.j3 .when{margin-left:auto;color:var(--sub);font-size:12px}
+    83→.av{display:inline-flex;align-items:center;justify-content:center;border-radius:6px;color:#fff;font-weight:700;flex:none}
+    84→.av.round{border-radius:50%}
+    85→
+    86→.empty{padding:56px 28px;text-align:center;color:var(--sub)}
+    87→.empty strong{display:block;color:var(--ink);font-size:16px;margin-bottom:6px}
+    88→.empty .primary{margin-top:18px}
+    89→
+    90→.page{position:absolute;inset:0;z-index:20;background:var(--bg);display:flex;flex-direction:column;animation:slidein .22s ease-out}
+    91→.page.closing{animation:slideout .17s ease-in forwards}
+    92→@keyframes slidein{from{transform:translateX(24px);opacity:0}to{transform:none;opacity:1}}
+    93→@keyframes slideout{to{transform:translateX(24px);opacity:0}}
+    94→.bar{flex:none;display:flex;align-items:center;gap:4px;height:52px;padding:0 6px;background:var(--surface);border-bottom:1px solid var(--line)}
+    95→.ib{width:44px;height:44px;display:grid;place-items:center;border-radius:50%}
+    96→.ib.on{color:#E39A00}
+    97→.bar-title{flex:1;display:flex;flex-direction:column;min-width:0;line-height:1.3}
+    98→.bar-title strong{font-size:16px}
+    99→.bar-title small{font-size:12px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+   100→.bar-sp{width:44px}
+   101→
+   102→.dh{background:var(--surface);padding:16px}
+   103→.dh h1{font-size:22px;line-height:1.3}
+   104→.hrcard,.co-blk{display:flex;align-items:center;gap:12px;background:var(--surface);margin-top:8px;padding:14px 16px}
+   105→.hrcard small,.co-blk small{display:block;color:var(--sub);font-size:12.5px}
+   106→.hrcard .online{margin-left:auto;font-size:12px;color:var(--accent)}
+   107→.blk{background:var(--surface);margin-top:8px;padding:16px}
+   108→.blk h2{font-size:16px;margin-bottom:4px}
+   109→.blk h2:not(:first-child){margin-top:18px}
+   110→.blk li{position:relative;padding-left:14px;margin-top:8px;font-size:14.5px}
+   111→.blk li::before{content:"";position:absolute;left:0;top:.72em;width:5px;height:5px;border-radius:50%;background:var(--accent)}
+   112→.blk p{margin-top:6px;font-size:14.5px}
+   113→.cta{flex:none;display:flex;gap:10px;padding:10px 14px;background:var(--surface);border-top:1px solid var(--line)}
+   114→.ghost{min-height:46px;padding:0 20px;border:1px solid var(--rule);border-radius:23px;font-size:15px}
+   115→.primary{flex:1;min-height:46px;border-radius:23px;background:var(--accent);color:var(--on-accent);font-weight:600;font-size:16px}
+   116→.primary.sm{flex:none;min-height:40px;padding:0 22px;font-size:15px}
+   117→
+   118→.jobstrip{flex:none;display:flex;align-items:center;gap:10px;padding:8px 14px;background:var(--surface);border-bottom:1px solid var(--line);font-size:13px}
+   119→.jobstrip .t{font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+   120→.jobstrip .sal{font-size:14px}
+   121→.msgs{flex:1;min-height:0;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:12px}
+   122→.sys{align-self:center;font-size:12px;color:var(--sub);background:var(--line);padding:2px 10px;border-radius:10px}
+   123→.m{display:flex;gap:8px;max-width:86%;align-items:flex-start}
+   124→.m.me{align-self:flex-end}
+   125→.bub{padding:9px 13px;border-radius:12px;background:var(--surface);border:1px solid var(--line);word-break:break-word;white-space:pre-wrap}
+   126→.m.me .bub{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+   127→.rc strong{display:block}
+   128→.rc small{opacity:.85}
+   129→.quick{flex:none;display:flex;gap:8px;padding:8px 14px 0;overflow-x:auto;background:var(--surface);scrollbar-width:none;border-top:1px solid var(--line)}
+   130→.qchip{flex:none;padding:6px 12px;border:1px solid var(--rule);border-radius:16px;font-size:13.5px;min-height:34px}
+   131→.composer{flex:none;display:flex;gap:8px;padding:8px 14px 10px;background:var(--surface)}
+   132→.composer input{flex:1;min-width:0;min-height:42px;border-radius:21px;border:1px solid var(--rule);padding:0 16px;background:var(--bg);font-size:16px;outline:none}
+   133→.composer input:focus{border-color:var(--accent)}
+   134→.send{min-width:64px;border-radius:21px;background:var(--accent);color:var(--on-accent);font-weight:600}
+   135→
+   136→.conv{display:flex;gap:12px;width:100%;padding:14px 16px;background:var(--surface);border-bottom:1px solid var(--line);text-align:left}
+   137→.conv .body{flex:1;min-width:0}
+   138→.conv .r1{display:flex;justify-content:space-between;align-items:baseline}
+   139→.conv .r1 strong{font-size:16px}
+   140→.conv time{font-size:12px;color:var(--sub)}
+   141→.conv .r2{font-size:12.5px;color:var(--sub)}
+   142→.conv .r3{display:flex;align-items:center;gap:8px;margin-top:3px}
+   143→.conv .last{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px;opacity:.85}
+   144→.dot{min-width:18px;height:18px;border-radius:9px;background:var(--sal);color:#fff;font-size:11px;line-height:18px;text-align:center;padding:0 5px;font-weight:600}
+   145→
+   146→.mecard{background:var(--surface);padding:18px 16px}
+   147→.mehead{display:flex;gap:14px;align-items:center}
+   148→.mehead strong{font-size:20px}
+   149→.mehead small{display:block;color:var(--sub)}
+   150→.wish{margin-top:14px;padding:10px 12px;background:var(--bg);border-radius:8px;font-size:13.5px}
+   151→.stats{display:flex;margin-top:14px}
+   152→.stats>*{flex:1;text-align:center;font-size:12.5px;color:var(--sub)}
+   153→.stats b{display:block;font-size:20px;color:var(--ink)}
+   154→.menu{margin-top:8px;background:var(--surface)}
+   155→.menu button{display:flex;align-items:center;width:100%;min-height:52px;padding:0 16px;border-bottom:1px solid var(--line);text-align:left}
+   156→.menu button span{margin-left:auto;color:var(--sub);font-size:13.5px}
+   157→.foot{padding:20px;text-align:center;font-size:12px;color:var(--sub)}
+   158→.resume{background:var(--surface);padding:16px}
+   159→.resume h2{font-size:16px;margin:16px 0 6px}
+   160→.resume h2:first-child{margin-top:0}
+   161→.resume p{font-size:14px;margin-top:4px}
+   162→
+   163→.sheet-wrap{position:absolute;inset:0;z-index:40;background:rgba(0,0,0,.42);display:flex;align-items:flex-end}
+   164→.sheet{width:100%;max-height:82%;overflow-y:auto;background:var(--surface);border-radius:16px 16px 0 0;padding:18px 16px 16px;animation:up .2s ease-out}
+   165→@keyframes up{from{transform:translateY(24px);opacity:0}to{transform:none;opacity:1}}
+   166→.sheet h2{font-size:17px}
+   167→.sheet h3{font-size:13.5px;color:var(--sub);margin:16px 0 8px;font-weight:500}
+   168→.opts{display:flex;flex-wrap:wrap;gap:8px}
+   169→.opt{padding:7px 14px;border-radius:8px;background:var(--bg);min-height:38px;font-size:14px;border:1px solid transparent}
+   170→.opt.on{background:var(--accent-soft);color:var(--accent);border-color:var(--accent);font-weight:600}
+   171→.sheet .cta{margin:20px -16px -16px}
+   172→.field{display:block;margin-top:14px;font-size:13px;color:var(--sub)}
+   173→.field input,.field select{display:block;width:100%;margin-top:4px;min-height:44px;border:1px solid var(--rule);border-radius:8px;padding:0 12px;background:var(--bg);font-size:16px}
+   174→.toast{position:absolute;left:50%;bottom:76px;transform:translateX(-50%);z-index:60;background:var(--ink);color:var(--surface);padding:9px 16px;border-radius:20px;font-size:14px;max-width:80%;text-align:center}
+   175→@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+   176→</style>
+   177→</head>
+   178→<body>
+   179→<div id="app">
+   180→  <div id="view"></div>
+   181→  <nav id="tabbar" aria-label="主导航"></nav>
+   182→  <div id="pages"></div>
+   183→  <div id="sheet" class="sheet-wrap" data-a="closesheet" hidden></div>
+   184→  <div id="toast" class="toast" role="status" hidden></div>
+   185→</div>
+   186→
+   187→<script>
+   188→/* ============ 数据（后续替换为接口） ============ */
+   189→const CO={'云杉科技':['B轮','500-999人','企业服务'],'星河数据':['C轮','1000-9999人','大数据'],'木棉云':['A轮','100-499人','企业服务'],
+   190→'溪流互动':['不需要融资','100-499人','游戏'],'青柚生活':['天使轮','20-99人','电商'],'蜂鸟出行':['B轮','500-999人','出行'],
+   191→'极光量子':['D轮','1000-9999人','金融科技'],'麦田教育':['已上市','10000人以上','在线教育'],
+   192→'安盛财险':['已上市','10000人以上','保险'],'恒岳制造':['已上市','1000-9999人','智能制造'],'仁和医疗':['不需要融资','1000-9999人','医疗健康'],
+   193→'启明教育':['B轮','500-999人','教育培训'],'锦程物流':['已上市','10000人以上','物流供应链'],'拾味餐饮':['不需要融资','100-499人','餐饮'],
+   194→'悦居地产':['不需要融资','1000-9999人','房地产'],'彩虹传媒':['A轮','100-499人','文化传媒']};
+   195→const J=(id,title,sMin,sMax,city,area,exp,edu,cat,sub,tags,company,hn,ht,days)=>({id,title,sMin,sMax,salary:`${sMin}-${sMax}K`,city,area,exp,edu,cat,sub,tags,company,
+   196→  stage:CO[company][0],size:CO[company][1],industry:CO[company][2],hr:{name:hn,title:ht},days});
+   197→const JOBS=[
+   198→ J(1,'前端开发工程师',20,35,'上海','浦东新区','3-5年','本科','互联网/AI','前端开发',['Vue3','TypeScript','Vite'],'云杉科技','陈女士','技术招聘经理',0),
+   199→ J(2,'Java后端工程师',25,45,'北京','海淀区','5-10年','本科','互联网/AI','后端开发',['Spring Cloud','MySQL','高并发'],'星河数据','王先生','研发负责人',0),
+   200→ J(11,'高级产品经理（AI方向）',35,55,'北京','中关村','5-10年','硕士','产品','产品经理',['大模型','Prompt','产品规划'],'星河数据','何女士','产品VP',0),
+   201→ J(21,'大客户销售经理',15,30,'上海','浦东新区','3-5年','本科','销售','大客户销售',['SaaS销售','商务谈判','客户关系'],'云杉科技','钱先生','销售总监',0),
+   202→ J(35,'高中数学教师',10,18,'北京','海淀区','3-5年','本科','教育培训','学科教师',['教师资格证','教学设计','高考数学'],'麦田教育','曹女士','教学总监',0),
+   203→ J(37,'临床护士',7,11,'成都','锦江区','1-3年','大专','医疗健康','护士',['护士执业资格证','临床护理','沟通耐心'],'仁和医疗','唐女士','护理部主任',0),
+   204→ J(3,'产品经理（B端）',18,30,'杭州','余杭区','3-5年','本科','产品','产品经理',['需求分析','Axure','SaaS'],'木棉云','李女士','HRBP',1),
+   205→ J(4,'UI/UX设计师',15,25,'深圳','南山区','1-3年','大专','设计','UI/UX设计',['Figma','设计系统','动效'],'溪流互动','周女士','设计总监',1),
+   206→ J(24,'市场推广经理',18,30,'北京','朝阳区','3-5年','本科','市场/广告','市场推广',['整合营销','渠道投放','预算管理'],'麦田教育','刘女士','市场负责人',1),
+   207→ J(31,'会计',8,14,'广州','天河区','3-5年','本科','财务','会计',['总账','增值税申报','Excel'],'青柚生活','吴女士','财务经理',1),
+   208→ J(46,'中餐厨师',9,16,'成都','锦江区','3-5年','学历不限','零售/餐饮','厨师',['川菜','出品稳定','成本意识'],'拾味餐饮','廖先生','行政总厨',1),
+   209→ J(5,'新媒体运营',8,14,'广州','天河区','1-3年','大专','运营','新媒体运营',['小红书','短视频','数据分析'],'青柚生活','吴女士','运营主管',2),
+   210→ J(6,'测试开发工程师',18,28,'上海','徐汇区','3-5年','本科','互联网/AI','测试',['Python','自动化测试','CI/CD'],'云杉科技','赵先生','测试经理',2),
+   211→ J(14,'运营经理（用户增长）',25,40,'深圳','福田区','5-10年','本科','运营','用户运营',['用户增长','私域','AB实验'],'溪流互动','周女士','设计总监',2),
+   212→ J(33,'投资顾问',12,25,'深圳','福田区','1-3年','本科','金融','投资/理财顾问',['基金从业资格','客户经营','资产配置'],'极光量子','徐女士','财富中心负责人',2),
+   213→ J(38,'医药代表',12,25,'上海','徐汇区','3-5年','本科','医疗健康','医药代表',['医院准入','学术推广','客户拜访'],'仁和医疗','姜先生','销售经理',2),
+   214→ J(7,'React Native 开发',22,38,'成都','高新区','3-5年','本科','互联网/AI','移动开发',['React Native','iOS','Android'],'蜂鸟出行','郑女士','招聘专员',3),
+   215→ J(8,'Go后端工程师',30,50,'深圳','前海','5-10年','本科','互联网/AI','后端开发',['Go','微服务','K8s'],'极光量子','孙先生','技术总监',3),
+   216→ J(15,'算法工程师（推荐方向）',30,55,'北京','海淀区','3-5年','硕士','互联网/AI','算法/AI',['PyTorch','推荐系统','特征工程'],'星河数据','何女士','算法负责人',3),
+   217→ J(22,'销售代表',6,12,'成都','武侯区','应届','大专','销售','销售代表',['地推','客户拜访','抗压能力'],'蜂鸟出行','郑女士','招聘专员',3),
+   218→ J(25,'品牌公关经理',15,25,'上海','静安区','3-5年','本科','市场/广告','品牌公关',['媒介关系','舆情管理','品牌策略'],'彩虹传媒','蒋女士','品牌总监',3),
+   219→ J(39,'质检员',6,10,'深圳','宝安区','1-3年','大专','生产制造','质检',['IQC','质量体系','量具使用'],'恒岳制造','尹先生','品质经理',3),
+   220→ J(45,'门店店长',8,15,'武汉','江汉区','3-5年','大专','零售/餐饮','店长',['门店管理','成本控制','团队带教'],'拾味餐饮','田女士','区域经理',3),
+   221→ J(9,'前端开发（校招）',12,18,'北京','朝阳区','应届','本科','互联网/AI','前端开发',['JavaScript','React','计算机基础'],'麦田教育','刘女士','校招负责人',4),
+   222→ J(10,'数据分析师',15,25,'杭州','滨江区','1-3年','本科','互联网/AI','数据分析',['SQL','Tableau','增长分析'],'木棉云','李女士','HRBP',4),
+   223→ J(18,'平面设计师',8,15,'广州','天河区','1-3年','大专','设计','平面设计',['Photoshop','Illustrator','品牌视觉'],'青柚生活','吴女士','品牌主管',4),
+   224→ J(27,'在线客服',5,8,'成都','高新区','应届','大专','客服','在线客服',['沟通表达','工单系统','耐心细致'],'蜂鸟出行','郑女士','招聘专员',4),
+   225→ J(29,'招聘专员',8,14,'深圳','福田区','1-3年','本科','人力/行政','招聘专员',['简历筛选','面试邀约','招聘渠道'],'溪流互动','周女士','HRBP',4),
+   226→ J(40,'机械工程师',12,22,'苏州','工业园区','3-5年','本科','生产制造','机械工程师',['SolidWorks','DFM','非标设计'],'恒岳制造','高先生','研发经理',4),
+   227→ J(42,'仓储主管',8,14,'武汉','东西湖区','3-5年','大专','物流/采购','仓储管理',['WMS','库存管理','团队管理'],'锦程物流','彭先生','运营经理',4),
+   228→ J(12,'交互设计师',18,30,'上海','静安区','3-5年','本科','设计','UI/UX设计',['交互','用户研究','B端设计'],'云杉科技','陈女士','技术招聘经理',5),
+   229→ J(16,'运维工程师',15,28,'上海','浦东新区','3-5年','本科','互联网/AI','运维/安全',['Linux','Docker','监控告警'],'云杉科技','赵先生','运维负责人',5),
+   230→ J(19,'视频剪辑师',8,16,'深圳','南山区','1-3年','大专','设计','视频/动效',['Premiere','After Effects','短视频'],'溪流互动','周女士','内容负责人',5),
+   231→ J(20,'电商运营',10,18,'广州','天河区','1-3年','大专','运营','电商运营',['淘宝天猫','直通车','数据复盘'],'青柚生活','吴女士','运营主管',5),
+   232→ J(26,'活动策划',8,14,'杭州','西湖区','1-3年','大专','市场/广告','活动策划',['创意策划','活动执行','供应商管理'],'彩虹传媒','蒋女士','品牌总监',5),
+   233→ J(32,'财务分析',18,30,'深圳','前海','3-5年','本科','财务','财务分析',['预算管理','经营分析','Excel建模'],'极光量子','林先生','财务总监',5),
+   234→ J(34,'信贷风控专员',15,28,'深圳','前海','3-5年','本科','金融','风控',['信贷风控','SQL','策略规则'],'极光量子','韩先生','风控负责人',5),
+   235→ J(36,'课程顾问',8,15,'上海','浦东新区','1-3年','大专','教育培训','课程顾问',['电话邀约','需求挖掘','签单转化'],'启明教育','罗女士','招生主管',5),
+   236→ J(13,'客户端测试工程师',12,20,'广州','海珠区','1-3年','大专','互联网/AI','测试',['手工测试','Charles','接口测试'],'青柚生活','吴女士','运营主管',6),
+   237→ J(17,'项目经理',20,35,'上海','徐汇区','5-10年','本科','产品','项目经理',['PMP','敏捷管理','跨部门协作'],'云杉科技','陈女士','PMO总监',6),
+   238→ J(23,'保险电话销售',6,10,'深圳','罗湖区','1-3年','大专','销售','电话销售',['保险电销','话术','抗压能力'],'安盛财险','冯先生','销售主管',6),
+   239→ J(28,'客户成功经理',12,22,'上海','徐汇区','3-5年','本科','客服','客户成功',['客户续约','客户培训','数据分析'],'云杉科技','沈女士','客户成功负责人',6),
+   240→ J(30,'行政助理',6,10,'北京','朝阳区','应届','大专','人力/行政','行政助理',['办公软件','会务安排','沟通协调'],'麦田教育','刘女士','行政主管',6),
+   241→ J(41,'普工（电子装配）',5,8,'苏州','吴中区','经验不限','学历不限','生产制造','普工/操作工',['流水线','吃苦耐劳','两班倒'],'恒岳制造','谢女士','人事主管',6),
+   242→ J(43,'供应链经理',18,30,'上海','松江区','5-10年','本科','物流/采购','供应链',['需求计划','库存优化','供应商管理'],'锦程物流','侯女士','供应链总监',6),
+   243→ J(44,'采购专员',7,12,'苏州','相城区','1-3年','大专','物流/采购','采购专员',['询比价','供应商开发','ERP'],'恒岳制造','谢女士','人事主管',7),
+   244→ J(47,'房产经纪人',6,15,'武汉','武昌区','经验不限','学历不限','建筑/房地产','房产经纪',['客户接待','带看','谈判技巧'],'悦居地产','任先生','门店经理',7),
+   245→ J(48,'室内设计师',10,20,'杭州','西湖区','3-5年','大专','建筑/房地产','室内设计',['CAD','3D Max','施工图'],'悦居地产','邓女士','设计总监',7),
+   246→ J(49,'内容编辑',8,14,'上海','静安区','1-3年','本科','传媒/文化','编辑/记者',['文案策划','选题','采编'],'彩虹传媒','章女士','主编',7),
+   247→ J(50,'摄影摄像师',8,15,'成都','高新区','1-3年','大专','传媒/文化','摄影摄像',['拍摄','灯光布置','后期调色'],'彩虹传媒','白先生','制片人',8),
+   248→ J(51,'电气工程师',14,25,'苏州','工业园区','3-5年','本科','生产制造','电气工程师',['PLC','电气原理图','现场调试'],'恒岳制造','高先生','研发经理',8),
+   249→];
+   250→const TREE={
+   251→ '互联网/AI':['前端开发','后端开发','移动开发','测试','算法/AI','运维/安全','数据分析'],
+   252→ '产品':['产品经理','项目经理','产品助理'],
+   253→ '设计':['UI/UX设计','平面设计','视频/动效'],
+   254→ '运营':['用户运营','新媒体运营','电商运营','内容运营'],
+   255→ '销售':['销售代表','大客户销售','电话销售','渠道/商务'],
+   256→ '市场/广告':['市场推广','品牌公关','活动策划','广告投放'],
+   257→ '客服':['在线客服','客户成功','售后支持'],
+   258→ '人力/行政':['招聘专员','人力资源','行政助理','法务'],
+   259→ '财务':['会计','出纳','财务分析','审计'],
+   260→ '金融':['投资/理财顾问','风控','银行柜员','保险顾问'],
+   261→ '教育培训':['学科教师','课程顾问','培训讲师','早教/幼教'],
+   262→ '医疗健康':['护士','医药代表','药剂师','健康管理'],
+   263→ '生产制造':['机械工程师','电气工程师','质检','普工/操作工'],
+   264→ '物流/采购':['仓储管理','供应链','采购专员','配送/司机'],
+   265→ '零售/餐饮':['店长','导购','厨师','服务员'],
+   266→ '建筑/房地产':['房产经纪','室内设计','土木工程','造价'],
+   267→ '传媒/文化':['编辑/记者','摄影摄像','主播/编导'],
+   268→};
+   269→const RESP={
+   270→ '互联网/AI':['负责相关系统或产品功能的设计、开发与持续优化','与产品、设计、测试协作，按节奏交付高质量成果','参与技术方案评审，沉淀文档与最佳实践'],
+   271→ '产品':['调研用户与业务场景，输出清晰的需求与方案','推动研发、设计、运营协作，跟进上线与数据复盘','持续迭代，提升核心业务指标'],
+   272→ '设计':['负责视觉或交互方案设计，输出高质量设计稿','建设并维护设计规范，推动设计落地','结合反馈与数据持续优化体验'],
+   273→ '运营':['制定运营计划并执行，达成阶段性增长目标','分析用户与内容数据，输出复盘与优化策略','协同产品、市场团队推进活动落地'],
+   274→ '销售':['开拓并维护客户，完成业绩目标','跟进销售全流程：需求沟通、方案、报价与签约','定期复盘客户与业绩数据，优化销售策略'],
+   275→ '市场/广告':['制定并执行市场推广与品牌传播计划','管理渠道与供应商，控制预算，评估投放效果','输出市场洞察，支持业务增长'],
+   276→ '客服':['通过在线或电话渠道解答客户咨询，处理投诉与售后','记录并跟进问题，推动内部协同解决','收集客户反馈，协助优化产品与服务流程'],
+   277→ '人力/行政':['负责本职模块的日常事务与流程执行','跟进各部门需求，保障事务高效运转','整理制度与档案，支持组织管理'],
+   278→ '财务':['负责本职模块的账务处理、核算与报表','配合审计、税务等外部检查，保证合规','分析经营数据，为管理层提供决策支持'],
+   279→ '金融':['为客户提供专业的金融服务与方案','识别并控制业务风险，确保合规经营','持续维护客户关系，达成业务指标'],
+   280→ '教育培训':['根据教学或培训目标设计课程、开展教学','跟进学员学习情况，及时反馈与辅导','参与教研与课程迭代，提升教学质量'],
+   281→ '医疗健康':['按规范开展本岗位专业工作，保障服务质量','与医生、患者或客户保持良好沟通','参与学习培训，遵守医疗与合规要求'],
+   282→ '生产制造':['按工艺与标准完成本岗位生产、检验或技术工作','保障产品质量与生产安全，配合改善','记录并反馈生产异常，协同处理'],
+   283→ '物流/采购':['负责仓储、采购或供应链环节的日常运作','控制成本与库存，保障交付时效','协调供应商与内部团队，持续优化流程'],
+   284→ '零售/餐饮':['负责门店或后厨的日常运营与出品服务','保障服务质量与卫生标准，提升顾客满意度','管理并培训团队，完成经营目标'],
+   285→ '建筑/房地产':['负责项目或客户的日常跟进与专业服务','按规范完成图纸、方案或合同相关工作','维护客户关系，推动项目按时落地'],
+   286→ '传媒/文化':['策划并产出内容，覆盖选题、拍摄或编辑','与团队协作，保证内容质量和发布节奏','分析内容数据，持续优化产出'],
+   287→};
+   288→const WELFARE=['五险一金','带薪年假','年度体检','弹性工作','年终奖','餐补'];
+   289→const CITIES=['全国','上海','北京','深圳','杭州','广州','成都','武汉','苏州'];
+   290→const EXPS=['不限','应届','1-3年','3-5年','5-10年'];
+   291→const SALS=['不限','10K以下','10-20K','20-40K','40K以上'];
+   292→const SAL={'不限':[0,999],'10K以下':[0,10],'10-20K':[10,20],'20-40K':[20,40],'40K以上':[40,999]};
+   293→const PALETTE=['#00857F','#3D6FE0','#B4531F','#7A4CC2','#1F7A4D','#C23B6B'];
+   294→const ICONS={
+   295→ jobs:'<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M3 13h18"/>',
+   296→ msgs:'<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.2A8 8 0 1 1 21 12z"/>',
+   297→ me:'<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+   298→ back:'<path d="M15 5l-7 7 7 7"/>',
+   299→ star:'<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>',
+   300→ search:'<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>',
+   301→ chev:'<path d="M6 9l6 6 6-6"/>',
+   302→ filter:'<path d="M4 6h16M7 12h10M10 18h4"/>',
+   303→};
+   304→
+   305→/* ============ 状态 ============ */
+   306→const S={tab:'jobs',city:'全国',q:'',cat:'全部',sub:'全部',sort:'推荐',exp:'不限',sal:'不限',favs:new Set(),chats:{},theme:'auto',
+   307→  profile:{name:'林小满',cat:'互联网/AI',sub:'前端开发',city:'上海',salary:'20-30K',status:'离职，随时到岗'}};
+   308→const stack=[]; const typing=new Set(); let tmp=null; let toastTimer=null;
+   309→const $=(s,r=document)=>r.querySelector(s);
+   310→const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+   311→const job=id=>JOBS.find(j=>j.id===id);
+   312→const ic=(n,fill)=>`<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"${fill?' style="fill:currentColor"':''}>${ICONS[n]}</svg>`;
+   313→const hash=s=>[...s].reduce((a,c)=>a+c.charCodeAt(0),0);
+   314→const avatar=(name,size=40,round)=>`<span class="av${round?' round':''}" style="width:${size}px;height:${size}px;background:${PALETTE[hash(name)%PALETTE.length]};font-size:${Math.round(size*.42)}px">${esc(name[0])}</span>`;
+   315→const expText=j=>j.exp==='应届'?'应届毕业生，':j.exp==='经验不限'?'经验不限，':j.exp+'相关工作经验，';
+   316→const eduText=j=>j.edu==='学历不限'?'学历不限':j.edu+'及以上学历';
+   317→const when=d=>d===0?'今天':d===1?'昨天':`${d}天前`;
+   318→const tfmt=ts=>{const d=new Date(ts),n=new Date();return d.toDateString()===n.toDateString()?d.toTimeString().slice(0,5):`${d.getMonth()+1}月${d.getDate()}日`};
+   319→
+   320→function save(){try{localStorage.setItem('pinliao.v2',JSON.stringify({favs:[...S.favs],chats:S.chats,theme:S.theme,profile:S.profile,city:S.city}))}catch(e){}}
+   321→function load(){
+   322→  try{const d=JSON.parse(localStorage.getItem('pinliao.v2')||'null');
+   323→    if(d){S.favs=new Set(d.favs||[]);S.chats=d.chats||{};S.theme=d.theme||'auto';S.profile=d.profile||S.profile;S.city=d.city||S.city}
+   324→  }catch(e){}
+   325→  if(!Object.keys(S.chats).length){
+   326→    const n=Date.now();
+   327→    S.chats[3]={jobId:3,unread:1,updated:n-25*60000,msgs:[{from:'sys',text:'你已向 李女士 发起沟通'},{from:'me',text:'您好，我对「产品经理（B端）」很感兴趣，方便聊聊吗？'},{from:'hr',text:'您好！看了您的简历，B 端经验很匹配，方便这周找个时间电话聊聊吗？'}]};
+   328→    S.chats[8]={jobId:8,unread:1,updated:n-3*3600000,msgs:[{from:'hr',text:'您好，我是极光量子的孙先生，看到您的简历，想和您聊聊 Go 后端的机会。'}]};
+   329→    save();
+   330→  }
+   331→}
+   332→function applyTheme(){const r=document.documentElement;S.theme==='auto'?r.removeAttribute('data-theme'):r.setAttribute('data-theme',S.theme)}
+   333→function toast(t){const el=$('#toast');el.textContent=t;el.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.hidden=true,1800)}
+   334→
+   335→/* ============ Tab 与列表 ============ */
+   336→function unreadTotal(){return Object.values(S.chats).reduce((a,c)=>a+c.unread,0)}
+   337→function renderTabbar(){
+   338→  const t=[['jobs','职位'],['msgs','消息'],['me','我的']],u=unreadTotal();
+   339→  $('#tabbar').innerHTML=t.map(([k,l])=>`<button data-a="tab" data-v="${k}" class="${S.tab===k?'on':''}" aria-current="${S.tab===k}">${ic(k)}${l}${k==='msgs'&&u?`<span class="badge">${u}</span>`:''}</button>`).join('');
+   340→}
+   341→function switchTab(t){S.tab=t;renderTabbar();({jobs:renderJobs,msgs:renderMsgs,me:renderMe})[t]()}
+   342→const activeFilters=()=>(S.exp!=='不限')+(S.sal!=='不限')+(S.sort!=='推荐');
+   343→
+   344→function filtered(){
+   345→  const q=S.q.trim().toLowerCase(),[lo,hi]=SAL[S.sal];
+   346→  let l=JOBS.filter(j=>(S.city==='全国'||j.city===S.city)&&(S.cat==='全部'||j.cat===S.cat)&&(S.sub==='全部'||j.sub===S.sub)&&(S.exp==='不限'||j.exp===S.exp)&&j.sMin<hi&&j.sMax>lo&&
+   347→    (!q||[j.title,j.company,j.cat,j.sub,j.tags.join(' '),j.area].join(' ').toLowerCase().includes(q)));
+   348→  if(S.sort==='最新')l=l.slice().sort((a,b)=>a.days-b.days||a.id-b.id);
+   349→  else{const sc=j=>j.sub===S.profile.sub?2:j.cat===S.profile.cat?1:0;l=l.map((j,i)=>[j,i]).sort((a,b)=>sc(b[0])-sc(a[0])||a[1]-b[1]).map(x=>x[0])}
+   350→  return l;
+   351→}
+   352→function jobRow(j){
+   353→  return `<article class="job" tabindex="0" role="button" data-a="job" data-id="${j.id}">
+   354→    <div class="j1"><h3>${esc(j.title)}</h3><span class="sal">${j.salary}</span></div>
+   355→    <div class="j2"><span>${j.city} ${esc(j.area)}</span><span>${j.exp}</span><span>${j.edu}</span></div>
+   356→    <div class="tags">${j.tags.map(t=>`<i>${esc(t)}</i>`).join('')}</div>
+   357→    <div class="j3">${avatar(j.company,24)}<span class="co">${j.company}</span><span class="sub">${j.stage} ${j.size}</span><span class="when">${when(j.days)}</span></div>
+   358→  </article>`;
+   359→}
+   360→function renderJobs(){
+   361→  const n=activeFilters();
+   362→  $('#view').innerHTML=`
+   363→  <div class="head">
+   364→    <div class="search-row">
+   365→      <button class="city" data-a="city" aria-label="选择城市，当前${S.city}">${S.city}${ic('chev')}</button>
+   366→      <label class="search">${ic('search')}<input id="q" type="search" placeholder="搜索职位、公司或技能" value="${esc(S.q)}" aria-label="搜索职位"></label>
+   367→    </div>
+   368→    <div class="chips-row">
+   369→      <div class="chips">${['全部',...Object.keys(TREE)].map(c=>`<button class="chip ${c===S.cat?'on':''}" data-a="cat" data-v="${c}">${c}</button>`).join('')}</div>
+   370→      <button class="filter-btn ${n?'on':''}" data-a="filter">${ic('filter')}筛选${n?`<b>${n}</b>`:''}</button>
+   371→    </div>
+   372→    ${S.cat!=='全部'?`<div class="chips2">${['全部',...TREE[S.cat]].map(c=>`<button class="chip s ${c===S.sub?'on':''}" data-a="sub" data-v="${c}">${c}</button>`).join('')}</div>`:''}
+   373→  </div>
+   374→  <div class="scroll"><div id="joblist"></div></div>`;
+   375→  renderList();
+   376→}
+   377→function renderList(){
+   378→  const box=$('#joblist');if(!box)return;const l=filtered();
+   379→  box.innerHTML=l.length?`<div class="count">共 ${l.length} 个职位${S.sort==='最新'?'，按发布时间排序':`，优先展示「${esc(S.profile.sub)}」相关`}</div>`+l.map(jobRow).join('')
+   380→    :`<div class="empty"><strong>没有符合条件的职位</strong>换个关键词，或放宽筛选条件试试。<br><button class="primary sm" data-a="reset">清除搜索和筛选</button></div>`;
+   381→}
+   382→
+   383→/* ============ 消息 ============ */
+   384→function convRow(c){
+   385→  const j=job(c.jobId),ms=c.msgs.filter(m=>m.from!=='sys'),last=ms[ms.length-1];
+   386→  const prev=!last?'':last.type==='resume'?'[简历] 已发送在线简历':(last.from==='me'?'我：':'')+last.text;
+   387→  return `<button class="conv" data-a="openchat" data-id="${c.jobId}">${avatar(j.hr.name,46,true)}
+   388→    <div class="body"><div class="r1"><strong>${esc(j.hr.name)}</strong><time>${tfmt(c.updated)}</time></div>
+   389→    <div class="r2">${esc(j.company)} ${esc(j.hr.title)}</div>
+   390→    <div class="r3"><span class="last">${esc(prev)}</span>${c.unread?`<span class="dot" aria-label="${c.unread}条未读">${c.unread}</span>`:''}</div></div></button>`;
+   391→}
+   392→function renderMsgs(){
+   393→  const l=Object.values(S.chats).sort((a,b)=>b.updated-a.updated);
+   394→  $('#view').innerHTML=`<div class="head plain"><h1>消息</h1></div><div class="scroll">${l.length?l.map(convRow).join(''):
+   395→    `<div class="empty"><strong>还没有沟通记录</strong>在职位详情里点「立即沟通」，就能和招聘者聊起来。<br><button class="primary sm" data-a="tab" data-v="jobs">去看职位</button></div>`}</div>`;
+   396→}
+   397→
+   398→/* ============ 我的 ============ */
+   399→function renderMe(){
+   400→  const p=S.profile,th={auto:'跟随系统',light:'浅色',dark:'深色'}[S.theme];
+   401→  $('#view').innerHTML=`<div class="head plain"><h1>我的</h1></div><div class="scroll">
+   402→  <section class="mecard">
+   403→    <div class="mehead">${avatar(p.name,56,true)}<div><strong>${esc(p.name)}</strong><small>${esc(p.status)}</small></div></div>
+   404→    <div class="wish">求职期望：${esc(p.sub)}　${esc(p.city)}　${esc(p.salary)}</div>
+   405→    <div class="stats"><button data-a="tab" data-v="msgs"><b>${Object.keys(S.chats).length}</b>沟通过</button>
+   406→      <button data-a="favs"><b>${S.favs.size}</b>收藏</button><div><b>85%</b>简历完善度</div></div>
+   407→  </section>
+   408→  <div class="menu">
+   409→    <button data-a="resumepage">我的简历<span>预览</span></button>
+   410→    <button data-a="wish">求职期望<span>编辑</span></button>
+   411→    <button data-a="favs">收藏的职位<span>${S.favs.size} 个</span></button>
+   412→    <button data-a="theme">外观<span>${th}</span></button>
+   413→    <button data-a="recruiter">切换为招聘者身份<span>即将上线</span></button>
+   414→  </div>
+   415→  <p class="foot">聘聊 v0.1 前端原型　所有职位与对话均为演示数据</p></div>`;
+   416→}
+   417→
+   418→/* ============ 页面栈 ============ */
+   419→function pushPage(type,id,html){
+   420→  const el=document.createElement('section');el.className='page';el.dataset.type=type;el.dataset.id=id;el.innerHTML=html;
+   421→  $('#pages').appendChild(el);stack.push(el);return el;
+   422→}
+   423→function popPage(){
+   424→  const el=stack.pop();if(!el)return;el.classList.add('closing');
+   425→  setTimeout(()=>{el.remove();afterPop()},170);
+   426→}
+   427→function afterPop(){
+   428→  refreshTop();renderTabbar();
+   429→  if(S.tab==='msgs')renderMsgs();else if(S.tab==='me')renderMe();
+   430→}
+   431→function refreshTop(){
+   432→  const el=stack[stack.length-1];if(!el)return;
+   433→  if(el.dataset.type==='job')el.innerHTML=jobHTML(+el.dataset.id);
+   434→  if(el.dataset.type==='favs')el.innerHTML=favsHTML();
+   435→}
+   436→const bar=(title,extra='')=>`<header class="bar"><button class="ib" data-a="back" aria-label="返回">${ic('back')}</button><span class="bar-title"><strong>${title}</strong></span>${extra||'<span class="bar-sp"></span>'}</header>`;
+   437→
+   438→/* 职位详情 */
+   439→function jobHTML(id){
+   440→  const j=job(id),fav=S.favs.has(id),has=!!S.chats[id];
+   441→  const w=[0,1,2,3].map(i=>WELFARE[(id+i)%WELFARE.length]);
+   442→  return `${bar('职位详情',`<button class="ib ${fav?'on':''}" data-a="fav" data-id="${id}" aria-label="${fav?'取消收藏':'收藏'}" aria-pressed="${fav}">${ic('star',fav)}</button>`)}
+   443→  <div class="scroll">
+   444→    <section class="dh"><h1>${esc(j.title)}</h1><div class="sal big">${j.salary}</div>
+   445→      <div class="j2"><span>${j.city} ${esc(j.area)}</span><span>${j.exp}</span><span>${j.edu}</span></div>
+   446→      <div class="tags">${j.tags.map(t=>`<i>${esc(t)}</i>`).join('')}</div>
+   447→      <div class="tags welfare">${w.map(t=>`<i>${t}</i>`).join('')}</div></section>
+   448→    <section class="hrcard">${avatar(j.hr.name,44,true)}<div><strong>${esc(j.hr.name)}</strong><small>${esc(j.company)} ${esc(j.hr.title)}</small></div><span class="online">刚刚活跃</span></section>
+   449→    <section class="blk"><h2>岗位职责</h2><ul>${RESP[j.cat].map(t=>`<li>${t}</li>`).join('')}</ul>
+   450→      <h2>任职要求</h2><ul><li>${expText(j)}${eduText(j)}</li><li>掌握或熟悉：${j.tags.map(esc).join('、')}</li><li>沟通顺畅，责任心强，有良好的团队协作意识</li></ul></section>
+   451→    <section class="co-blk">${avatar(j.company,44)}<div><strong>${j.company}</strong><small>${j.industry}　${j.stage}　${j.size}</small></div></section>
+   452→    <section class="blk"><h2>工作地点</h2><p>${j.city} ${esc(j.area)}</p><p class="sub">发布于${when(j.days)}</p></section>
+   453→  </div>
+   454→  <footer class="cta"><button class="ghost" data-a="fav" data-id="${id}">${fav?'已收藏':'收藏'}</button><button class="primary" data-a="chat" data-id="${id}">${has?'继续沟通':'立即沟通'}</button></footer>`;
+   455→}
+   456→function openJob(id){pushPage('job',id,jobHTML(id))}
+   457→function toggleFav(id){
+   458→  S.favs.has(id)?(S.favs.delete(id),toast('已取消收藏')):(S.favs.add(id),toast('已收藏'));
+   459→  save();refreshTop();
+   460→}
+   461→
+   462→/* 收藏、简历 */
+   463→function favsHTML(){
+   464→  const l=JOBS.filter(j=>S.favs.has(j.id));
+   465→  return `${bar('收藏的职位')}<div class="scroll">${l.length?l.map(jobRow).join(''):`<div class="empty"><strong>还没有收藏的职位</strong>在职位详情点右上角的星标，就会出现在这里。</div>`}</div>`;
+   466→}
+   467→function resumeCard(){const p=S.profile;return `<div class="rc"><strong>${esc(p.name)} 的在线简历</strong><small>${esc(p.sub)}　${esc(p.city)}　期望 ${esc(p.salary)}</small></div>`}
+   468→function resumeHTML(){
+   469→  const p=S.profile;
+   470→  return `${bar('我的简历')}<div class="scroll"><section class="resume">
+   471→    <h2>个人信息</h2><p>${esc(p.name)}　${esc(p.status)}</p>
+   472→    <h2>求职期望</h2><p>${esc(p.cat)} / ${esc(p.sub)}　${esc(p.city)}　${esc(p.salary)}</p>
+   473→    <h2>工作经历</h2><p><strong>某某公司</strong>　${esc(p.sub)}　2022.07 - 2025.08</p><p class="sub">负责相关业务的日常工作，独立完成关键任务并达成目标。</p>
+   474→    <h2>教育经历</h2><p>某某大学　本科　2018 - 2022</p>
+   475→    <h2>个人优势</h2><div class="tags"><i>沟通协作</i><i>学习能力强</i><i>责任心</i><i>执行力</i></div></section></div>`;
+   476→}
+   477→
+   478→/* ============ 聊天 ============ */
+   479→function msgsHTML(c){
+   480→  return c.msgs.map(m=>{
+   481→    if(m.from==='sys')return `<div class="sys">${esc(m.text)}</div>`;
+   482→    const body=m.type==='resume'?resumeCard():esc(m.text);
+   483→    return `<div class="m ${m.from}"><div class="bub">${body}</div></div>`;
+   484→  }).join('');
+   485→}
+   486→function chatHTML(id){
+   487→  const c=S.chats[id],j=job(id);
+   488→  return `<header class="bar"><button class="ib" data-a="back" aria-label="返回">${ic('back')}</button>
+   489→    <span class="bar-title"><strong>${esc(j.hr.name)}</strong><small class="typing">${esc(j.company)} ${esc(j.hr.title)}</small></span><span class="bar-sp"></span></header>
+   490→  <div class="jobstrip"><span class="t">${esc(j.title)}</span><span class="sal">${j.salary}</span><span class="sub">${j.city}</span></div>
+   491→  <div class="msgs">${msgsHTML(c)}</div>
+   492→  <div class="quick">${['发送简历','请问薪资待遇？','想约个面试'].map(q=>`<button class="qchip" data-a="quick" data-v="${q}">${q}</button>`).join('')}</div>
+   493→  <div class="composer"><input class="msgin" type="text" placeholder="输入消息" aria-label="输入消息" autocomplete="off"><button class="send" data-a="send">发送</button></div>`;
+   494→}
+   495→function chatEl(id){return stack.find(p=>p.dataset.type==='chat'&&+p.dataset.id===id)}
+   496→function refreshChat(id){
+   497→  const el=chatEl(id);if(!el)return;const j=job(id);
+   498→  const box=$('.msgs',el);box.innerHTML=msgsHTML(S.chats[id]);box.scrollTop=box.scrollHeight;
+   499→  $('.typing',el).textContent=typing.has(id)?'对方正在输入…':`${j.company} ${j.hr.title}`;
+   500→}
+   501→function openChat(id){
+   502→  const top=stack[stack.length-1];
+   503→  if(top&&top.dataset.type==='chat'&&+top.dataset.id===id)return;
+   504→  S.chats[id].unread=0;save();
+   505→  const el=pushPage('chat',id,chatHTML(id));const b=$('.msgs',el);b.scrollTop=b.scrollHeight;renderTabbar();
+   506→}
+   507→function startChat(id){
+   508→  const j=job(id);
+   509→  if(!S.chats[id]){
+   510→    const g=`您好，我对「${j.title}」很感兴趣，方便聊聊吗？`;
+   511→    S.chats[id]={jobId:id,unread:0,updated:Date.now(),msgs:[{from:'sys',text:`你已向 ${j.hr.name} 发起沟通`},{from:'me',text:g}]};
+   512→    save();openChat(id);hrReply(id,g);
+   513→  }else openChat(id);
+   514→}
+   515→function addMsg(id,from,text,type){
+   516→  const c=S.chats[id];c.msgs.push({from,text,type});c.updated=Date.now();
+   517→  const top=stack[stack.length-1],viewing=top&&top.dataset.type==='chat'&&+top.dataset.id===id;
+   518→  if(from==='hr'&&!viewing){c.unread++;toast(`${job(id).hr.name} 回复了你`)}
+   519→  save();refreshChat(id);renderTabbar();if(S.tab==='msgs')renderMsgs();
+   520→}
+   521→function hrReply(id,userText){
+   522→  const j=job(id);let r;
+   523→  if(/简历/.test(userText))r='收到您的简历了，我先和用人部门同步一下，有结果第一时间通知您。';
+   524→  else if(/薪|工资|待遇/.test(userText))r=`这个岗位的薪资范围是 ${j.salary}，${j.sMax>=30?'另有年终奖和长期激励':'含绩效奖金'}，具体会根据面试表现确定。`;
+   525→  else if(/面试|约/.test(userText))r='可以的，您本周三或周四下午方便吗？确认后我给您发面试邀请。';
+   526→  else r='您好，请问您现在的工作状态是？大概什么时候可以到岗呢？';
+   527→  typing.add(id);refreshChat(id);
+   528→  setTimeout(()=>{typing.delete(id);addMsg(id,'hr',r)},1200);
+   529→}
+   530→function sendFrom(el,text){
+   531→  const id=+el.dataset.id;const t=(text??$('.msgin',el).value).trim();if(!t)return;
+   532→  if(t==='发送简历'){addMsg(id,'me','我发送了在线简历','resume');hrReply(id,'简历')}
+   533→  else{addMsg(id,'me',t);hrReply(id,t)}
+   534→  const inp=$('.msgin',el);if(inp&&text===undefined){inp.value='';inp.focus()}
+   535→}
+   536→
+   537→/* ============ 底部弹层 ============ */
+   538→function openSheet(html){const s=$('#sheet');s.innerHTML=`<div class="sheet" role="dialog" aria-modal="true">${html}</div>`;s.hidden=false}
+   539→function closeSheet(){$('#sheet').hidden=true;$('#sheet').innerHTML=''}
+   540→function citySheet(){
+   541→  openSheet(`<h2>选择城市</h2><div class="opts" style="margin-top:14px">${CITIES.map(c=>`<button class="opt ${c===S.city?'on':''}" data-a="setcity" data-v="${c}">${c}</button>`).join('')}</div>`);
+   542→}
+   543→function filterSheetHTML(){
+   544→  const g=(t,k,a)=>`<h3>${t}</h3><div class="opts">${a.map(v=>`<button class="opt ${tmp[k]===v?'on':''}" data-a="opt" data-g="${k}" data-v="${v}">${v}</button>`).join('')}</div>`;
+   545→  return `<h2>筛选职位</h2>${g('排序','sort',['推荐','最新'])}${g('经验要求','exp',EXPS)}${g('薪资范围','sal',SALS)}
+   546→  <div class="cta"><button class="ghost" data-a="freset">重置</button><button class="primary" data-a="fapply">查看结果</button></div>`;
+   547→}
+   548→function wishSheet(){
+   549→  const p=S.profile,opt=(arr,cur)=>arr.map(c=>`<option ${c===cur?'selected':''}>${c}</option>`).join('');
+   550→  openSheet(`<h2>求职期望</h2>
+   551→  <label class="field">职位类别<select id="wg">${opt(Object.keys(TREE),p.cat)}</select></label>
+   552→  <label class="field">期望职位<select id="wp">${opt(TREE[p.cat],p.sub)}</select></label>
+   553→  <label class="field">期望城市<select id="wc">${opt(CITIES.slice(1),p.city)}</select></label>
+   554→  <label class="field">期望薪资<select id="wsal">${opt(['5K以下','5-10K','10-20K','20-30K','30-50K','50K以上'],p.salary)}</select></label>
+   555→  <div class="cta"><button class="ghost" data-a="closesheet">取消</button><button class="primary" data-a="wsave">保存</button></div>`);
+   556→}
+   557→
+   558→/* ============ 事件 ============ */
+   559→const H={
+   560→  tab:(e,v)=>{stack.length=0;$('#pages').innerHTML='';switchTab(v)},
+   561→  job:(e,v,id)=>openJob(id),
+   562→  city:()=>citySheet(),
+   563→  setcity:(e,v)=>{S.city=v;save();closeSheet();renderJobs()},
+   564→  cat:(e,v)=>{S.cat=v;S.sub='全部';renderJobs()},
+   565→  sub:(e,v)=>{S.sub=v;renderJobs()},
+   566→  filter:()=>{tmp={sort:S.sort,exp:S.exp,sal:S.sal};openSheet(filterSheetHTML())},
+   567→  opt:(e)=>{tmp[e.dataset.g]=e.dataset.v;$('#sheet .sheet').innerHTML=filterSheetHTML()},
+   568→  freset:()=>{tmp={sort:'推荐',exp:'不限',sal:'不限'};$('#sheet .sheet').innerHTML=filterSheetHTML()},
+   569→  fapply:()=>{Object.assign(S,tmp);closeSheet();renderJobs()},
+   570→  reset:()=>{Object.assign(S,{q:'',cat:'全部',sub:'全部',exp:'不限',sal:'不限',sort:'推荐'});renderJobs()},
+   571→  back:()=>popPage(),
+   572→  fav:(e,v,id)=>toggleFav(id),
+   573→  chat:(e,v,id)=>startChat(id),
+   574→  openchat:(e,v,id)=>openChat(id),
+   575→  send:()=>sendFrom(stack[stack.length-1]),
+   576→  quick:(e,v)=>sendFrom(stack[stack.length-1],v),
+   577→  favs:()=>pushPage('favs',0,favsHTML()),
+   578→  resumepage:()=>pushPage('resume',0,resumeHTML()),
+   579→  wish:()=>wishSheet(),
+   580→  wsave:()=>{Object.assign(S.profile,{cat:$('#wg').value,sub:$('#wp').value,city:$('#wc').value,salary:$('#wsal').value});save();closeSheet();toast('求职期望已保存');renderMe()},
+   581→  theme:()=>{S.theme={auto:'light',light:'dark',dark:'auto'}[S.theme];applyTheme();save();renderMe()},
+   582→  recruiter:()=>toast('招聘者端将在后续版本上线'),
+   583→  closesheet:()=>closeSheet(),
+   584→};
+   585→document.addEventListener('click',e=>{
+   586→  const el=e.target.closest('[data-a]');if(!el)return;
+   587→  if(el.dataset.a==='closesheet'&&el.id==='sheet'&&e.target!==el)return;
+   588→  const f=H[el.dataset.a];if(f)f(el,el.dataset.v,+el.dataset.id);
+   589→});
+   590→document.addEventListener('input',e=>{if(e.target.id==='q'){S.q=e.target.value;renderList()}});
+   591→document.addEventListener('change',e=>{if(e.target.id==='wg')$('#wp').innerHTML=TREE[e.target.value].map(c=>`<option>${c}</option>`).join('')});
+   592→document.addEventListener('keydown',e=>{
+   593→  if(e.key==='Enter'&&e.target.classList.contains('msgin')&&!e.isComposing){e.preventDefault();sendFrom(stack[stack.length-1]);return}
+   594→  if((e.key==='Enter'||e.key===' ')&&e.target.matches('[role="button"][data-a]')){e.preventDefault();e.target.click();return}
+   595→  if(e.key==='Escape'){$('#sheet').hidden?popPage():closeSheet()}
+   596→});
+   597→
+   598→load();applyTheme();switchTab('jobs');
+   599→</script>
+   600→</body>
+   601→</html>
+   602→
