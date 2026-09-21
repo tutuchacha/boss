@@ -122,8 +122,10 @@ export function JobDetailPage({ jobId, onBack }: Props) {
         </button>
       }
     >
-      {/* 滚动内容区 */}
-      <div className="pl-scroll relative flex-1 overflow-y-auto bg-background pb-16">
+      {/* 滚动内容区 + sticky footer（footer 作为 scroll 内的 sticky 元素，
+           内容短时紧贴底部，内容长时随滚动常驻视口底部，无视觉空隙） */}
+      <div className="pl-scroll relative flex-1 overflow-y-auto bg-background">
+        <div className="flex min-h-full flex-col">
         {/* 标题区 + 内联 HR 卡片 + 主 CTA（首屏可见，避免必须滑到底部才能投递） */}
         <section className="bg-card px-4 py-4">
           <h1 className="text-lg font-semibold text-foreground">{detail.title}</h1>
@@ -223,38 +225,37 @@ export function JobDetailPage({ jobId, onBack }: Props) {
           <p className="mt-0.5 text-[11px] text-pl-sub">发布于{whenText(detail.days)}</p>
         </section>
 
-        <div className="h-2" />
+        {/* 底部 CTA（sticky 跟随 scroll，内容短时紧贴底部，长时常驻视口底部） */}
+        <footer className="sticky bottom-0 z-10 mt-auto flex items-center gap-3 border-t border-border bg-card/95 px-4 py-2.5 backdrop-blur pl-safe-bottom">
+          <button
+            onClick={() => {
+              toggleFavorite(jobId)
+              toast(isFav ? '已取消收藏' : '已收藏')
+            }}
+            className={cn(
+              'flex flex-col items-center justify-center rounded-md border px-4 py-2 text-xs',
+              isFav ? 'border-primary text-primary' : 'border-border text-pl-sub',
+            )}
+            aria-label={isFav ? '已收藏' : '收藏'}
+          >
+            <Star className="h-4 w-4" fill={isFav ? 'currentColor' : 'none'} />
+            <span className="mt-0.5">{isFav ? '已收藏' : '收藏'}</span>
+          </button>
+          <button
+            onClick={handleSendResume}
+            className="flex-1 rounded-md border border-primary py-2.5 text-sm text-primary"
+          >
+            发送简历
+          </button>
+          <button
+            onClick={handleChat}
+            className="flex-1 rounded-md bg-primary py-2.5 text-sm font-medium text-primary-foreground"
+          >
+            {hasConv ? '继续沟通' : '立即沟通'}
+          </button>
+        </footer>
+        </div>
       </div>
-
-      {/* 底部 CTA（fixed 固定在视口底部，居中限宽以适配桌面 430px 容器） */}
-      <footer className="fixed inset-x-0 bottom-0 z-30 mx-auto flex w-full max-w-[430px] items-center gap-3 border-t border-border bg-card/95 px-4 py-2.5 backdrop-blur pl-safe-bottom">
-        <button
-          onClick={() => {
-            toggleFavorite(jobId)
-            toast(isFav ? '已取消收藏' : '已收藏')
-          }}
-          className={cn(
-            'flex flex-col items-center justify-center rounded-md border px-4 py-2 text-xs',
-            isFav ? 'border-primary text-primary' : 'border-border text-pl-sub',
-          )}
-          aria-label={isFav ? '已收藏' : '收藏'}
-        >
-          <Star className="h-4 w-4" fill={isFav ? 'currentColor' : 'none'} />
-          <span className="mt-0.5">{isFav ? '已收藏' : '收藏'}</span>
-        </button>
-        <button
-          onClick={handleSendResume}
-          className="flex-1 rounded-md border border-primary py-2.5 text-sm text-primary"
-        >
-          发送简历
-        </button>
-        <button
-          onClick={handleChat}
-          className="flex-1 rounded-md bg-primary py-2.5 text-sm font-medium text-primary-foreground"
-        >
-          {hasConv ? '继续沟通' : '立即沟通'}
-        </button>
-      </footer>
     </PageShell>
   )
 }

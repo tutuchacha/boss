@@ -152,3 +152,32 @@ Work Log:
 Stage Summary:
 - 优化完成。列表更紧凑，详情页首屏即可发起沟通/收藏，底部 CTA 滚动时常驻可见。
 - 等待用户在预览面板验收。
+
+---
+Task ID: 3
+Agent: orchestrator (main)
+Task: 还原职位列表卡片原样；解决详情页"中间一大段空白"
+
+Work Log:
+- 用户反馈：列表卡片不需要精简（恢复 4 行原样），但详情页点进去有"中间一大段空白"
+- JobRow.tsx 恢复为原始 4 行布局（标题/薪资、城市·经验·学历、4 个标签、公司头像+名+stage/size+时间），高度恢复 ~134px
+- 详情页空白问题诊断（Agent Browser + Python/PIL 像素分析）：
+  · 上一轮把 footer 改为 fixed + 内容区 pb-64，导致 footer 上方有 63px 的背景色空白
+  · 截图分析（行方差 < 1000）确认：718..781 一段 63px 纯背景色空白
+- 详情页 footer 改造为 sticky bottom-0：
+  · scroll 容器内套一层 `flex min-h-full flex-col`
+  · footer 用 `sticky bottom-0 + mt-auto`，成为 scroll 内的 sticky 元素
+  · 内容短时 `mt-auto` 把 footer 推到底部（紧贴内容下方，无空隙）
+  · 内容长时 `sticky bottom-0` 让 footer 常驻视口底部
+- 验证（Agent Browser）：
+  · 列表卡片高度 134px（恢复原样），4 行内容齐全
+  · 详情页 blank zones = []（无任何大段空白）
+  · 桌面端 430px 居中（left=426 right=854）
+  · 长内容模拟（注入 600px 后总高 1333）：滚动到 300 时 footer 仍在视口底部（725..788）
+  · 短内容（740px = 视口）：footer 紧贴最后一节，gap=7（即 mt-2 间距）
+- 关键文件：
+  · src/components/pinliao/JobRow.tsx — 恢复 4 行原样
+  · src/components/pinliao/JobDetailPage.tsx — footer 改为 sticky bottom-0 + mt-auto，套 flex min-h-full flex-col 容器
+
+Stage Summary:
+- 完成。列表保持原样，详情页"中间空白"已消除。footer 在短内容时紧贴底部，长内容时常驻视口。
