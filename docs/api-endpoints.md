@@ -2,7 +2,7 @@
 
 > 版本：v0.3 · 最后更新：2026-09-21
 > 通用规范见 `docs/api-contract.md`。本文件列出全部业务接口。
-> 类型定义见 `src/types/api.d.ts`。
+> 类型定义见 `src/types/api.ts`。
 
 ---
 

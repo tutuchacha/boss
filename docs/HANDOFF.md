@@ -97,23 +97,27 @@
 ## 5. 如何启动开发
 
 ### 5.1 环境要求
-- Node.js 18+ / Bun（推荐）
+- Node.js 18+（本机实测 Node v24 可直接跑；**无需 Bun**）
 - Next.js 16 已安装（`package.json` 中所有依赖就绪）
 - 数据库：当前用 SQLite（`prisma/schema.prisma` 配置），生产换 PostgreSQL
+  - 注意：当前无人 import `src/lib/db.ts`（Prisma 未接入业务），故无需 `prisma generate` 也能启动
 
-### 5.2 启动命令
-```bash
-cd /home/z/my-project
-bun install          # 安装依赖（首次或依赖变更时）
-bun run dev          # 启动 dev server，端口 3000
-bun run lint         # ESLint 检查
-bunx tsc --noEmit    # TypeScript 类型检查
-bun run db:push      # 推送 Prisma schema 到数据库
+### 5.2 启动命令（Windows / PowerShell）
+```powershell
+cd D:\boss
+npm install          # 安装依赖（首次或依赖变更时）
+npm run dev          # 启动 dev server，端口 3000
+npm run lint         # ESLint 检查
+npx tsc --noEmit     # TypeScript 类型检查
+npm run db:push      # 推送 Prisma schema 到数据库（需先修好 .env 路径）
 ```
 
 ### 5.3 环境变量（`.env`）
+> 已从 Linux 沙箱迁移到 Windows，路径为 `D:/boss/db/custom.db`。
+> 若再回 Linux 沙箱运行，需改回 `file:/home/z/my-project/db/custom.db`。
+
 ```
-DATABASE_URL=file:/home/z/my-project/db/custom.db
+DATABASE_URL=file:D:/boss/db/custom.db
 # 联调阶段加：
 # NEXT_PUBLIC_USE_MOCK=false
 # NEXT_PUBLIC_API_BASE_URL=https://your-api.com/api/v1
@@ -122,7 +126,14 @@ DATABASE_URL=file:/home/z/my-project/db/custom.db
 ```
 
 ### 5.4 重要：dev server 启动方式
-沙箱环境中，`bun run dev` 直接启动可能会在 Bash session 结束后被杀。需要用 subshell + setsid 启动才能持久：
+**Windows（当前环境）**：用后台任务启动，日志重定向到文件。
+```powershell
+cd D:\boss
+Start-Process -FilePath "npm" -ArgumentList "run","dev" -RedirectStandardOutput "D:\boss\dev.log" -RedirectStandardError "D:\boss\dev.err.log" -NoNewWindow
+```
+停止：`Get-NetTCPConnection -LocalPort 3000 | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }`
+
+**Linux 沙箱（历史环境，仅供参考）**：`npm run dev` 直接启动可能会在 Bash session 结束后被杀，需用 subshell + setsid 持久化：
 ```bash
 ( setsid /home/z/my-project/node_modules/.bin/next dev -p 3000 > /home/z/my-project/dev.log 2>&1 < /dev/null & )
 ```
@@ -151,9 +162,20 @@ DATABASE_URL=file:/home/z/my-project/db/custom.db
 ## 7. 保存与迁移方案
 
 ### 7.1 方案 A：打包下载（最直接）
+
+**Windows / PowerShell（当前环境）**：
+```powershell
+cd D:\boss
+# 用 tar 或 Compress-Archive 打包（排除 node_modules / .next / 数据库等）
+tar -czf pinliao-$(Get-Date -Format yyyyMMdd).tar.gz `
+  --exclude=node_modules --exclude=.next --exclude=.git `
+  --exclude=db --exclude=*.log --exclude=upload --exclude=download `
+  --exclude=examples --exclude=mini-services .
+```
+
+**Linux 沙箱（历史环境，仅供参考）**：
 ```bash
 cd /home/z/my-project
-# 打包（排除 node_modules / .next / 数据库等）
 zip -r pinliao-$(date +%Y%m%d).zip . \
   -x "node_modules/*" \
   -x ".next/*" \
@@ -170,7 +192,7 @@ zip -r pinliao-$(date +%Y%m%d).zip . \
 
 ### 7.2 方案 B：推送到 GitHub/Gitee（最持久）
 ```bash
-cd /home/z/my-project
+cd D:\boss          # Linux 沙箱为 /home/z/my-project
 git remote add origin https://github.com/<你的用户名>/<仓库名>.git
 git push -u origin main
 ```

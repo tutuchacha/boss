@@ -360,6 +360,15 @@ export const usePinliaoStore = create<PinliaoStore>()(
     {
       name: 'pinliao.v3',
       storage: createJSONStorage(() => localStorage),
+      // 关闭自动水合：避免首屏用 localStorage 数据渲染导致 SSR/客户端不一致
+      // （React `Hydration failed`）。改由 AppShell 挂载后手动 rehydrate()。
+      skipHydration: true,
+      // 版本兜底：本 store 未声明 version（zustand 视为 0），一旦 localStorage 中
+      // 存在其它 version 值，zustand 会要求迁移并打印
+      // "State loaded from storage couldn't be migrated" 警告。
+      // 这里补一个宽松的 migrate：直接返回原状态，后续由 merge 做字段兜底。
+      version: 0,
+      migrate: persisted => (persisted ?? {}) as PinliaoState,
       // 仅持久化跨会话需要保留的部分
       partialize: s => ({
         favorites: s.favorites,
