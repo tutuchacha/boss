@@ -310,7 +310,7 @@
 | 数据模型 ERD | `prisma/schema.prisma` |
 | API 契约规范 | `docs/api-contract.md` |
 | API 接口清单 | `docs/api-endpoints.md` |
-| TypeScript 类型定义 | `src/types/api.d.ts` |
+| TypeScript 类型定义 | `src/types/api.ts` |
 | Mock 数据 | `src/api/mock/` |
 
 ---

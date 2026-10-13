@@ -25,7 +25,7 @@ Work Log:
   - dev-notes.md — 延续原开发笔记，追加本次问答关键决策
 - 产出代码资产：
   - prisma/schema.prisma — 重写为聘聊领域 ERD（多租户字段、索引、关系）
-  - src/types/api.d.ts — 与契约同步的 TypeScript 类型定义
+  - src/types/api.ts — 与契约同步的 TypeScript 类型定义
   - src/api/mock/ — Mock 数据集（51 个职位、聊天、公司、分类树、城市）
 
 Stage Summary:
@@ -208,3 +208,45 @@ Work Log:
 Stage Summary:
 - 完成。HANDOFF.md + zip 包已就绪。用户可选择下载 zip 或推送到远程仓库。
 - 下一个模型只需读 docs/HANDOFF.md 即可无缝接续。
+
+---
+Task ID: 5
+Agent: orchestrator (main)
+Task: Step 2 验收启动 — Windows 环境迁移修复 + 修复 TabBar 未读角标 hydration mismatch
+
+Work Log:
+- 环境迁移核对（项目从 Linux 沙箱搬到 D:\boss）：
+  · .env 的 DATABASE_URL 原为 file:/home/z/my-project/db/custom.db（Windows 上无效）
+    → 改为 file:D:/boss/db/custom.db，并补回被省略的联调注释块
+  · docs/HANDOFF.md §5.1-5.4 启动章节重写为 Windows/PowerShell：
+    实测本机无 bun（仅 Node v24.18.0），原 `bun run dev` 等命令全部不可用，
+    改为 npm/npx；补充"src/lib/db.ts 无人 import，故 prisma generate 非启动前置条件"
+  · docs/HANDOFF.md §7.1 打包方案补 PowerShell(tar) 版，Linux 版降级为历史参考
+  · 修正 4 处文档笔误 src/types/api.d.ts → src/types/api.ts
+    （architecture.md §10 / dev-notes.md §3 / api-endpoints.md 抬头 / worklog.md L28）
+  · 保留 worklog 历史记录与 HANDOFF 中"Linux 沙箱(历史环境)"段落内的路径，不篡改历史
+
+- 启动 dev server 并验证：Next.js 16.3.6 (Turbopack)，端口 3000，HTTP 200，
+  title「聘聊 · 招聘平台」，关键词命中。局域网地址 172.20.10.4（WLAN）。
+  注意：当前 shell 非管理员，无法添加防火墙入站规则；Private 配置默认拦入站，
+  手机能否访问需用户实机验证（已提供 New-NetFirewallRule 命令供管理员执行）。
+
+- 修复 hydration mismatch（TabBar.tsx:43 未读角标 服务端 2 / 客户端 1）：
+  · 根因：zustand persist 在模块初始化时自动读 localStorage['pinliao.v3'] 恢复
+    conversations.userUnreadCount，与 SSR 时的 seed 数据(1+1=2)不一致；
+    persist 的 merge 只做默认值兜底，不阻止持久化值覆盖 → React 丢弃服务端 HTML 重建
+  · 修法：store 增加 skipHydration: true（首屏客户端也先用 seed 渲染，与服务端一致），
+    新增 src/hooks/useStoreHydration.ts（含 useRehydrateStore / useStoreHydrated），
+    在 AppShell 挂载后手动 rehydrate() 切到真实持久化数据
+  · 验证：无头 Chrome（预置 userUnreadCount:0 的 localStorage）加载 App
+    → 零 hydration 错误，且角标正确变为 0，证明 rehydrate 确实生效
+  · 诚实记录：对照实验（skipHydration:false）未能复现该报错，说明原缺陷为
+    时序相关（persist 的 rehydrate 与 React hydration 竞态），非确定性复现；
+    本修复并非"已复现→已修好"，而是从构造上消除该竞态（首帧恒为 seed 数据）
+
+Stage Summary:
+- Step 2 验收环境就绪：http://localhost:3000 可访问，控制台无 hydration 报错。
+- 待用户确认：手机局域网访问是否需放行防火墙；随后逐页验收。
+- 遗留（非本次范围）：next.config.ts 的 typescript.ignoreBuildErrors:true 会掩盖
+  此类问题，建议 Step 3 前改为 false；TS 现有 3 个既有报错来自 examples/（缺
+  socket.io 依赖）与 src/lib/db.ts（Prisma client 未生成），均不影响当前 Mock 运行。

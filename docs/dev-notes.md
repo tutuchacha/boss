@@ -55,7 +55,7 @@
 | 数据模型 ERD（Prisma） | `prisma/schema.prisma` |
 | API 契约规范 | `docs/api-contract.md` |
 | API 接口清单（68 个） | `docs/api-endpoints.md` |
-| TypeScript 类型定义 | `src/types/api.d.ts` |
+| TypeScript 类型定义 | `src/types/api.ts` |
 | Mock 数据 - 公司 | `src/api/mock/companies.ts` |
 | Mock 数据 - 分类/职责模板 | `src/api/mock/categories.ts` |
 | Mock 数据 - 字典 | `src/api/mock/dict.ts` |
