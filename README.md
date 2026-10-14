@@ -124,6 +124,7 @@ src/
 
 ```bash
 npm run dev        # 启动开发服务器（端口 3000）
+npm run e2e        # 端到端验收（需先开着 dev server）
 npm run build      # 生产构建
 npm run lint       # ESLint
 npx tsc --noEmit   # 类型检查

@@ -176,6 +176,7 @@ src/
 
 ```bash
 npm run dev        # 开发服务器（3000）
+npm run e2e        # 端到端验收（需先开着 dev server；见下）
 npm run build      # 生产构建（需 Google Fonts，见 §0）
 npm run lint       # ESLint
 npx tsc --noEmit   # 类型检查
@@ -202,6 +203,30 @@ npx tsc --noEmit   # 类型检查
   来自 `next-themes` 注入 script 防主题闪烁，**无害**。
 - `favicon.ico` 404：项目未放置图标。
 
+### 构建与生产启动（这两个脚本曾经是坏的，已修）
+
+`npm run build` 与 `npm start` 原先依赖 Unix 命令与 bun，在 Windows 上**完全不可用**：
+
+| 旧写法 | 问题 |
+|---|---|
+| `build: next build && cp -r ...` | Windows 无 `cp` → **退出码 1**，静态资源从未拷入 standalone，产物不可用 |
+| `start: NODE_ENV=production bun .next/standalone/server.js` | 依赖未安装的 bun；`NODE_ENV=x cmd` 是 Unix 语法 |
+
+现改为跨平台、不依赖 bun：
+
+```bash
+npm run build      # 内部调用 .zscripts/build-portable.cjs（用 Node 拷贝 + 产物自检）
+npm start          # 等价于 node .next/standalone/server.js
+```
+
+- 构建脚本会**自检** `server.js` 与 `.next/static` 是否就位，缺一即报错退出
+- 指定端口：`$env:PORT=3001; npm start`（Windows PowerShell）
+- 已实测：构建退出码 0、生产服务器 HTTP 200、静态资源 200
+
+> 仍受 Google Fonts 限制：`npm run build` 需要能访问 `fonts.googleapis.com`（见 §0）。
+> 这是唯一剩余的外部依赖；删掉它需自托管字体，但**无法可靠判定已缓存 woff2 的字重映射**
+> （猜错会改变字形），故未擅自处理，留待确认。
+
 ### 验收清单（给用户逐页过）
 
 1. 未登录 → 停在登录页；演示账号可一键填入
@@ -213,29 +238,39 @@ npx tsc --noEmit   # 类型检查
 7. **跨端联动**：HR 发布的职位，求职者在职位列表能搜到；HR 关闭后求职者端消失
 8. 两端「我的」均可退出登录，退出后回到登录页
 
-### 自动化验收记录（CDP 驱动无头 Chrome，真实点击）
+### 自动化验收记录
 
-**最近一次结果：24/24 通过** ，对应提交 `ca11abf`（2026-09-28）。
+**最近一次结果：27/27 通过**，由 `npm run e2e` 产出（脚本 `tests/e2e-verify.cjs`）。
 
 覆盖范围与结果：
 
 | 分组 | 断言 |
 |---|---|
-| 求职者端 | 未登录停在登录页、演示账号可见、错误密码被拒、**身份不匹配被拦截**、职位列表(38 条)、职位详情、消息列表、「我的」有退出入口、退出成功 |
-| HR 端 | 进入工作台、三个 Tab、职位列表(7 条)、状态筛选、发布表单、**空表单校验拦截**、发布成功、编辑回填、保存修改、关闭职位 |
-| 跨端联动 | 已关闭职位不出现在求职者端；HR 沟通板块可用(6 会话/4 未读)；候选人会话渲染 |
-| 质量 | 零控制台错误、零 hydration 报错 |
+| 求职者端（9） | 未登录停在登录页、演示账号可见、错误密码被拒、**身份不匹配被拦截**、职位列表(38 条)、职位详情、消息列表、「我的」有退出入口、退出成功 |
+| HR 端（15） | 进入工作台、三个 Tab、职位列表(7 条)、状态筛选、发布表单、**空表单校验拦截**、发布成功、编辑回填、保存修改、关闭职位、沟通板块(6 会话/4 未读)、会话渲染、聊天页、发送消息、候选人自动回复 |
+| 跨端联动（1） | 已关闭职位对求职者不可见 |
+| 质量（2） | 零控制台错误、零 hydration 报错 |
 
-环境健康：生产构建通过；用户浏览器进程数未受影响（安全清理生效）。
+同时自动检查：生产构建通过；**用户 Chrome 进程数未受影响**（21 → 21）。
 
-> 复现方式：按本节「自动化验证方法」用 CDP 驱动无头 Chrome，
-> **务必使用 `killChromeTree`** 清理。
+复现：`npm run dev`（另一终端）→ `npm run e2e`。
 
 ### 自动化验证方法（无需人工点击）
 
-可用 Chrome DevTools Protocol 驱动无头 Chrome 做真实点击断言。
-**清理无头实例时必须使用 `node .zscripts/kill-chrome-safe.cjs` 的 `killChromeTree(pid)`**，
-它只终止你 spawn 的进程树。
+**项目已内置验收脚本 —— 优先直接用它：**
+
+```bash
+npm run dev                # 另开一个终端保持运行
+npm run e2e                # 跑完整验收，输出逐项 PASS/FAIL
+```
+
+- 脚本位置：`tests/e2e-verify.cjs`（纯 Node，无第三方依赖，用 CDP 驱动无头 Chrome 真实点击）
+- 可用环境变量覆盖：`BASE_URL`、`CHROME_PATH`、`CDP_PORT`
+- 结束时自动打印「进程清理检查」，证明未影响你正在使用的 Chrome
+- 改完代码跑一遍，即可确认没有回归
+
+**自己写测试脚本时**，清理无头实例必须使用
+`node .zscripts/kill-chrome-safe.cjs` 的 `killChromeTree(pid)`，它只终止你 spawn 的进程树。
 
 > ⚠️ **严禁使用 `Get-Process chrome | Stop-Process -Force`**。
 > 这会把用户正在使用的 Chrome **全部标签页一起杀掉**，导致状态丢失与报错。
@@ -443,3 +478,4 @@ HR 新建 → 追加。
 |---|---|---|
 | v1.0 | 2026-09-28 | 首版。取代已过期的 `HANDOFF.md` 作为唯一接续入口：修正端口/命令/状态/模型数等错误，补入 6 项已踩坑记录与协作规范 |
 | v1.1 | 2026-09-28 | 补「自动化验收记录」：提交 `ca11abf` 上 24/24 断言通过，附覆盖范围表 |
+| v1.2 | 2026-09-28 | 新增可复用验收脚本 `tests/e2e-verify.cjs` + `npm run e2e`；修复 `npm run build` / `npm start` 在 Windows 上不可用的问题（改用跨平台构建脚本）；补「构建与生产启动」说明 |
