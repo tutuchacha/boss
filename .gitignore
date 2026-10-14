@@ -52,3 +52,8 @@ prompt
 server.log
 # Skills directory
 /skills/
+
+# 沙箱搬家遗留的中间产物（2026-09-21 从 Linux 沙箱迁到 Windows 时产生）
+# 保留在本地以便需要时回溯，不纳入版本控制
+files.zip
+*.tar
