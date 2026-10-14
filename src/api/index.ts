@@ -7,6 +7,8 @@
  */
 
 export * from './client'
+export * from './auth'
 export * from './categories'
 export * from './jobs'
+export * from './hrJobs'
 export * from './conversations'

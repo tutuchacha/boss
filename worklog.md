@@ -250,3 +250,82 @@ Stage Summary:
 - 遗留（非本次范围）：next.config.ts 的 typescript.ignoreBuildErrors:true 会掩盖
   此类问题，建议 Step 3 前改为 false；TS 现有 3 个既有报错来自 examples/（缺
   socket.io 依赖）与 src/lib/db.ts（Prisma client 未生成），均不影响当前 Mock 运行。
+
+---
+Task ID: 6
+Agent: orchestrator (main)
+Task: 新增登录页（区分求职者 / 公司代表 HR）与 HR 端职位管理（发布 / 编辑 / 上下架 / 删除）
+
+前置发现：契约早已完备，无需重新设计 —— src/types/api.ts 已有 RoleEnum、
+LoginPasswordInput、AuthResult、HrProfile、CompanyMember、JobUpsertInput 等；
+docs/api-endpoints.md 已定义 /auth/* 7 个接口与 /hr/* 4 个接口。本次是「照契约实现前端」。
+
+用户决策（4 项，全部采用推荐方案）：
+- 身份模型：两套独立账号，登录时选身份
+- HR 端范围：登录 + 职位管理（发布/编辑/上下架/删除）
+- 布局：延续现有移动端 H5（430px 居中），不做桌面后台
+- 登录方式：密码登录 + 预置测试账号
+
+新增文件：
+- src/api/mock/auth.ts        测试账号（求职者 13800000001 / HR 13800000002，密码均 123456）、
+                              公司绑定云杉科技、HR 画像（hrId 与 jobs.ts 的 hrIdOf 算法一致，
+                              确保「我发布的职位」能命中既有 Mock 数据）
+- src/api/mock/hrJobs.ts      HR 端可变职位数据（模块级数组），派生自 jobs.ts；
+                              状态由 id 哈希决定（稳定，不用随机，避免 SSR/CSR 不一致）
+- src/api/auth.ts             登录/退出/me service；token 存 pinliao.accessToken
+- src/api/hrJobs.ts           HR 职位 CRUD service + 表单校验 + 草稿⇄入参转换
+- src/store/auth.ts           认证 store（独立于 pinliao store，避免侵入已验收代码）
+- src/store/hr.ts             HR 工作台 store（tab / pageStack / filters / draft / toast）
+- src/components/pinliao/LoginPage.tsx        登录页（身份切换 + 表单校验 + 演示账号一键填入）
+- src/components/pinliao/RootGate.tsx         根路由分发（未登录→登录页；按角色→求职者端/HR 端）
+- src/components/pinliao/hr/HrShell.tsx       HR 工作台外壳（顶栏含常驻「发布职位」入口）
+- src/components/pinliao/hr/HrJobsPage.tsx    职位管理列表（筛选/搜索/上下架/删除）
+- src/components/pinliao/hr/HrJobEditorPage.tsx 发布/编辑表单（分类联动、职责模板、福利多选）
+- src/components/pinliao/hr/HrMePage.tsx      我的（公司信息 + 退出登录）
+
+修改文件：
+- src/app/page.tsx                改为渲染 RootGate
+- src/api/index.ts / mock/index.ts 导出新增模块
+- src/components/pinliao/AppShell.tsx   移除 useRehydrateStore（水合上提到 RootGate，避免重复）
+- src/components/pinliao/PinliaoToast.tsx 支持 text/onClear 覆盖，供 HR 端复用同一视觉组件
+- src/hooks/useStoreHydration.ts  新增 useRehydrateAuth（认证 store 也需水合）
+
+关键设计决策与踩坑记录：
+1. 【重要缺陷修复】角色校验必须发生在写入登录态之前。
+   最初实现是「先 login() 写入 store，再判断角色不符并 setMismatch」，结果
+   RootGate 在 login 返回后立刻卸载 LoginPage 去渲染工作台，setMismatch 永远
+   来不及渲染 —— 用户会「以 HR 身份登入求职者端」。E2E 测出后改为：期望身份
+   作为 login(account, password, expectRole) 参数下沉到 auth service，不匹配时
+   抛 RoleMismatchError 且不写任何登录态，问题解决。
+2. 取数方式改用 TanStack Query。最初用 useEffect + setState 手写取数，
+   触发 React Compiler 的 react-hooks/set-state-in-effect 报错。项目本就装了
+   QueryClientProvider（此前从未使用），改用 useQuery + invalidateQueries 后
+   告警消除，且 loading/缓存/去重由 Query 负责，无需手工维护。
+3. 编辑器拆成 HrJobEditorPage（只取数）+ EditorForm（只渲染表单）两个组件，
+   避免在同一个组件里既取数又同步 setState。
+4. 「发布职位」入口最初只放在空状态里，导致列表非空时无任何发布入口
+   （E2E 测出「not found: 发布职位」）。已在 HR 顶栏加常驻按钮。
+
+验证（Chrome DevTools Protocol 驱动无头 Chrome，真实点击与输入，14 项断言）：
+- 未登录停在登录页 / 演示账号可见                               PASS
+- 错误密码提示「账号或密码错误」                                PASS
+- 求职者账号以 HR 身份登录 → 提示身份不匹配且不放行              PASS
+- HR 正确登录 → 进入 HR 工作台，显示公司「云杉科技」与统计        PASS
+- 职位列表 7 条（云杉科技在 Mock 职位中的数量）                   PASS
+- 打开发布表单 / 发布成功 / 关闭后状态变「已关闭」/ 删除后消失     PASS
+- 退出登录回到登录页                                            PASS
+- 全程零 hydration 报错                                        PASS
+求职者端回归：51 个职位、详情页、消息、我的、收藏均正常，零控制台错误。
+生产构建：npx next build 通过（Route / 静态产出）。
+（构建需代理才能抓 Google Fonts，见「已知限制」）
+
+Stage Summary:
+- 登录页 + HR 职位管理全链路完成并通过 E2E 验证，类型检查与 ESLint 对新代码全绿。
+- 待用户验收：http://localhost:3000 用 13800000002 / 123456 登录体验 HR 端。
+
+已知限制与后续：
+- 「候选人」Tab 只在 store 类型中预留，未实现（本次范围外）；投递、面试、
+  公司资料编辑等 HR 能力留待后续。
+- HR 新增/修改的职位存于内存，刷新页面即重置（Mock 阶段特性）。
+- 生产构建需能访问 Google Fonts（layout.tsx 用 next/font/google 的 Geist）。
+  国内直连会失败，需设 HTTP_PROXY/HTTPS_PROXY，或改为 next/font/local 自托管。
