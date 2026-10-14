@@ -81,7 +81,7 @@
 
 | 路径 | 内容 |
 |---|---|
-| `prisma/schema.prisma` | 18 个模型 + 枚举 + 索引 + 多租户字段标注 |
+| `prisma/schema.prisma` | 19 个模型 + 10 个枚举 + 索引 + 多租户字段标注 |
 | `src/types/api.ts` | 与契约同步的 TypeScript 类型定义 |
 | `src/config/env.ts` | 环境变量集中读取 |
 | `src/api/client.ts` | 统一 fetch 封装 + ApiError + 业务码解包 |
