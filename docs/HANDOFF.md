@@ -1,8 +1,35 @@
 # 聘聊 · 接续开发指南（HANDOFF）
 
+> ## ⚠️ 本文件已降级为「决策历史」
+>
+> **请先读 [`docs/AI-CONTINUE.md`](./AI-CONTINUE.md)** —— 那是当前唯一、充要的接续入口，
+> 与具体 AI/环境无关，包含最新的项目状态、运维手册、已踩坑记录与协作规范。
+>
+> 本文件保留的价值只有一处：**记录 Step 0 阶段的关键决策**（§3 决策清单仍然有效）。
+> 其余内容（当前状态、启动命令、已知限制、迁移方案）**已过期，请勿依赖**，
+> 具体差异见下方 banner。
+>
+> 最后更新：2026-09-28
+
+---
+
+## ⚠️ 与最新状态的已知差异（照此判断，勿用下文旧值）
+
+| 本文件的旧说法 | 实际情况 |
+|---|---|
+| `bun run dev` | 目标机器**未安装 bun**，请用 `npm run dev` |
+| 「Step 1 完成，等待验收」 | 现为 **Step 1 完成 + HR 端已实现**，处于 Step 2 验收 |
+| 「招聘者端 Web 后台未实现（§8.1）」 | **已实现**（移动端布局）：HR 职位管理 + 候选人沟通 + 登录 |
+| 「H5 全部页面可交互（仅求职者端）」 | 现为**双端**：求职者端 + HR 工作台，登录页按身份分流 |
+| 「§8.2 按契约实现 68 个接口」 | 正文实际 **67** 条，总览表格待修订 |
+| `docs/api-endpoints.md` 类型定义路径 | 曾误写 `src/types/api.d.ts`，实为 `src/types/api.ts`（已修正） |
+| 沙箱路径 `/home/z/my-project` | 当前环境为 Windows `D:\boss`（§7 的 Linux 命令仅供参考） |
+
+---
+
 > 本文件是给"下一个 AI 模型"或"下一个开发者"的入口文档。
 > 阅读本文件 + `docs/dev-notes.md` + `docs/architecture.md` 即可快速接续开发。
-> 最后更新：2026-09-21，Step 1 完成，等待用户验收
+> 最后更新：2026-09-28（Step 0 决策部分；整体状态已迁移至 AI-CONTINUE.md）
 
 ---
 
@@ -23,7 +50,7 @@
 | Step 4 联调 | ⏸ 待开始 | Mock → 真实接口切换 |
 
 **当前可运行状态**：
-- dev server 在端口 3000 运行（启动命令：`bun run dev`）
+- dev server 在端口 3000 运行（启动命令：`npm run dev`）
 - H5 全部页面可交互（51 个职位、聊天、收藏、主题切换等）
 - 所有数据来自本地 Mock（`src/api/mock/`），无需后端
 
@@ -58,7 +85,7 @@
 - 鉴权用 Bearer Token（短 accessToken + 长 refreshToken）。
 - 错误码采用 5 位数字（前 3 位对应 HTTP 状态码）。
 - 文件上传走预签名直传对象存储。
-- 完整规范见 `docs/api-contract.md`，68 个接口见 `docs/api-endpoints.md`。
+- 完整规范见 `docs/api-contract.md`，接口清单见 `docs/api-endpoints.md`（正文 67 条，总览表格待修订）。
 
 ---
 
@@ -73,7 +100,7 @@
 | `docs/architecture.md` | 总体架构、多租户、并发/高速预留、技术栈、部署演进 |
 | `docs/data-model.md` | 表清单、字段说明、索引、Mermaid ER 图 |
 | `docs/api-contract.md` | API 通用规范（URL/方法/包络/错误码/分页/限流/WS/安全） |
-| `docs/api-endpoints.md` | 13 个模块共 68 个接口完整清单 |
+| `docs/api-endpoints.md` | 13 个模块的接口完整清单（正文 67 条；总览表格合计待修订） |
 | `docs/legacy/pinliao-app-v0.2.html` | 原始 HTML 原型（601 行，无外部依赖） |
 | `docs/legacy/pinliao-dev-notes-v0.2.md` | 原开发笔记（v0.2） |
 
@@ -111,6 +138,7 @@ npm run lint         # ESLint 检查
 npx tsc --noEmit     # TypeScript 类型检查
 npm run db:push      # 推送 Prisma schema 到数据库（需先修好 .env 路径）
 ```
+> 目标机器**未安装 bun**，原文的 `bun run dev` 等命令不可用（已修正为 npm/npx）。
 
 ### 5.3 环境变量（`.env`）
 > 已从 Linux 沙箱迁移到 Windows，路径为 `D:/boss/db/custom.db`。
@@ -212,7 +240,7 @@ git push -u origin main
 
 ### 8.2 后续路线
 - **Step 2**：前端验收（用户在预览面板逐页过）
-- **Step 3**：Spring Boot 后端开发（按契约实现 68 个接口）
+- **Step 3**：Spring Boot 后端开发（按契约实现接口，正文 67 条）
 - **Step 4**：联调（前端切 `NEXT_PUBLIC_USE_MOCK=false`，Mock → 真实接口）
 - **未来**：App/小程序（若决定走多端，起 uni-app 工程复用契约）
 

@@ -1,0 +1,426 @@
+# 聘聊 · AI 接续开发指南
+
+> **本文件的目的**：让任何环境中的 AI（或人）读完这一份文件，就能直接继续开发本项目，
+> 无需访问历史会话、无需询问用户、不会踩已踩过的坑。
+>
+> **本文件的定位**：唯一「先读」入口。它是充要的 —— 只读它即可开工；
+> 需要细节时再按下文索引深入 `docs/` 的专项文档。
+>
+> 最后更新：2026-09-28 · 对应代码提交 `1966940`
+> 维护要求：**每次改变项目状态（新增功能、改架构、修坑）后，必须回来更新本文件**，
+> 否则它会像之前的 `HANDOFF.md` 一样过期并误导后来者。
+
+---
+
+## 0. 三分钟上手
+
+```bash
+npm install
+npm run dev          # 端口 3000
+```
+
+打开 <http://localhost:3000>，用演示账号登录（登录页有「一键填入」按钮）：
+
+| 身份 | 账号 | 密码 |
+|---|---|---|
+| 求职者 | `13800000001` | `123456` |
+| 公司代表 HR | `13800000002` | `123456` |
+
+**无需数据库、无需后端**：全部数据来自前端 Mock，开箱即跑。
+
+### 环境注意（换环境时最先检查这四条）
+
+1. **不要用 `bun`**。`package.json` 里另有一份 `bun.lock`，但目标机器未安装 bun；
+   请统一用 `npm` / `npx`。若你的环境有 bun，两种都能跑，但不要混用锁文件。
+2. **端口固定 3000**（`next dev -p 3000`）。旧文档里写的 `5173` 是 Vite 默认端口，是错的。
+3. **`prisma generate` 不是启动前置条件**。当前无人 `import src/lib/db.ts`，
+   Prisma 未接入业务（详见 §7.4）。
+4. **`npm run build` 需要能访问 Google Fonts**（`layout.tsx` 用 `next/font/google` 加载 Geist）。
+   国内直连会构建失败，设代理即可：
+   ```powershell
+   $env:HTTPS_PROXY='http://127.0.0.1:7897'; $env:HTTP_PROXY='http://127.0.0.1:7897'; npm run build
+   ```
+
+---
+
+## 1. 项目是什么
+
+**聘聊**：参考 Boss 直聘模式的招聘平台原型。
+
+- **C 端求职者 + 多 B 端企业客户共存**。求职者跨企业共享（一份简历可投多家）。
+- **每个注册企业即一个「租户」**，主键 `companyId`；求职者账号不属于任何租户。
+- **首发只做 H5/Web**（不含 App、小程序）。
+- **当前是前端验收版**：数据全为 Mock，Step 3（Spring Boot 后端）尚未开始。
+
+---
+
+## 2. 当前状态（务必按此判断，不要沿用旧文档）
+
+| 阶段 | 状态 | 产物 |
+|---|---|---|
+| Step 0 架构 + 数据模型 + API 契约 | ✅ 完成 | `docs/architecture.md`、`data-model.md`、`api-contract.md`、`api-endpoints.md`、`prisma/schema.prisma`、`src/types/api.ts` |
+| Step 1 前端开发（Next.js + Mock） | ✅ 完成 | `src/components/pinliao/`、`src/api/`、`src/store/` |
+| Step 2 前端验收 | ⏳ 进行中 | 等待用户逐页验收 |
+| Step 3 后端（Spring Boot） | ⏸ 未开始 | 按契约实现接口 |
+| Step 4 联调 | ⏸ 未开始 | `USE_MOCK=false` 切真实接口 |
+
+### 已实现的功能
+
+**求职者端**：职位列表（城市/搜索/分类联动/筛选/排序）、职位详情、收藏、简历预览、
+求职期望编辑、消息会话、聊天页（快捷回复 + 关键词自动回复）、外观切换、**登录/退出登录**。
+
+**HR 端**（与求职者端同一移动端布局，430px 居中）：
+- **职位管理**：状态筛选、关键字搜索、仅看我发布的；发布 / 编辑 / 关闭 / 重新开放 /
+  删除（软删 + 二次确认）；数据概览（招聘中数量、累计投递、累计浏览）
+- **候选人沟通**：会话列表（候选人画像 + 应聘职位 + 未读角标）、仅看未读、按职位筛选、
+  搜索；聊天页（气泡、快捷回复、候选人自动回复含「正在输入」、进入即标记已读）
+- **我的**：公司信息、退出登录
+
+### 尚未实现（不要误以为已有）
+
+| 功能 | 备注 |
+|---|---|
+| 候选人管理（按投递状态筛选与标记） | 契约已定义（`ApplicationStatusEnum`），可直接照做 |
+| 面试邀请 / 投递流程 | 契约已定义 |
+| 公司资料编辑、企业认证 | 未实现 |
+| 手机验证码登录 / 注册 | 契约已定义；当前仅密码登录 |
+| 招聘者端桌面 Web 后台 | 未实现（当前仅移动端布局） |
+| 真实后端 | Step 3 |
+
+---
+
+## 3. 技术栈与架构约定
+
+| 层 | 选型 |
+|---|---|
+| 框架 | Next.js 16（App Router + Turbopack） |
+| 语言 | TypeScript 5 |
+| 样式 | Tailwind CSS 4 + shadcn/ui，青绿主题（`--primary: #00857F`） |
+| 客户端状态 | Zustand（含 `persist`） |
+| 服务端状态 | TanStack Query（HR 端已用；求职者端仍是同步 Mock） |
+| ORM | Prisma（**未接入业务**） |
+
+> `zod`、`react-hook-form` 随模板装好但**代码零引用**，不要误以为在用。
+
+### 五条必须遵守的架构约定
+
+**1. 单页 SPA，不引入路由。**
+所有视图通过各自 store 的 `tab` + `pageStack` 切换。`src/app/page.tsx` 是唯一可见路由，
+只渲染 `RootGate`。**引入 `next/navigation` 会改变架构**，并让已验收的页面出现白屏风险。
+（`src/components/pinliao/RootGate.tsx` 顶部注释记录了这个决策。）
+
+**2. service 层隔离。**
+组件只依赖 `src/api/*`，不直接 `fetch`。`src/config/env.ts` 的 `USE_MOCK` 控制
+Mock / 真实接口切换，组件无感。新增接口请照 `src/api/hrJobs.ts` 的写法：
+`if (USE_MOCK) { ...mock... } return request<T>(path, ...)`。
+
+**3. 前端框架最终选型未定。**
+当前 Next.js 只是**沙箱验收用**；`docs/HANDOFF.md` 记载最终上线框架待用户决定。
+若将来出 App/小程序，计划另起 uni-app 工程复用同一套 API 契约。
+
+**4. 多租户。**
+业务表带 `companyId`；生产后端由 MyBatis-Plus 拦截器注入 `WHERE company_id = ?`，
+PostgreSQL RLS 兜底。求职者跨租户共享的表（`User`/`UserProfile`/`Resume`）**不带** `companyId`。
+
+**5. 水合安全（hydration）。**
+persist store 一律 `skipHydration: true`，由 `RootGate` 挂载后统一 `rehydrate()`。
+**不要在模块初始化时读 localStorage** —— 否则 SSR/CSR 不一致会触发
+`Hydration failed`，React 会丢弃服务端 HTML 整棵树重建。
+
+---
+
+## 4. 目录结构
+
+```
+src/
+├─ app/                      Next.js 入口（单页 SPA）
+│  ├─ page.tsx               渲染 RootGate
+│  ├─ layout.tsx             根布局（主题、字体、Query Provider、Toast）
+│  └─ globals.css            青绿主题 token（--pl-* / --primary）
+├─ components/
+│  ├─ pinliao/               业务组件
+│  │  ├─ RootGate.tsx        按登录状态与角色分发（登录页 / 求职者端 / HR 端）
+│  │  ├─ LoginPage.tsx       登录页（身份选择 + 演示账号）
+│  │  ├─ AppShell.tsx        求职者端外壳
+│  │  ├─ JobsView / JobDetailPage / ChatPage / MessagesView / MeView / …
+│  │  └─ hr/                 HR 工作台
+│  │     ├─ HrShell.tsx      外壳（三 Tab：职位管理 / 沟通 / 我的）
+│  │     ├─ HrJobsPage.tsx   职位管理列表
+│  │     ├─ HrJobEditorPage.tsx  发布/编辑表单
+│  │     ├─ HrMessagesPage.tsx   候选人会话列表
+│  │     ├─ HrChatPage.tsx   聊天页
+│  │     └─ HrMePage.tsx     我的
+│  └─ ui/                    shadcn/ui 基础组件（勿手改）
+├─ api/                      service 层
+│  ├─ client.ts              统一 fetch + 包络解包 + ApiError
+│  ├─ auth.ts                登录/退出
+│  ├─ jobs.ts                职位（求职者视角）
+│  ├─ hrJobs.ts              HR 职位管理 + 表单校验
+│  ├─ hrConversations.ts     HR 会话
+│  ├─ index.ts               出口（组件从此导入）
+│  └─ mock/                  Mock 数据与装配
+├─ store/                    Zustand
+│  ├─ pinliao.ts             求职者端（持久化键 pinliao.v3）
+│  ├─ auth.ts                认证（持久化键 pinliao.auth.v1）
+│  └─ hr.ts                  HR 工作台（不持久化）
+├─ hooks/useStoreHydration.ts  水合守卫
+├─ lib/                      工具（time.ts / utils.ts / db.ts=未使用）
+└─ types/api.ts              与契约同步的类型定义
+```
+
+---
+
+## 5. 运维与验证手册
+
+### 常用命令
+
+```bash
+npm run dev        # 开发服务器（3000）
+npm run build      # 生产构建（需 Google Fonts，见 §0）
+npm run lint       # ESLint
+npx tsc --noEmit   # 类型检查
+```
+
+### 测试账号与 Mock 数据位置
+
+| 内容 | 位置 |
+|---|---|
+| 测试账号、HR 画像、公司绑定 | `src/api/mock/auth.ts` |
+| 职位基础数据（51 条） | `src/api/mock/jobs.ts` |
+| HR 端可变职位数据 | `src/api/mock/hrJobs.ts` |
+| HR 端可变会话数据 | `src/api/mock/hrConversations.ts` |
+| 求职者可见职位的**合成层** | `src/api/mock/seekerJobs.ts` |
+| Mock 数据装配（打破循环依赖） | `src/api/mock/bootstrap.ts` |
+
+### 已知的既有报错（不是你造成的，不要试图修）
+
+- `npx tsc --noEmit` 会报 3 个错误：`examples/websocket/*` 缺 `socket.io` 依赖、
+  `src/lib/db.ts` 缺 Prisma client。均不影响运行。
+- `npx eslint src` 会报 `src/components/ui/*`（shadcn 原有代码）与
+  `src/hooks/use-mobile.ts` 的 `set-state-in-effect` 告警。属既有问题。
+- 浏览器控制台会有 `Encountered a script tag while rendering React component`：
+  来自 `next-themes` 注入 script 防主题闪烁，**无害**。
+- `favicon.ico` 404：项目未放置图标。
+
+### 验收清单（给用户逐页过）
+
+1. 未登录 → 停在登录页；演示账号可一键填入
+2. 错误密码 → 提示「账号或密码错误」
+3. 用 HR 账号在「求职者」身份下登录 → 提示身份不匹配并可一键切换
+4. HR 正确登录 → 工作台，底部三个 Tab
+5. **沟通**：6 个候选人会话、未读角标、仅看未读、按职位筛选、搜索；进聊天页发消息、收到自动回复
+6. **职位管理**：发布（空表单应被校验拦截）→ 列表出现 → 关闭（变已关闭）→ 重新开放 → 删除
+7. **跨端联动**：HR 发布的职位，求职者在职位列表能搜到；HR 关闭后求职者端消失
+8. 两端「我的」均可退出登录，退出后回到登录页
+
+### 自动化验证方法（无需人工点击）
+
+可用 Chrome DevTools Protocol 驱动无头 Chrome 做真实点击断言。
+**清理无头实例时必须使用 `node .zscripts/kill-chrome-safe.cjs` 的 `killChromeTree(pid)`**，
+它只终止你 spawn 的进程树。
+
+> ⚠️ **严禁使用 `Get-Process chrome | Stop-Process -Force`**。
+> 这会把用户正在使用的 Chrome **全部标签页一起杀掉**，导致状态丢失与报错。
+> （历史上犯过这个错，见 §6.3。）
+
+---
+
+## 6. 坑与教训（最重要的一节，务必读）
+
+这些都是**实际踩过并已修复**的。重犯会浪费大量时间。
+
+### 6.1 循环依赖：`jobs.ts` ←→ `hrJobs.ts`
+
+**现象**：页面 HTTP 500，报 `Cannot access 'jobs' before initialization`
+或 `baseJobs is not defined`。
+
+**原因**：`jobs.ts` 需要 `hrJobRecords` 来合成「求职者可见职位」，
+而 `hrJobs.ts` 又需要 `jobs.ts` 的基础职位做初始数据 —— 直接互相 import 成环，
+模块初始化期取到 `undefined`。
+
+**已采用的解法**（唯一同时满足「无环 + 无 require + 初始化顺序确定」）：
+1. `hrJobs.ts` **不 import** `jobs.ts`，导出 `initHrJobs(baseJobs)` 惰性填充；
+2. 新增 `src/api/mock/bootstrap.ts`，由它按序调用 `initHrJobs(jobs)`；
+3. `api/jobs.ts` 顶部 `import './mock/bootstrap'` 触发装配（此处 `jobs.ts` 已求值完成，
+   不会形成再入）。
+
+**已否决的两种写法**（不要再试）：
+- 在 `jobs.ts` 里 `require('./seekerJobs')` 延迟加载 → 被 ESLint
+  `@typescript-eslint/no-require-imports` 拦下（本项目设为 error）。
+- 从 `jobs.ts` 顶部 import bootstrap → 造成 bootstrap 再入 jobs，`baseJobs` 仍是 `undefined`。
+
+### 6.2 Zustand 选择器返回新对象 → 无限重渲染
+
+**现象**：页面崩成 500；控制台报
+`The result of getSnapshot should be cached to avoid an infinite loop`
+与 `Maximum update depth exceeded`。
+
+**原因**：把返回**新建对象**的函数直接当选择器：
+```ts
+const current = useHrStore(s => s.pageStack.at(-1) ?? { type: 'job-list' })  // ❌
+```
+zustand 用 `Object.is` 比较快照，每次都是新对象 → 判定每次都变 → 无限重渲染。
+
+**解法**：
+```ts
+// store 里导出「栈为空时返回同一模块级常量引用」的 hook
+export function useHrCurrentPage(): HrPage {
+  const top = useHrStore(s => s.pageStack[s.pageStack.length - 1])
+  const tab = useHrStore(s => s.tab)
+  if (top) return top
+  return tab === 'messages' ? MESSAGES_ROOT : JOB_LIST_ROOT  // 常量
+}
+```
+**规则**：选择器只允许返回**稳定引用或原始值**；需要派生对象时用 `useMemo` 或在组件里组装。
+
+### 6.3 误杀用户浏览器（严重，已根治）
+
+**曾经的做法**（❌ 严禁再用）：
+```powershell
+Get-Process chrome -ErrorAction SilentlyContinue | Stop-Process -Force
+```
+这是**按进程名全杀**，会把用户正在使用的 Chrome 全部标签页杀掉，
+用户会看到标签页崩溃报错 —— 而且很容易被误判成「代码坏了」。
+
+**正确做法**：只终止自己 spawn 的进程树。
+```js
+const { killChromeTree } = require('./.zscripts/kill-chrome-safe.cjs')
+const chrome = spawn(CHROME, [...], { stdio: 'ignore' })
+// ...
+killChromeTree(chrome.pid)   // taskkill /T /F，仅该 PID 树
+```
+
+### 6.4 身份校验必须在写入登录态之前
+
+**现象**：用户以「公司代表」身份登录求职者账号，结果**直接进了求职者端**，
+预期的「身份不匹配」提示永远看不到。
+
+**原因**：先 `login()` 写入 auth store，再由页面判断角色不符并 `setMismatch` ——
+但 store 一变，`RootGate` 立刻卸载登录页去渲染工作台，提示来不及渲染。
+
+**解法**：把期望身份下沉到 service 层，**不匹配就抛错、不写任何登录态**：
+```ts
+await login(account, password, expectRole)   // 不符时抛 RoleMismatchError
+```
+`RoleMismatchError` 定义在 `src/api/auth.ts`。**规则**：任何「登录后校验」都要前置到写入状态之前。
+
+### 6.5 手写 `useEffect + setState` 取数会触发 React Compiler 告警
+
+本项目开启 React Compiler，`react-hooks/set-state-in-effect` 是 **error** 级。
+用 effect 手写取数（`useEffect(() => { reload() }, [...])`）会报错。
+
+**解法**：用 **TanStack Query**（Provider 已就位）：
+```ts
+const { data, isPending } = useQuery({
+  queryKey: ['hr', 'jobs', companyId, filters.status, dataVersion],
+  queryFn: () => listMyJobs({ companyId, status: filters.status }),
+  enabled: Boolean(companyId),
+})
+// 变更后：queryClient.invalidateQueries({ queryKey: ['hr', 'jobs'] })
+```
+需要「取数 + loading」时不要手工维护 `loading` 状态，交给 `isPending`。
+`dataVersion`（store 里的自增计数）用于让 Mock 数据变更后触发重取。
+
+### 6.6 同一组件既取数又 setState 会被告警 → 拆组件
+
+编辑页需要「先取原职位、回填表单」。若在同一个组件里 `useEffect` 取数并
+`setState` 回填，仍会触发 §6.5 的告警。
+**解法**：拆成 `HrJobEditorPage`（只负责取数）+ `EditorForm`（只负责渲染表单）。
+
+### 6.7 其他小坑
+
+- **Mock 数据在内存**，页面刷新即重置。跨端联动测试**必须用应用内退出登录切换账号**，
+  不能 `Page.navigate` 刷新，否则新建的职位会丢。
+- **新建职位 id 用递增计数**，不要用 `Date.now()` / `Math.random()` 生成 ——
+  会造成 SSR/CSR 渲染不一致。
+- **Mock 职位状态用稳定哈希**（`stableHash(id) % 4`）而非随机，同理。
+- **HR 关闭某职位后，该职位对求职者端应隐藏**（`listSeekerJobs` 已实现）；
+  修改职位内容也要覆盖到求职者端（即使状态未变），否则改标题/薪资后求职者端仍是旧内容。
+
+---
+
+## 7. 数据与契约
+
+### 7.1 API 契约（框架无关，是最重要的资产）
+
+| 文档 | 内容 |
+|---|---|
+| `docs/api-contract.md` | 统一规范：响应包络 `{ code, message, data, traceId }`、错误码（5 位，前 3 位对应 HTTP 状态）、**游标分页**（不用 offset）、限流、WebSocket、安全 |
+| `docs/api-endpoints.md` | 全部业务接口清单（13 模块）。**注意**：总览表格合计写 68，正文实际可数出 **67** 条，表格需修订，正文为准 |
+| `src/types/api.ts` | 与契约同步的 TypeScript 类型定义。**新增功能前先看这里，很可能已有现成类型** |
+
+> 已实现功能**全部照契约实现**，未自造接口。新增功能请沿用同一做法。
+
+### 7.2 关键实体
+
+- `RoleEnum`：`JOB_SEEKER` / `HR` / `COMPANY_ADMIN` / `PLATFORM_ADMIN`
+- `ApplicationStatusEnum`：`SUBMITTED` / `VIEWED` / `INTERVIEW` / `OFFER` / `REJECTED` / `WITHDRAWN`
+  —— 这就是「候选人管理」的标记与筛选维度，**不需要新设计**。
+- `JobStatusEnum`：`OPEN` / `CLOSED` / `DRAFT`
+- 带 `companyId`（租户私有）：`Company` `CompanyMember` `HrProfile` `Job`
+  `Conversation` `Message` `Application` `Interview`
+- 不带 `companyId`（求职者跨租户共享）：`User` `UserProfile` `Resume`
+
+### 7.3 求职者可见职位的合成逻辑（易被忽略）
+
+`src/api/mock/seekerJobs.ts` 把「基础职位」与「HR 端可变记录」合成一份
+**求职者可见职位**：软删除/已关闭 → 不出现；招聘中 → 用 HR 端最新内容覆盖；
+HR 新建 → 追加。
+
+**这条链路曾经缺失**，导致「HR 发布的职位求职者看不到」。
+求职者端取数必须走 `listSeekerJobs()` / `jobById()`（均从 `src/api/mock/jobs.ts` 导出），
+**不要直接读 `jobs` 静态数组**。
+
+### 7.4 Prisma 的真实地位
+
+`prisma/schema.prisma` 是**领域模型设计文档**（19 个模型 + 10 个枚举），
+**不是运行时依赖**：
+- 当前无人 `import src/lib/db.ts`，故 `prisma generate` 非启动前置；
+- datasource 为 SQLite（`.env` 的 `DATABASE_URL`），仅供本地原型；
+- 生产为 PostgreSQL，由 Spring Boot + MyBatis-Plus 另维护建表 SQL。
+
+### 7.5 视图组件的数据来源（易踩）
+
+| 组件 | 取数方式 |
+|---|---|
+| `JobsView`（求职者职位列表） | **同步** `filterJobsSync()`（`src/api/mock/filter.ts`） |
+| `JobDetailPage` | 异步 `getJobDetail()`（`src/api/jobs.ts`） |
+| `MessagesView` / `ChatPage` / `FavoritesPage` | `jobById()`（已含合成逻辑） |
+| HR 端各页 | **TanStack Query** |
+
+---
+
+## 8. 协作规范（请遵循，以保持项目可维护）
+
+1. **改完代码更新 `worklog.md`**：按现有模板追加条目
+   （`Task ID` / `Agent` / `Task` / `Work Log` / `Stage Summary`），Task ID 递增。
+2. **改变项目状态后更新本文件**（§2 状态表、§5 手册、§6 坑清单）。
+3. **新增接口照契约**，先查 `src/types/api.ts` 与 `docs/api-endpoints.md`，不要自造。
+4. **新增取数用 TanStack Query**，不要手写 `useEffect + setState`（§6.5）。
+5. **选择器只返回稳定引用**（§6.2）。
+6. **不要提交** `.env` 之外的本机私有配置；两个历史压缩包
+   （`files.zip`、`workspace-*.tar`）是沙箱搬家产物，未纳入版本控制。
+7. **提交信息用中文**，说明「改了什么 + 为什么」，保持与既有提交风格一致。
+8. **不要动 `src/components/ui/`**（shadcn 生成代码）。
+
+---
+
+## 9. 待用户确认的事项（不要替用户决定）
+
+| 事项 | 说明 |
+|---|---|
+| 最终上线前端框架 | Next.js / Vue / uni-app，当前 Next.js 仅沙箱验收 |
+| 候选人管理页是否开发 | 契约（`ApplicationStatusEnum`）已备好 |
+| 招聘者端桌面 Web 后台布局 | 当前仅移动端布局 |
+| `docs/api-endpoints.md` 总览表格 68 是否改为正文口径 67 | 涉及既有设计资产 |
+| 是否自托管字体摆脱 Google Fonts 构建依赖 | `next/font/local` |
+| 是否清除 `next-themes` 的 script 告警 | 无害，但刷屏 |
+| 两个历史压缩包是否清理 | `files.zip`、`workspace-*.tar` |
+
+---
+
+## 10. 修订记录
+
+| 版本 | 日期 | 变更 |
+|---|---|---|
+| v1.0 | 2026-09-28 | 首版。取代已过期的 `HANDOFF.md` 作为唯一接续入口：修正端口/命令/状态/模型数等错误，补入 6 项已踩坑记录与协作规范 |
