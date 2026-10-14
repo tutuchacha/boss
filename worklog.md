@@ -502,3 +502,63 @@ Stage Summary:
 - README 已从错误模板重写为准确的项目门面，并修正两处过期数字 + 一处误述。
 - 遗留待用户确认：api-endpoints.md 总览表格合计（68）与正文（67）不一致，
   是否统一更正为正文口径。
+
+---
+Task ID: 10
+Agent: orchestrator (main)
+Task: 产出「与具体 AI/环境无关」的接续文档，并消除文档间的状态矛盾
+
+背景：用户希望把有用信息固化下来，换到别处的 AI 也能直接接手。
+核对发现仓库内文档互相矛盾，而矛盾比缺失更危险：
+- docs/HANDOFF.md 称「招聘者端 Web 后台未实现」→ 实际 HR 端已完整（登录+职位管理+沟通）
+- docs/HANDOFF.md 称「Step 1 完成，等待验收」→ 实际 Step 1 已完成且已进入 Step 2
+- docs/HANDOFF.md 启动命令写 `bun run dev` → 目标机器未装 bun，无法执行
+- docs/dev-notes.md 称「等待进入 Step 1」→ 严重过期
+- 引用 `src/types/api.d.ts`、接口数 68（正文实为 67）等
+
+新增 docs/AI-CONTINUE.md（约 20KB）—— 唯一「先读」入口，充要且自包含：
+- §0 三分钟上手 + 换环境必查四条（不用 bun / 端口 3000 /
+  prisma generate 非前置 / 构建需 Google Fonts）
+- §1 项目定位（Boss 模式、多租户、只做 H5、当前为 Mock 验收版）
+- §2 当前状态表 + 已实现功能 + **尚未实现清单**（避免过度承诺）
+- §3 技术栈 + **五条必须遵守的架构约定**（单页 SPA 不引路由 / service 层隔离 /
+  框架未定 / 多租户 / 水合安全）
+- §4 目录结构（逐文件职责）
+- §5 运维与验证手册：命令、Mock 数据位置、**已知既有报错**（免后来者误修）、
+  验收清单、自动化验证方法（含安全清理 chrome 的强制要求）
+- §6 **坑与教训（最重要）**：7 项实际踩过并已修复的坑，含现象/原因/已采用解法/
+  已否决写法：
+  1) jobs.ts ←→ hrJobs.ts 循环依赖（含被 ESLint 拦下的 require 方案）
+  2) Zustand 选择器返回新对象 → 无限重渲染
+  3) 误杀用户 Chrome（严禁 Get-Process chrome | Stop-Process -Force）
+  4) 身份校验必须在写入登录态之前
+  5) 手写 useEffect+setState 取数触发 React Compiler 告警 → 改用 TanStack Query
+  6) 同组件既取数又 setState → 拆组件
+  7) 其他小坑（Mock 刷新即重置、id 不用 Date.now、稳定哈希、跨端可见性联动）
+- §7 数据与契约：契约是三份文档、关键实体、**求职者可见职位合成逻辑**、
+  Prisma 的真实地位、各视图数据来源对照表（易踩）
+- §8 协作规范 8 条（改完更新 worklog 与本文件、照契约、用 Query、稳定选择器、
+  不提交私有配置、提交信息用中文、勿动 ui/）
+- §9 待用户确认事项（不替用户决定）
+- §10 修订记录
+
+同步修正既有文档，消除矛盾：
+- docs/HANDOFF.md：顶部加降级 banner（指向 AI-CONTINUE.md），
+  并列出「已知差异对照表」；修正 `bun run dev`（2 处）、
+  接口数（2 处）、模型数（1 处）、文件索引过期描述
+- docs/dev-notes.md：顶部加 banner 声明状态描述已过期；修正「当前阶段」
+- README.md：文档索引改指向 AI-CONTINUE.md；重写「给接续开发者/AI 的启动提示词」
+- docs/api-endpoints.md：修订记录补一行账目说明
+
+原则：**日志（worklog.md）作为历史记录不篡改**；对已过期文档采取
+「加 banner + 修正误导性事实 + 声明降级」而非删除，保留决策历史价值。
+
+验证：
+- AI-CONTINUE.md 中引用的 46 个路径逐一 Test-Path，全部真实存在
+- 全仓 markdown 复扫 5 类过期说法，剩余命中均为「故意说明」或「历史记录」
+- 无绝对路径 / 凭据泄漏
+
+Stage Summary:
+- 项目现在有单一、充要、环境无关的接续入口 docs/AI-CONTINUE.md；
+  换任何 AI 只需给它这一份文件即可开工。
+- 文档间状态矛盾已消除（过期文档均已加 banner 并修正误导性事实）。
