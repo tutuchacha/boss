@@ -12,7 +12,6 @@
 
 import { useEffect } from 'react'
 import { usePinliaoStore } from '@/store/pinliao'
-import { useRehydrateStore } from '@/hooks/useStoreHydration'
 import { TabBar } from './TabBar'
 import { JobsView } from './JobsView'
 import { MessagesView } from './MessagesView'
@@ -32,8 +31,7 @@ export function AppShell() {
   const popPage = usePinliaoStore(s => s.popPage)
   const clearPageStack = usePinliaoStore(s => s.clearPageStack)
 
-  // 水合完成后恢复 localStorage 中的持久化状态（配合 store 的 skipHydration）
-  useRehydrateStore()
+  // 说明：持久化状态的水合由 RootGate 在最外层统一触发（useRehydrateStore）
 
   // 监听浏览器后退 → 优先 popPage，无页面栈时清掉历史记录项
   useEffect(() => {

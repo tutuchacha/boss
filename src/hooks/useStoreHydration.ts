@@ -21,6 +21,7 @@
 
 import { useEffect, useSyncExternalStore } from 'react'
 import { usePinliaoStore } from '@/store/pinliao'
+import { useAuthStore } from '@/store/auth'
 
 /** 空订阅（服务端快照恒为 false，不存在"变更"语义） */
 const subscribeNoop = () => () => {}
@@ -46,5 +47,17 @@ export function useRehydrateStore(): void {
     // persist 未启用时（理论上不会）直接退出
     if (!usePinliaoStore.persist) return
     void usePinliaoStore.persist.rehydrate()
+  }, [])
+}
+
+/**
+ * 恢复认证状态（localStorage['pinliao.auth.v1']）。
+ * 未恢复前 user 恒为 null，所以依赖登录态的 UI 必须等 useStoreHydrated()
+ * 为 true 再渲染，否则会把已登录用户误判为未登录而闪回登录页。
+ */
+export function useRehydrateAuth(): void {
+  useEffect(() => {
+    if (!useAuthStore.persist) return
+    void useAuthStore.persist.rehydrate()
   }, [])
 }
