@@ -384,3 +384,74 @@ Stage Summary:
 - 目标功能已完整：登录页（求职者/HR 双身份）+ HR 职位全生命周期管理 +
   跨端数据一致 + 双向退出登录，全部通过真实浏览器交互验证。
 - 待用户验收：http://localhost:3000（HR: 13800000002 / 求职者: 13800000001，密码 123456）
+
+---
+Task ID: 8
+Agent: orchestrator (main)
+Task: 修复误杀用户 Chrome 的测试清理逻辑；补齐 HR 端「与求职者联系」沟通板块
+
+用户反馈 4 项，逐条处置：
+
+【1｜严重｜已修复】测试脚本误杀用户浏览器
+  事故：为清理无头测试浏览器，此前使用
+    Get-Process chrome -ErrorAction SilentlyContinue | Stop-Process -Force
+  这是**按进程名全杀**，会把用户正在使用的 Chrome 全部标签页一起杀掉，
+  导致标签页状态丢失并报错（与用户反馈的第 4 点高度相关）。
+  修复：新增 .zscripts/kill-chrome-safe.cjs
+   - killChromeTree(pid)：taskkill /T /F，仅终止指定 PID 的进程树
+   - listHeadlessChrome()：按命令行特征查询本工具的无头实例，仅供核对
+  实测：spawn 无头实例后调用 killChromeTree，用户侧 20 个 Chrome 进程
+  数量不变，仅目标实例被终止。后续所有测试脚本一律使用此工具。
+
+【2｜功能缺口｜本次实现】HR 端缺少与求职者联系的板块
+  原先 HR 只能管理职位，看不到也回复不了候选人消息。
+  新增：
+  - src/api/mock/hrConversations.ts  HR 侧会话数据（可变）
+      · 独立于求职者侧会话：后者 companyId 是占位值（co-mock-mumianyun），
+        与 companies.ts 的真实哈希 id 对不上，无法被 HR 检索
+      · 会话基于「本公司真实在招职位」派生，6 名候选人固定画像，保证自洽
+      · 前 3 个会话带未读（2/1/1），便于验收未读角标与「仅看未读」筛选
+      · id 用递增计数（不用 Date.now/Math.random），避免 SSR/CSR 不一致
+  - src/api/hrConversations.ts       service 层（列表/详情/发消息/已读/自动回复）
+  - src/components/pinliao/hr/HrMessagesPage.tsx  沟通列表
+      候选人画像 + 应聘职位 + 末条消息 + 未读角标 + 仅看未读 + 按职位筛选 + 搜索
+  - src/components/pinliao/hr/HrChatPage.tsx      聊天页
+      气泡、快捷回复（HR 常用话术）、候选人自动回复（先显示"正在输入"）、标记已读
+  - src/store/hr.ts  HrTabKey 由 candidates 改为 messages；新增 hr-chat 页面；
+      页面栈改为「空栈 + 根视图由 tab 决定」，使职位管理与沟通各自独立
+  - src/components/pinliao/hr/HrShell.tsx  三 Tab（职位管理/沟通/我的）+ 沟通未读角标；
+      「发布职位」按钮只在职位管理 Tab 显示
+
+【3｜有明确答案，待用户决定是否开发】是否需要「标记/筛选条件」模块
+  结论：契约里已经定义好，**不需要新设计**。
+  ApplicationStatusEnum = SUBMITTED/VIEWED/INTERVIEW/OFFER/REJECTED/WITHDRAWN
+  搭配 GET /api/v1/hr/applications 与 POST /applications/{id}/status，
+  就是 HR 端的「候选人管理页」（按投递状态筛选 + 标记状态），
+  即用户所设想的模块。本次未实现，等用户确认优先级。
+
+【4｜已查证】打开新浏览器时当前页面报错
+  结论：与第 1 点同源 —— 我全杀 Chrome 进程导致标签页被强杀，状态丢失后报错。
+  另附：截图中 "Encountered a script tag while rendering React component"
+  警告来自 next-themes 0.4.6 的 ThemeProvider（注入 script 防主题闪烁），
+  layout.tsx 自提交 54296f4 起从未被本次任务改动过，属既有无害告警。
+  说明：本会话无法查看图片内容，该报错文字来自用户消息正文。
+
+本轮踩坑（重要）：
+  HrShell 改用 hrCurrentPage 作为 zustand 选择器后页面崩溃（HTTP 500，
+  "The result of getSnapshot should be cached" + Maximum update depth）。
+  原因：hrCurrentPage 内 `?? { type: 'job-list' }` 每次调用新建对象，
+  zustand 用 Object.is 比较快照 → 判定每次都变 → 无限重渲染。
+  修复：新增 useHrCurrentPage() hook，选择器只读取稳定值，栈为空时返回
+  模块级常量引用；hrCurrentPage 保留给非 hook 环境并加警示注释。
+
+验证（CDP 驱动无头 Chrome，使用 killChromeTree 安全清理）：
+  HR 沟通板块 22/22 通过，含：沟通 Tab 与未读角标(4条)、6 条会话渲染、
+  候选人画像与应聘职位绑定、聊天页打开、快捷回复、发送消息、候选人自动回复
+  (2→4 条气泡)、返回列表、「仅看未读」筛选(3条全带角标)、搜索命中、
+  搜索无结果空状态、职位管理回归(7条)、求职者端回归、零控制台错误。
+  全程用户浏览器进程数 20 → 20，未受影响。
+
+Stage Summary:
+- 用户反馈第 1、4 点已根治（安全清理工具），第 2 点已实现并通过 22 项验证，
+  第 3 点已给出基于既有契约的结论，待用户确认是否开发。
+- 待用户验收：HR 登录后底栏「沟通」Tab。

@@ -17,12 +17,14 @@ import { JobStatusEnum } from '@/types/api'
 import type { JobFormDraft } from '@/api/hrJobs'
 import { EMPTY_JOB_FORM } from '@/api/hrJobs'
 
-export type HrTabKey = 'jobs' | 'candidates' | 'me'
+export type HrTabKey = 'jobs' | 'messages' | 'me'
 
-/** HR 端页面栈元素 */
+/** HR 端页面栈元素。根视图（job-list / messages-root）不进入栈，由 tab 决定 */
 export type HrPage =
   | { type: 'job-list' }
+  | { type: 'messages-root' }
   | { type: 'job-editor'; jobId?: string }
+  | { type: 'hr-chat'; conversationId: string }
 
 export interface HrFilterState {
   status: JobStatusEnum | 'ALL'
@@ -57,6 +59,8 @@ interface HrActions {
 
   /** 打开编辑器：传 jobId 为编辑，不传为新建 */
   openEditor: (jobId?: string, initial?: JobFormDraft) => void
+  /** 打开某个候选人的聊天页 */
+  openChat: (conversationId: string) => void
   /** 更新草稿字段 */
   patchDraft: (patch: Partial<JobFormDraft>) => void
   /** 表单字段级错误 */
@@ -82,24 +86,21 @@ const DEFAULT_FILTERS: HrFilterState = {
 
 export const useHrStore = create<HrStore>()(set => ({
   tab: 'jobs',
-  pageStack: [{ type: 'job-list' }],
+  // 空栈 = 根视图，根视图由 tab 决定（见 hrCurrentPage）
+  pageStack: [],
   filters: { ...DEFAULT_FILTERS },
   draft: { ...EMPTY_JOB_FORM },
   draftErrors: {},
   dataVersion: 0,
   toastText: null,
 
-  setTab: t => set({ tab: t, pageStack: [{ type: 'job-list' }] }),
+  setTab: t => set({ tab: t, pageStack: [] }),
 
   pushPage: p => set(s => ({ pageStack: [...s.pageStack, p] })),
 
-  popPage: () =>
-    set(s => {
-      const next = s.pageStack.slice(0, -1)
-      return { pageStack: next.length ? next : [{ type: 'job-list' }] }
-    }),
+  popPage: () => set(s => ({ pageStack: s.pageStack.slice(0, -1) })),
 
-  clearPageStack: () => set({ pageStack: [{ type: 'job-list' }] }),
+  clearPageStack: () => set({ pageStack: [] }),
 
   setFilterStatus: status =>
     set(s => ({ filters: { ...s.filters, status } })),
@@ -113,6 +114,9 @@ export const useHrStore = create<HrStore>()(set => ({
       draft: initial ? { ...initial } : { ...EMPTY_JOB_FORM },
       draftErrors: {},
     })),
+
+  openChat: conversationId =>
+    set(s => ({ pageStack: [...s.pageStack, { type: 'hr-chat', conversationId }] })),
 
   patchDraft: patch =>
     set(s => {
@@ -133,6 +137,30 @@ export const useHrStore = create<HrStore>()(set => ({
   clearToast: () => set({ toastText: null }),
 }))
 
-/** 当前是否处于编辑页 */
+/** 稳定的根视图常量：选择器返回它们可保证引用不变 */
+const JOB_LIST_ROOT: HrPage = { type: 'job-list' }
+const MESSAGES_ROOT: HrPage = { type: 'messages-root' }
+
+/**
+ * 当前页面（非 hook 环境用）。
+ *
+ * ⚠️ 不要把它直接当 zustand 选择器传进 useHrStore：
+ *   `?? { type: 'job-list' }` 每次调用都会新建对象，zustand 用 Object.is
+ *   比较快照，会判定每次都变化 → 触发无限重渲染（React 报
+ *   "The result of getSnapshot should be cached" 与 Maximum update depth）。
+ *   组件里请改用 useHrCurrentPage()。
+ */
 export const hrCurrentPage = (s: HrStore): HrPage =>
-  s.pageStack[s.pageStack.length - 1] ?? { type: 'job-list' }
+  s.pageStack[s.pageStack.length - 1] ??
+  (s.tab === 'messages' ? MESSAGES_ROOT : JOB_LIST_ROOT)
+
+/**
+ * 组件内获取当前页面。
+ * 选择器只读取稳定值（栈为空时返回同一常量引用），因此不会造成无限重渲染。
+ */
+export function useHrCurrentPage(): HrPage {
+  const top = useHrStore(s => s.pageStack[s.pageStack.length - 1])
+  const tab = useHrStore(s => s.tab)
+  if (top) return top
+  return tab === 'messages' ? MESSAGES_ROOT : JOB_LIST_ROOT
+}
