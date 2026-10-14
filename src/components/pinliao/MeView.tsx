@@ -10,10 +10,11 @@
  */
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useTheme } from 'next-themes'
-import { ChevronRight, FileText, Heart, Settings2, Moon, Sun, Monitor, ArrowLeftRight } from 'lucide-react'
+import { ChevronRight, FileText, Heart, Settings2, Moon, Sun, Monitor, LogOut } from 'lucide-react'
 import { usePinliaoStore } from '@/store/pinliao'
+import { useAuthStore } from '@/store/auth'
 import { AvatarBadge } from './AvatarBadge'
 import type { ThemePref } from '@/types/api'
 import { RESUME_COMPLETENESS } from '@/api/mock/conversations'
@@ -26,7 +27,21 @@ export function MeView() {
   const pushPage = usePinliaoStore(s => s.pushPage)
   const openSheet = usePinliaoStore(s => s.openSheet)
   const toast = usePinliaoStore(s => s.toast)
+  const logout = useAuthStore(s => s.logout)
+  const [confirmingLogout, setConfirmingLogout] = useState(false)
+  const [loggingOut, setLoggingOut] = useState(false)
   const { theme, setTheme } = useTheme()
+
+  const onLogout = async () => {
+    setLoggingOut(true)
+    try {
+      await logout()
+    } catch {
+      toast('退出失败，请重试')
+      setLoggingOut(false)
+      setConfirmingLogout(false)
+    }
+  }
 
   // next-themes 用 'system' 表示跟随系统，对应我们的 ThemePref 'auto'
   // 这里把 next-themes 的 'system' 当作 'auto' 处理
@@ -131,12 +146,45 @@ export function MeView() {
             onClick={cycleTheme}
           />
           <MenuRow
-            icon={<ArrowLeftRight className="h-4 w-4" />}
-            label="切换为招聘者身份"
-            trailing="即将上线"
-            onClick={() => toast('招聘者端将在后续版本上线')}
+            icon={<LogOut className="h-4 w-4" />}
+            label="退出登录"
+            trailing={confirmingLogout ? undefined : '切换账号'}
+            onClick={() => {
+              if (!confirmingLogout) {
+                setConfirmingLogout(true)
+                return
+              }
+              void onLogout()
+            }}
             last
           />
+
+          {/* 二次确认：避免误触退出 */}
+          {confirmingLogout && (
+            <div className="border-t border-border bg-destructive/5 px-4 py-3">
+              <p className="text-[12px] text-destructive">确认退出当前求职者账号？</p>
+              <p className="mt-1 text-[11px] text-pl-sub">
+                退出后可改用公司代表 HR 账号登录（演示账号见登录页）。
+              </p>
+              <div className="mt-2.5 flex gap-2">
+                <button
+                  type="button"
+                  disabled={loggingOut}
+                  onClick={() => void onLogout()}
+                  className="rounded-md bg-destructive px-3 py-1.5 text-[12px] font-medium text-destructive-foreground disabled:opacity-60"
+                >
+                  {loggingOut ? '退出中…' : '确认退出'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmingLogout(false)}
+                  className="rounded-md border border-border px-3 py-1.5 text-[12px] text-foreground hover:bg-accent/40"
+                >
+                  取消
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         <p className="mt-4 px-4 py-3 text-center text-[11px] text-pl-sub">

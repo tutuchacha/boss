@@ -8,7 +8,8 @@
 
 import type { JobSummary } from '@/types/api'
 import { companyByName } from './companies'
-
+import { createSeekerJobFinder } from './seekerJobs'
+import { hrJobRecords } from './hrJobs'
 interface JobRaw {
   id: number
   title: string
@@ -117,8 +118,20 @@ export const jobs: JobSummary[] = JOBS_RAW.map(raw => {
   }
 })
 
-/** 按 id 查职位 */
-export const jobById = (id: string): JobSummary | undefined => jobs.find(j => j.id === id)
+/**
+ * 求职者端职位查询器：把基础职位与 HR 端的最新状态合成。
+ * 放在此处（而非各组件）是为了让「HR 关闭/删除的职位对求职者隐藏」全局生效。
+ *
+ * 第二个参数传「取值函数」而非数组本身：hrJobRecords 是可变数组，
+ * 由 bootstrap.ts 惰性填充，传函数可保证读到的是填充后的内容。
+ */
+const seekerFinder = createSeekerJobFinder(jobs, () => hrJobRecords)
+
+/** 求职者可见职位列表（HR 新增的会出现在这里，关闭/删除的会被排除） */
+export const listSeekerJobs = seekerFinder.listSeekerJobs
+
+/** 按 id 查职位（含 HR 新增，不含已关闭/已删除） */
+export const jobById = seekerFinder.jobById
 
 /** 按 HTML 原始数字 id 查（便于与原型交互对齐） */
 export const jobByLegacyId = (legacyId: number): JobSummary | undefined =>

@@ -8,7 +8,7 @@
  */
 
 import type { JobSummary, SalaryRangeKey } from '@/types/api'
-import { jobs } from '@/api/mock/jobs'
+import { listSeekerJobs } from './jobs'
 
 const SAL_RANGE: Record<SalaryRangeKey, [number, number]> = {
   不限: [0, 999],
@@ -50,7 +50,7 @@ export function filterJobsSync(params: FilterParams): JobSummary[] {
   const [sMin, sMax] = SAL_RANGE[sal]
   const kw = q.trim().toLowerCase()
 
-  let list = jobs.filter(j => {
+  let list = listSeekerJobs().filter(j => {
     if (city !== '全国' && j.city !== city) return false
     if (cat !== '全部' && j.cat !== cat) return false
     if (sub !== '全部' && j.sub !== sub) return false
