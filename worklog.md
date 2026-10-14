@@ -455,3 +455,50 @@ Stage Summary:
 - 用户反馈第 1、4 点已根治（安全清理工具），第 2 点已实现并通过 22 项验证，
   第 3 点已给出基于既有契约的结论，待用户确认是否开发。
 - 待用户验收：HR 登录后底栏「沟通」Tab。
+
+---
+Task ID: 9
+Agent: orchestrator (main)
+Task: 重写 README（项目门面）并修正文档中的过期/错误数字
+
+背景：README.md 仍是 GitHub 建仓时自动生成的模板，且内容是**错的** ——
+写「访问 http://localhost:5173/」（Vite 默认端口），而本项目 dev 脚本为
+`next dev -p 3000`。项目正在上传 Git，README 是门面，且目标明确包含
+「HR 端职位发布功能」，README 未提及。
+
+重写 README.md，覆盖：
+- 项目定位（Boss 直聘模式，C 端 + 多 B 端租户，求职者跨企业共享）
+- 快速开始（正确端口 3000）+ 演示账号表（13800000001 求职者 /
+  13800000002 HR，密码均 123456）
+- 技术栈表
+- 功能现状：分别列出求职者端、HR 端（含职位管理、候选人沟通），
+  并明确列出「尚未实现」清单（候选人管理、面试、公司资料、验证码登录、
+  桌面后台、真实后端），避免过度承诺
+- 项目结构树 + 架构约定（单页 SPA 不走路由、service 层隔离、
+  多租户、水合安全策略）
+- 常用命令 + Google Fonts 构建依赖说明 + 数据库说明
+- 文档索引 + 给接续开发者/AI 的启动提示词 + 开发路线
+
+核对中发现并修正的事实错误：
+1. prisma 模型数：README 初稿与 docs/HANDOFF.md 均写「18 个」，
+   实际为 **19 个**（User/UserProfile/Resume/Favorite/City/Category/SysConfig/
+   Company/CompanyMember/HrProfile/Job/Conversation/Message/Application/
+   Interview/ResumeViewLog/TenantConfig/UsageLog/AuditLog）+ 10 个枚举。
+   已同时修正 HANDOFF.md 的表格。
+2. zod 与 react-hook-form 装在 package.json 但**代码零引用**，
+   README 初稿误写「校验用 Zod」。已改为如实说明「已装未用」。
+3. docs/api-endpoints.md 存在账目不符：「接口总览」表格合计写 **68**，
+   正文实际可数出 **67** 条（GET 27 / POST 31 / PATCH 6 / DELETE 3），
+   且表格内各模块数字之和亦不等于 68。已在接口文档顶部加注说明，
+   并以可逐条核验的正文为准；README 不再写重复数字（改为「按模块标注」）。
+   表格合计的修订涉及既有设计资产，待用户确认后统一更正。
+
+验证：
+- README 中引用的 30 个文件路径逐一 Test-Path 校验，全部真实存在
+- 敏感信息扫描：无绝对路径、无凭据、无 token 泄漏
+- 生产构建通过、类型检查通过
+
+Stage Summary:
+- README 已从错误模板重写为准确的项目门面，并修正两处过期数字 + 一处误述。
+- 遗留待用户确认：api-endpoints.md 总览表格合计（68）与正文（67）不一致，
+  是否统一更正为正文口径。
