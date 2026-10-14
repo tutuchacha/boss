@@ -19,7 +19,10 @@ import type {
 } from '@/types/api'
 import { USE_MOCK } from '@/config/env'
 import { request } from './client'
-import { jobById, jobs } from './mock'
+// 装配 Mock 数据（填充 HR 端记录），必须早于任何职位读取。
+// 放在本模块顶部：此处 jobs.ts 已求值完成，不会形成再入。
+import './mock/bootstrap'
+import { jobById, listSeekerJobs } from './mock'
 import type { SalaryRangeKey } from '@/types/api'
 
 /** 薪资区间 → [min, max]（K） */
@@ -56,7 +59,7 @@ export async function listJobs(params: JobListParams = {}): Promise<PaginatedDat
     const [sMin, sMax] = SAL_RANGE[sal]
     const kw = q.trim().toLowerCase()
 
-    let list = jobs.filter(j => {
+    let list = listSeekerJobs().filter(j => {
       if (city !== '全国' && j.city !== city) return false
       if (cat !== '全部' && j.cat !== cat) return false
       if (sub !== '全部' && j.sub !== sub) return false
@@ -107,7 +110,7 @@ export async function getJobDetail(jobId: string): Promise<JobDetail> {
     const j = jobById(jobId)
     if (!j) throw new Error(`职位不存在：${jobId}`)
     // 相似职位：同 sub 或同 cat，排除自身，取前 6
-    const similar = jobs
+    const similar = listSeekerJobs()
       .filter(x => x.id !== jobId && (x.sub === j.sub || x.cat === j.cat))
       .slice(0, 6)
     return {

@@ -329,3 +329,58 @@ Stage Summary:
 - HR 新增/修改的职位存于内存，刷新页面即重置（Mock 阶段特性）。
 - 生产构建需能访问 Google Fonts（layout.tsx 用 next/font/google 的 Geist）。
   国内直连会失败，需设 HTTP_PROXY/HTTPS_PROXY，或改为 next/font/local 自托管。
+
+---
+Task ID: 7
+Agent: orchestrator (main)
+Task: 打通「HR 发布 → 求职者可见」跨端链路；补齐求职者端退出登录
+
+背景：Task 6 交付后复查发现一个**功能性缺口** —— HR 端的新增/编辑/上下架/删除
+作用在 hrJobRecords（从 jobs.ts 派生的独立副本）上，而求职者端只读 jobs.ts 的
+静态数组。结果是「HR 发布职位后，求职者在职位列表里看不到」，而发布岗位的
+核心价值恰恰就是让求职者看到并投递。
+
+改动：
+- 新增 src/api/mock/seekerJobs.ts
+  createSeekerJobFinder(baseJobs, hrRecords) 纯函数，合成「求职者可见职位」：
+  软删除/已关闭 → 不出现；招聘中 → 用 HR 端最新内容覆盖既有条目（关键：即使
+  仅被编辑过、状态未变，也必须覆盖，否则改标题/薪资后求职者端仍显示旧内容）；
+  HR 新建（id 前缀 job-new-）→ 追加。
+  采用「依赖注入」而非直接 import，以消除循环依赖。
+- 新增 src/api/mock/bootstrap.ts
+  装配模块。因为 jobs.ts 需要 hrJobRecords、hrJobs.ts 又需要 jobs，
+  直接互相 import 会成环 —— 实测在 Next/Turbopack 下抛 500（hrJobRecords 在
+  初始化期对 undefined 调 .map）。改为：hrJobs 不再 import jobs，导出
+  initHrJobs(baseJobs) 惰性填充；由 bootstrap.ts 按序装配。
+- src/api/mock/hrJobs.ts  hrJobRecords 初始为空数组 + initHrJobs()
+- src/api/mock/jobs.ts    新增导出 listSeekerJobs / jobById（合成版）
+- src/api/mock/filter.ts  求职者端列表改用 listSeekerJobs()
+- src/api/jobs.ts         listJobs 与 getJobDetail 改用合成数据；顶部引入 bootstrap
+- src/components/pinliao/MeView.tsx
+  「我的」页原先只有「切换为招聘者身份 · 即将上线」的旧占位，**没有退出登录**，
+  导致求职者一旦登录就无法切换账号。改为真实的退出登录（含二次确认），
+  并在文案中指引可通过登录页切换为 HR 账号。
+
+循环依赖排查记录（重要，避免以后重蹈）：
+  尝试过 1) 在 jobs.ts 里用 require('./seekerJobs') 延迟加载 —— 被 ESLint 的
+  @typescript-eslint/no-require-imports 拦下；2) 从 jobs.ts 顶部 import
+  './bootstrap' —— 会造成 bootstrap → jobs 的再入，baseJobs 仍是 undefined。
+  最终方案（依赖注入 + 独立装配模块）是唯一同时满足「无环、无 require、
+  初始化顺序确定」的写法。
+
+验证（CDP 驱动无头 Chrome，全程用应用内退出切换账号，不刷新页面）：
+- 跨端联动 10/10 通过：
+  HR 发布 → 求职者列表可见 → 详情页可打开且薪资 40-60K 正确
+  → 求职者内退出 → HR 关闭（状态变已关闭）→ 求职者端确认消失
+- 全量回归 24/25；唯一「失败」项经数值核对为测试阈值设置错误，非代码问题：
+  基础职位 51，HR 记录 51（装配成功），招聘中 38 / 已关闭 13（恰为
+  stableHash % 4 的期望分布），求职者可见 38 = 51 - 13 ✓；
+  动态验证关闭一个 38→37、软删除一个 37→36、恢复 38，三种变更均正确传导。
+- 回归中同时确认：登录分流、错误密码、身份不匹配、发布校验（空表单拦截）、
+  编辑回填、保存修改、删除、状态筛选、求职者端消息/聊天/详情/收藏、
+  两端退出登录、零控制台错误、零 hydration 报错。
+
+Stage Summary:
+- 目标功能已完整：登录页（求职者/HR 双身份）+ HR 职位全生命周期管理 +
+  跨端数据一致 + 双向退出登录，全部通过真实浏览器交互验证。
+- 待用户验收：http://localhost:3000（HR: 13800000002 / 求职者: 13800000001，密码 123456）

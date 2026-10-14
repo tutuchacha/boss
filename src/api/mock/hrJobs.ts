@@ -18,7 +18,6 @@
 
 import type { JobStatusEnum, JobSummary, JobUpsertInput } from '@/types/api'
 import { JobStatusEnum as Status } from '@/types/api'
-import { jobs as baseJobs } from './jobs'
 import { MOCK_HR_PROFILE, MOCK_COMPANY } from './auth'
 
 /** HR 端可见的记录 = 职位精简信息 + 详情字段 + 状态 */
@@ -50,17 +49,37 @@ const DEFAULT_REQ = `1. 本科及以上学历，计算机相关专业优先；
 2. 具备扎实的编程基础与良好的工程习惯；
 3. 有较强的责任心与团队协作意识。`
 
-/** 模块级可变数据（初始派生自 baseJobs，仅取云杉科技等公司的职位） */
-export const hrJobRecords: HrJobRecord[] = baseJobs.map(j => ({
-  ...j,
-  // 用 id 哈希让约 1/4 的职位初始为「已关闭」，便于验收上下架状态
-  status: stableHash(j.id) % 4 === 0 ? Status.CLOSED : Status.OPEN,
-  responsibilities: DEFAULT_RESP,
-  requirements: DEFAULT_REQ,
-  welfare: DEFAULT_WELFARE,
-  deleted: false,
-  companyId: j.company.id,
-}))
+/**
+ * 模块级可变数据。初始为空，由 initHrJobs() 从基础职位派生。
+ *
+ * 为什么不在模块顶层直接 `baseJobs.map(...)`：
+ *   jobs.ts 需要 hrJobRecords 来合成求职者可见职位（jobById / listSeekerJobs），
+ *   而本模块又需要 jobs 作为初始数据 —— 直接互相 import 会形成循环依赖，
+ *   在 Next/Turbopack 下表现为模块初始化期取到 undefined 并抛错（实测 500）。
+ *   故改为惰性初始化：两条边都指向一个「引导模块」，由它按序调用。
+ */
+export const hrJobRecords: HrJobRecord[] = []
+
+/** 是否已初始化（引导模块调用 initHrJobs 后为 true） */
+let initialized = false
+
+/** 由 src/api/mock/bootstrap.ts 调用：用基础职位填充 HR 端记录 */
+export function initHrJobs(baseJobs: JobSummary[]): void {
+  if (initialized) return
+  initialized = true
+  hrJobRecords.push(
+    ...baseJobs.map(j => ({
+      ...j,
+      // 用 id 哈希让约 1/4 的职位初始为「已关闭」，便于验收上下架状态
+      status: stableHash(j.id) % 4 === 0 ? Status.CLOSED : Status.OPEN,
+      responsibilities: DEFAULT_RESP,
+      requirements: DEFAULT_REQ,
+      welfare: DEFAULT_WELFARE,
+      deleted: false,
+      companyId: j.company.id,
+    })),
+  )
+}
 
 /** 生成新职位 id（用递增计数器，避免 Date.now() 造成 SSR/CSR 不一致） */
 let idSeq = 0
