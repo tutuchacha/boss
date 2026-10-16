@@ -30,6 +30,10 @@ npm run dev          # 端口 3000
 
 **无需数据库、无需后端**：全部数据来自前端 Mock，开箱即跑。
 
+> **当前状态一句话**：Step 2 验收中 —— 五项验收功能（投递 / 候选人 / 面试、验证码登录 /
+> 注册、公司资料 / 企业认证）已全部完成，`npm run e2e` 57/57 通过；当前任务与下一步先看
+> [`../PROGRESS.md`](../PROGRESS.md)（状态唯一定稿）。
+
 ### 环境注意（换环境时最先检查这四条）
 
 1. **不要用 `bun`**。`package.json` 里另有一份 `bun.lock`，但目标机器未安装 bun；
@@ -106,7 +110,7 @@ npm run dev          # 端口 3000
 | 语言 | TypeScript 5 |
 | 样式 | Tailwind CSS 4 + shadcn/ui，青绿主题（`--primary: #00857F`） |
 | 客户端状态 | Zustand（含 `persist`） |
-| 服务端状态 | TanStack Query（HR 端已用；求职者端仍是同步 Mock） |
+| 服务端状态 | TanStack Query（两端新模块均用；求职者端列表筛选仍走同步 Mock） |
 | ORM | Prisma（**未接入业务**） |
 
 > `zod`、`react-hook-form` 随模板装好但**代码零引用**，不要误以为在用。
@@ -149,24 +153,29 @@ src/
 ├─ components/
 │  ├─ pinliao/               业务组件
 │  │  ├─ RootGate.tsx        按登录状态与角色分发（登录页 / 求职者端 / HR 端）
-│  │  ├─ LoginPage.tsx       登录页（身份选择 + 演示账号）
+│  │  ├─ LoginPage.tsx       登录页（密码 / 验证码 / 注册三模式 + 演示账号）
 │  │  ├─ AppShell.tsx        求职者端外壳
-│  │  ├─ JobsView / JobDetailPage / ChatPage / MessagesView / MeView / …
+│  │  ├─ JobsView / JobDetailPage / ChatPage / MessagesView / MeView /
+│  │  │  MyApplicationsPage（我的投递）/ …
 │  │  └─ hr/                 HR 工作台
-│  │     ├─ HrShell.tsx      外壳（三 Tab：职位管理 / 沟通 / 我的）
+│  │     ├─ HrShell.tsx      外壳（四 Tab：职位管理 / 候选人 / 沟通 / 我的）
 │  │     ├─ HrJobsPage.tsx   职位管理列表
 │  │     ├─ HrJobEditorPage.tsx  发布/编辑表单
+│  │     ├─ HrCandidatesPage.tsx / HrCandidateDetailPage.tsx / HrInterviewInvitePage.tsx  候选人
 │  │     ├─ HrMessagesPage.tsx   候选人会话列表
 │  │     ├─ HrChatPage.tsx   聊天页
+│  │     ├─ HrCompanyEditPage.tsx / HrCompanyVerifyPage.tsx  公司资料 / 企业认证
 │  │     └─ HrMePage.tsx     我的
 │  └─ ui/                    shadcn/ui 基础组件（勿手改）
 ├─ api/                      service 层
 │  ├─ client.ts              统一 fetch + 包络解包 + ApiError
-│  ├─ auth.ts                登录/退出
+│  ├─ auth.ts                密码 / 验证码登录、注册、退出
 │  ├─ jobs.ts                职位（求职者视角）
 │  ├─ hrJobs.ts              HR 职位管理 + 表单校验
 │  ├─ hrConversations.ts     HR 会话
-│  ├─ index.ts               出口（组件从此导入）
+│  ├─ applications.ts / hrApplications.ts  两端投递与面试
+│  ├─ company.ts             公司资料 / 企业认证
+│  ├─ index.ts               出口（当前无人使用，按模块直接导入）
 │  └─ mock/                  Mock 数据与装配
 ├─ store/                    Zustand
 │  ├─ pinliao.ts             求职者端（持久化键 pinliao.v3）
@@ -199,6 +208,9 @@ npx tsc --noEmit   # 类型检查
 | 职位基础数据（51 条） | `src/api/mock/jobs.ts` |
 | HR 端可变职位数据 | `src/api/mock/hrJobs.ts` |
 | HR 端可变会话数据 | `src/api/mock/hrConversations.ts` |
+| 候选人种子（6 人，跨页共享） | `src/api/mock/candidates.ts` |
+| 投递 / 面试可变数据 | `src/api/mock/applications.ts` |
+| 公司字典 / 资料与认证记录 | `src/api/mock/companies.ts` / `companyOps.ts` |
 | 求职者可见职位的**合成层** | `src/api/mock/seekerJobs.ts` |
 | Mock 数据装配（打破循环依赖） | `src/api/mock/bootstrap.ts` |
 
@@ -464,9 +476,10 @@ HR 新建 → 追加。
 | 组件 | 取数方式 |
 |---|---|
 | `JobsView`（求职者职位列表） | **同步** `filterJobsSync()`（`src/api/mock/filter.ts`） |
-| `JobDetailPage` | 异步 `getJobDetail()`（`src/api/jobs.ts`） |
+| `JobDetailPage` | 异步 `getJobDetail()`（`src/api/jobs.ts`）；投递态走 `src/api/applications.ts` + TanStack Query |
+| `MyApplicationsPage`（我的投递） | **TanStack Query**（`listMyApplications` / 撤回 / 面试处理） |
 | `MessagesView` / `ChatPage` / `FavoritesPage` | `jobById()`（已含合成逻辑） |
-| HR 端各页 | **TanStack Query** |
+| HR 端各页（含候选人 / 公司资料 / 企业认证） | **TanStack Query** |
 
 ---
 

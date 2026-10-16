@@ -5,7 +5,7 @@
 > **框架无关目标架构**（未来 Spring Boot 后端 + 多租户方案），本文件是**验收版现状**。
 > 两者冲突时，本文件描述现状、`docs/architecture.md` 描述目标。
 >
-> 最后更新：2026-10-16 · 对应基线 `592cc78` + 工作区未提交改动（见 `PROGRESS.md`）
+> 最后更新：2026-10-16 · 对应已提交基线 `8b69b87`（五项验收功能已完成，`npm run e2e` 57/57）
 
 ---
 
@@ -17,7 +17,7 @@
 | 语言 | TypeScript 5 | |
 | UI | Tailwind CSS 4 + shadcn/ui | 青绿主题（`--primary: #00857F`）；`src/components/ui/` 为生成代码，勿改 |
 | 客户端状态 | Zustand（含 `persist`） | `pinliao` / `auth` / `hr` 三个 store |
-| 服务端状态 | TanStack Query | HR 端已使用；求职者端部分仍走同步 Mock |
+| 服务端状态 | TanStack Query | 两端新模块均已使用；求职者端列表筛选仍走同步 Mock |
 | 图标 / 工具 | lucide-react / clsx / tailwind-merge | |
 | ORM | Prisma | **未接入业务**，仅作为领域模型设计文档（见 §6.3） |
 
@@ -33,10 +33,13 @@ src/app/page.tsx                    ← 唯一可见路由（单页 SPA）
         ├─ <LoginPage/>              未登录
         ├─ <AppShell/>               求职者端（JOB_SEEKER）
         │     └─ 根视图（tab：职位/消息/我的）+ 页面栈覆盖层
-        │        JobsView / JobDetailPage / ChatPage / MessagesView / MeView / …
+        │        JobsView / JobDetailPage / MyApplicationsPage（我的投递）/ ChatPage /
+        │        MessagesView / MeView / …
         └─ <HrShell/>                HR 工作台（HR）
-              └─ 根视图（tab：职位管理/沟通/我的）+ 页面栈覆盖层
-                 HrJobsPage / HrJobEditorPage / HrMessagesPage / HrChatPage / HrMePage / …
+              └─ 根视图（tab：职位管理/候选人/沟通/我的）+ 页面栈覆盖层
+                 HrJobsPage / HrJobEditorPage / HrCandidatesPage / HrCandidateDetailPage /
+                 HrInterviewInvitePage / HrMessagesPage / HrChatPage /
+                 HrCompanyEditPage / HrCompanyVerifyPage / HrMePage / …
 
 状态层（Zustand）
    pinliao.ts   求职者端（持久化键 pinliao.v3；tab / pageStack / filters / favorites / 会话 / 资料 …）
@@ -45,20 +48,21 @@ src/app/page.tsx                    ← 唯一可见路由（单页 SPA）
 
 service 层（src/api/*.ts）—— 组件只依赖这一层，不直接 fetch
    client.ts      统一 fetch + 响应包络解包 + ApiError；USE_MOCK 分流
-   auth.ts        登录 / 退出 /（规划中）验证码 / 注册
+   auth.ts        密码 / 验证码登录、注册、退出
    jobs.ts        求职者视角职位；hrJobs.ts  HR 职位管理 + 表单校验
    conversations.ts / hrConversations.ts   两端会话
-   applications.ts / hrApplications.ts     两端投递与面试（工作区新增，未接 UI）
+   applications.ts / hrApplications.ts     两端投递与面试（双端 UI 已接，e2e 覆盖）
+   company.ts     公司资料 / 企业认证（Mock 提交后约 1.2s 自动通过）
 
 Mock 数据层（src/api/mock/*.ts）—— USE_MOCK=true 时被 service 直读
    bootstrap.ts（装配）· jobs.ts（51 条基础职位）· hrJobs.ts（HR 可变职位）
-   seekerJobs.ts（求职者可见职位合成）· companies.ts（公司字典）
+   seekerJobs.ts（求职者可见职位合成）· companies.ts（公司字典）· companyOps.ts（资料 / 认证）
    auth.ts（账号 / 画像 / 公司绑定）· dict / categories / filter（字典与筛选）
    hrConversations.ts（HR 会话）· candidates.ts（候选人种子，跨模块共享）
-   applications.ts（投递 / 面试 可变数据，工作区新增）
+   applications.ts（投递 / 面试 可变数据）
 ```
 
-数据流（以 HR 约面试为例，目标形态）：
+数据流（以 HR 约面试为例）：
 页面事件 → `src/api/hrApplications.ts`（`if (USE_MOCK)` 读 mock / 否则 `request()`）
 → `src/api/mock/applications.ts` 改内存数组 → TanStack Query 失效重取 → 页面刷新。
 
@@ -75,28 +79,32 @@ src/
 ├─ components/
 │  ├─ pinliao/               业务组件
 │  │  ├─ RootGate.tsx        登录分发（顶部注释记录「不引入路由」决策）
-│  │  ├─ LoginPage.tsx       登录页（身份选择 + 演示账号一键填入）
+│  │  ├─ LoginPage.tsx       登录页（密码 / 验证码 / 注册三模式 + 演示账号一键填入）
 │  │  ├─ AppShell.tsx        求职者端外壳（tab + pageStack）
-│  │  ├─ JobsView / JobDetailPage / ChatPage / MessagesView / MeView / FavoritesPage / ResumePage / …
+│  │  ├─ JobsView / JobDetailPage / MyApplicationsPage（我的投递）/ ChatPage /
+│  │  │  MessagesView / MeView / FavoritesPage / ResumePage / …
 │  │  ├─ BottomSheet / CitySheet / FilterSheet / WishSheet  弹层
 │  │  └─ hr/                 HR 工作台（430px 居中）
-│  │     ├─ HrShell.tsx      外壳（当前三 Tab：职位管理 / 沟通 / 我的）
+│  │     ├─ HrShell.tsx      外壳（四 Tab：职位管理 / 候选人 / 沟通 / 我的）
 │  │     ├─ HrJobsPage.tsx   / HrJobEditorPage.tsx
+│  │     ├─ HrCandidatesPage.tsx / HrCandidateDetailPage.tsx / HrInterviewInvitePage.tsx
 │  │     ├─ HrMessagesPage.tsx / HrChatPage.tsx
+│  │     ├─ HrCompanyEditPage.tsx / HrCompanyVerifyPage.tsx
 │  │     └─ HrMePage.tsx
 │  └─ ui/                    shadcn/ui 基础组件（勿手改）
 ├─ api/                      service 层
 │  ├─ client.ts              统一 fetch + 包络解包 + ApiError
 │  ├─ auth.ts / jobs.ts / hrJobs.ts / hrConversations.ts / conversations.ts / categories.ts
-│  ├─ applications.ts        ★ 求职者投递/面试 service（工作区新增，未接 UI）
-│  ├─ hrApplications.ts      ★ HR 投递/面试 service（工作区新增，未接 UI）
+│  ├─ applications.ts        求职者投递 / 面试 service（投递闭环）
+│  ├─ hrApplications.ts      HR 候选人 / 投递 / 面试 service
+│  ├─ company.ts             公司资料 / 企业认证 service
 │  ├─ index.ts               出口（当前无人使用，组件习惯直接按模块导入）
 │  └─ mock/                  Mock 数据与装配
 │     ├─ bootstrap.ts        打破 jobs ↔ hrJobs 循环依赖的装配点
-│     ├─ jobs.ts / hrJobs.ts / seekerJobs.ts / companies.ts
+│     ├─ jobs.ts / hrJobs.ts / seekerJobs.ts / companies.ts / companyOps.ts
 │     ├─ auth.ts / dict.ts / categories.ts / filter.ts / conversations.ts / hrConversations.ts
-│     ├─ candidates.ts       ★ 候选人种子（工作区新增；hrConversations 与 applications 共用）
-│     └─ applications.ts     ★ 投递/面试可变数据（工作区新增）
+│     ├─ candidates.ts       候选人种子（hrConversations 与 applications 共用）
+│     └─ applications.ts     投递 / 面试可变数据
 ├─ store/
 │  ├─ pinliao.ts             求职者端（持久化 pinliao.v3）
 │  ├─ auth.ts                认证（持久化 pinliao.auth.v1）
@@ -106,8 +114,6 @@ src/
 ├─ types/api.ts              与契约同步的类型定义（新增功能先查这里）
 └─ config/env.ts             环境变量（USE_MOCK / API_BASE_URL / WS_BASE_URL / WS_PORT）
 ```
-
-★ = 本次未提交的在建文件，详见 `PROGRESS.md` §3。
 
 ---
 
@@ -144,7 +150,7 @@ src/
                                           │
    candidates.ts（纯种子，被两处共用）      │
         ├── hrConversations.ts ───────────┤
-        └── applications.ts ──────────────┘（新增；还依赖 jobs / hrJobs / hrConversations）
+        └── applications.ts ──────────────┘（还依赖 jobs / hrJobs / hrConversations）
 ```
 
 - **循环依赖已解决**：`jobs.ts` 与 `hrJobs.ts` 不互相 import，由 `bootstrap.ts`
@@ -153,12 +159,17 @@ src/
   不要直接读静态 `jobs` 数组。
 - **候选人种子**：`mock/candidates.ts` 被 HR 会话（`hrConversations`）与投递（`applications`）
   共用，保证「沟通」与「候选人管理」两个页面的人物一致。
+- **公司资料 / 认证**：`mock/companyOps.ts` 原地修改 `companies.ts` 的公司记录，并把
+  名称 / 阶段 / 规模同步到 `jobs.ts` / `hrJobs.ts` 里的公司快照，否则双端仍显示旧公司名。
 
 ### 4.4 认证与角色分流
 
-- 登录：`LoginPage` → `useAuthStore.login(account, password, expectRole)`
-  → `src/api/auth.ts`（Mock 校验 `mock/auth.ts` 的账号表，写 token 到 localStorage）
+- 登录：`LoginPage`（密码 / 验证码 / 注册三模式）→ `useAuthStore` 的
+  `login / loginSms / register` → `src/api/auth.ts`（Mock 校验 `mock/auth.ts` 的账号表与
+  固定验证码 `123456`；注册写内存注册表，HR 注册自动创建未认证新公司；写 token 到 localStorage）
   → store 写入 `user / profile / company / member` → `RootGate` 按角色渲染对应外壳。
+- 登录成功统一重置双端落地页签（`setTab('jobs')`），避免落回上次停留页签
+  （`docs/AI-CONTINUE.md` §6.7）。
 - **身份校验必须在写登录态之前**（不符时抛 `RoleMismatchError`，登录页可提示切换身份）——
   详见 `docs/AI-CONTINUE.md` §6.4。
 - token 键：`pinliao.accessToken` / `pinliao.refreshToken`；auth store 只持久化身份信息。
@@ -207,11 +218,11 @@ src/
 所有可变数据（职位 / 会话 / 投递 / 面试）存于模块级数组，**刷新即重置**；
 跨端联动必须用应用内退出登录切换账号，不能刷新页面。
 
-### 6.2 HR 新建职位固定挂在演示公司
+### 6.2 HR 新建职位归属（已于本轮修复，勿回退）
 
-`src/api/mock/hrJobs.ts` 的 `toRecord()` 目前写死 `MOCK_COMPANY`（云杉科技）与
-`MOCK_HR_PROFILE`。实现「注册新公司 HR 发布职位」时必须一并改造为按当前登录
-公司 / HR 注入，否则多租户演示会穿帮（登记在 `PROGRESS.md` §6.2 风险表）。
+`src/api/mock/hrJobs.ts` 的 `toRecord()` 已改为按**当前登录上下文**注入公司 / HR ——
+注册新公司的 HR 发布的职位挂在自己公司名下，多租户演示不穿帮。
+改动前写死 `MOCK_COMPANY`（云杉科技）与 `MOCK_HR_PROFILE`，回归时以此为鉴。
 
 ### 6.3 Prisma 只是设计文档
 
@@ -221,8 +232,9 @@ src/
 ### 6.4 求职者端取数方式混用
 
 `JobsView` 走同步 `filterJobsSync()`（`mock/filter.ts`），`JobDetailPage` 走异步
-`getJobDetail()`；HR 端统一 TanStack Query。新增求职者端页面时优先 Query，
-不要扩大同步 Mock 的适用范围（参照 `docs/AI-CONTINUE.md` §7.5 对照表）。
+`getJobDetail()`，投递 / 面试相关页面（`MyApplicationsPage` 等）走 TanStack Query；
+HR 端统一 Query。新增求职者端页面时优先 Query，不要扩大同步 Mock 的适用范围
+（参照 `docs/AI-CONTINUE.md` §7.5 对照表）。
 
 ---
 
@@ -231,3 +243,4 @@ src/
 | 版本 | 日期 | 变更 |
 | --- | --- | --- |
 | v1.0 | 2026-10-16 | 首版：按工作区实况记录技术栈、运行时结构、目录、模块关系、约定与已知限制 |
+| v1.1 | 2026-10-16 | 五项验收功能完成：补录候选人 / 投递 / 面试 / 验证码 / 公司资料认证相关页面与模块 |
