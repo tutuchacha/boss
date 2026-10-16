@@ -127,6 +127,18 @@ export interface CompanyMember {
   hrProfile?: HrProfile
 }
 
+/** 企业认证提交（docs/api-endpoints.md §5.6） */
+export interface CompanyVerifyInput {
+  /** 企业全称（与营业执照一致） */
+  companyName: string
+  /** 统一社会信用代码 */
+  licenseNo: string
+  /** 联系人姓名 */
+  contactName: string
+  /** 联系电话 */
+  contactPhone: string
+}
+
 export interface TenantConfig {
   companyId: string
   maxJobs: number
@@ -498,6 +510,13 @@ export interface UploadConfirmResult {
 export interface SmsCodeInput {
   phone: string
   scene: 'LOGIN' | 'REGISTER' | 'RESET'
+}
+
+/** 发送验证码出参（§1.1） */
+export interface SmsCodeResult {
+  sentAt: string
+  /** 距可再次发送的秒数（60s 限流） */
+  nextRetryIn: number
 }
 
 export interface RegisterInput {

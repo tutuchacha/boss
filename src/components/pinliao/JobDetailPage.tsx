@@ -14,15 +14,20 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Star } from 'lucide-react'
 import { usePinliaoStore } from '@/store/pinliao'
+import { useAuthStore } from '@/store/auth'
 import { getJobDetail } from '@/api/jobs'
 import type { JobDetail } from '@/types/api'
+import { ApplicationStatusEnum } from '@/types/api'
 import { AvatarBadge } from './AvatarBadge'
-import { startConversation, sendMessage } from '@/api/conversations'
-import { MessageTypeEnum } from '@/types/api'
+import { startConversation } from '@/api/conversations'
+import { applyJob, listMyApplications } from '@/api/applications'
+import { ApiError } from '@/api/client'
 import { whenText } from '@/lib/time'
 import { responsibilitiesOf } from '@/api/mock/categories'
+import { BottomSheet } from './BottomSheet'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -33,13 +38,18 @@ interface Props {
 export function JobDetailPage({ jobId, onBack }: Props) {
   const [detail, setDetail] = useState<JobDetail | null>(null)
   const [loading, setLoading] = useState(true)
+  const [applyOpen, setApplyOpen] = useState(false)
+  const [coverLetter, setCoverLetter] = useState('')
+  const [applying, setApplying] = useState(false)
   const favorites = usePinliaoStore(s => s.favorites)
   const toggleFavorite = usePinliaoStore(s => s.toggleFavorite)
   const toast = usePinliaoStore(s => s.toast)
   const pushPage = usePinliaoStore(s => s.pushPage)
   const conversations = usePinliaoStore(s => s.conversations)
   const mutateConversations = usePinliaoStore(s => s.mutateConversations)
-  const setTyping = usePinliaoStore(s => s.setTyping)
+  const userId = useAuthStore(s => s.user?.id ?? '')
+  const seekerProfile = useAuthStore(s => s.seekerProfile)
+  const queryClient = useQueryClient()
 
   useMemo(() => {
     // mock 模式下 getJobDetail 同步 Promise，then 中取值
@@ -48,6 +58,16 @@ export function JobDetailPage({ jobId, onBack }: Props) {
       setLoading(false)
     })
   }, [jobId])
+
+  /** 我的投递：判断当前职位是否已投递（撤回后可重新投递） */
+  const { data: myApplications = [] } = useQuery({
+    queryKey: ['my-applications', userId],
+    queryFn: () => listMyApplications(userId),
+    enabled: Boolean(userId),
+  })
+  const myApplication = myApplications.find(
+    v => v.job?.id === jobId && v.application.status !== ApplicationStatusEnum.WITHDRAWN,
+  )
 
   if (loading || !detail) {
     return (
@@ -84,21 +104,23 @@ export function JobDetailPage({ jobId, onBack }: Props) {
     pushPage({ type: 'chat', id: jobId })
   }
 
-  const handleSendResume = async () => {
-    // 简化：在当前会话里直接发送 RESUME 类型消息（如果存在会话）
-    const conv = conversations.find(c => c.jobId === jobId)
-    if (!conv) {
-      toast('请先发起沟通')
-      return
+  /** 投递简历：写入 Mock 内存 + 失效「我的投递」缓存（按钮随 query 刷新为已投递） */
+  const onApply = async () => {
+    if (!userId) return
+    setApplying(true)
+    try {
+      await applyJob(userId, {
+        jobId,
+        coverLetter: coverLetter.trim() || undefined,
+      })
+      toast('投递成功，可在「我的投递」查看进度')
+      setApplyOpen(false)
+      await queryClient.invalidateQueries({ queryKey: ['my-applications', userId] })
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : '投递失败，请重试')
+    } finally {
+      setApplying(false)
     }
-    await sendMessage(
-      conv.id,
-      { type: MessageTypeEnum.RESUME, content: '在线简历' },
-      { conversations, messagesByConv: usePinliaoStore.getState().messagesByConv },
-      mutateConversations,
-    )
-    setTyping(conv.id, true)
-    setTimeout(() => setTyping(conv.id, false), 1200)
   }
 
   return (
@@ -242,10 +264,17 @@ export function JobDetailPage({ jobId, onBack }: Props) {
             <span className="mt-0.5">{isFav ? '已收藏' : '收藏'}</span>
           </button>
           <button
-            onClick={handleSendResume}
-            className="flex-1 rounded-md border border-primary py-2.5 text-sm text-primary"
+            onClick={() => {
+              if (myApplication) return
+              setApplyOpen(true)
+            }}
+            disabled={Boolean(myApplication)}
+            className={cn(
+              'flex-1 rounded-md border py-2.5 text-sm',
+              myApplication ? 'border-border text-pl-sub' : 'border-primary text-primary',
+            )}
           >
-            发送简历
+            {myApplication ? '已投递' : '投递简历'}
           </button>
           <button
             onClick={handleChat}
@@ -256,6 +285,42 @@ export function JobDetailPage({ jobId, onBack }: Props) {
         </footer>
         </div>
       </div>
+
+      {/* 投递简历 Sheet（复用全局 BottomSheet，含遮罩 + Esc 关闭） */}
+      {applyOpen && (
+        <BottomSheet title="投递简历" onClose={() => !applying && setApplyOpen(false)}>
+          <div className="px-4 pb-4 pt-3">
+            <div className="rounded-md bg-muted px-3 py-2.5">
+              <p className="text-[13px] font-medium text-foreground">
+                在线简历 · {seekerProfile?.name ?? '我的简历'}
+              </p>
+              <p className="mt-0.5 text-[11px] text-pl-sub">
+                投递后 HR 可查看你的在线简历与联系方式
+              </p>
+            </div>
+            <label className="mt-3 block text-[12px] text-pl-sub" htmlFor="apply-cover">
+              打招呼语（选填）
+            </label>
+            <textarea
+              id="apply-cover"
+              value={coverLetter}
+              onChange={e => setCoverLetter(e.target.value)}
+              rows={3}
+              maxLength={200}
+              placeholder="说点什么，让 HR 更快注意到你"
+              className="mt-1.5 w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+            <button
+              type="button"
+              disabled={applying}
+              onClick={() => void onApply()}
+              className="mt-3 flex h-11 w-full items-center justify-center rounded-lg bg-primary text-[15px] font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-60"
+            >
+              {applying ? '投递中…' : '确认投递'}
+            </button>
+          </div>
+        </BottomSheet>
+      )}
     </PageShell>
   )
 }

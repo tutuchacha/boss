@@ -14,7 +14,7 @@
  * =====================================================================
  */
 
-import type { JobStatusEnum, JobUpsertInput } from '@/types/api'
+import type { Company, HrProfile, JobStatusEnum, JobUpsertInput } from '@/types/api'
 import { JobStatusEnum as Status } from '@/types/api'
 import { USE_MOCK } from '@/config/env'
 import { ApiError, request } from './client'
@@ -29,6 +29,12 @@ import {
 } from './mock'
 
 export type { HrJobRecord }
+
+/** 发布职位时的归属上下文（Mock 注入；联调阶段由后端从 token 解析） */
+export interface JobOwnerInput {
+  company: Pick<Company, 'id' | 'name' | 'stage' | 'size'>
+  hr: Pick<HrProfile, 'id' | 'name' | 'title'>
+}
 
 /** 表单选项（转发自 mock 字典，便于组件只依赖 service 层） */
 export {
@@ -83,11 +89,14 @@ export async function getMyJob(jobId: string): Promise<HrJobRecord> {
   return request<HrJobRecord>(`/hr/jobs/${jobId}`)
 }
 
-/** §6.5 发布职位 */
-export async function createJob(input: JobUpsertInput): Promise<HrJobRecord> {
+/** §6.5 发布职位（归属公司与 HR 上下文显式传入，支持新注册公司） */
+export async function createJob(
+  input: JobUpsertInput,
+  owner: JobOwnerInput,
+): Promise<HrJobRecord> {
   if (USE_MOCK) {
     await new Promise(r => setTimeout(r, 280))
-    return createHrJob(input)
+    return createHrJob(input, owner)
   }
   return request<HrJobRecord>('/jobs', { method: 'POST', body: input })
 }

@@ -17,6 +17,7 @@ import { JobsView } from './JobsView'
 import { MessagesView } from './MessagesView'
 import { MeView } from './MeView'
 import { JobDetailPage } from './JobDetailPage'
+import { MyApplicationsPage } from './MyApplicationsPage'
 import { ChatPage } from './ChatPage'
 import { ResumePage } from './ResumePage'
 import { FavoritesPage } from './FavoritesPage'
@@ -104,6 +105,7 @@ export function AppShell() {
                 {p.type === 'favorites' && <FavoritesPage onBack={popPage} />}
                 {p.type === 'resume' && <ResumePage onBack={popPage} />}
                 {p.type === 'wish' && <ResumePage onBack={popPage} />}
+                {p.type === 'applications' && <MyApplicationsPage onBack={popPage} />}
               </div>
             )
           })}

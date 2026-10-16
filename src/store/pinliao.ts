@@ -37,7 +37,7 @@ export type TabKey = 'jobs' | 'msgs' | 'me'
 /** 页面栈元素 */
 export interface PageEntry {
   /** 页面类型 */
-  type: 'job' | 'chat' | 'favorites' | 'resume' | 'wish'
+  type: 'job' | 'chat' | 'favorites' | 'resume' | 'wish' | 'applications'
   /** 关联资源 id（如 job id / conversation job-id） */
   id?: string
 }

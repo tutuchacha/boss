@@ -1,8 +1,11 @@
 /**
- * 聘聊 · HR 工作台 - 我的（占位 + 退出登录）
+ * 聘聊 · HR 工作台 - 我的
  * =====================================================================
- * 本次范围只做「登录 + 职位管理」，候选人管理与公司资料留待后续步骤。
- * 退出登录是本页的完整功能，便于在求职者端 / HR 端之间切换验收。
+ * 内容：
+ *  - HR 个人卡片（账号 / 所属公司）
+ *  - 公司信息速览（名称 / 阶段 / 规模 / 行业）
+ *  - 入口：公司资料编辑、企业认证（状态角标）
+ *  - 退出登录（切换求职者 / HR 演示账号验收）
  * =====================================================================
  */
 
@@ -15,10 +18,10 @@ import {
   Inbox,
   LogOut,
   ShieldCheck,
-  UserRound,
 } from 'lucide-react'
 import { useAuthStore } from '@/store/auth'
 import { useHrStore } from '@/store/hr'
+import { cn } from '@/lib/utils'
 import { AvatarBadge } from '../AvatarBadge'
 
 export function HrMePage() {
@@ -29,9 +32,18 @@ export function HrMePage() {
   const logout = useAuthStore(s => s.logout)
   const toast = useHrStore(s => s.toast)
   const clearPageStack = useHrStore(s => s.clearPageStack)
+  const openCompanyEdit = useHrStore(s => s.openCompanyEdit)
+  const openCompanyVerify = useHrStore(s => s.openCompanyVerify)
 
   const [confirming, setConfirming] = useState(false)
   const [busy, setBusy] = useState(false)
+
+  /** 企业认证状态文案 / 配色 */
+  const verifyText = company?.verified
+    ? '已认证'
+    : company?.status === 'PENDING'
+      ? '审核中'
+      : '未认证'
 
   const onLogout = async () => {
     setBusy(true)
@@ -107,24 +119,51 @@ export function HrMePage() {
         </dl>
       </section>
 
-      {/* 后续能力占位 */}
+      {/* 公司资料 / 企业认证 / 后续能力 */}
       <section className="mt-2.5 bg-card">
-        {[
-          { Icon: UserRound, label: '公司资料与品牌设置', tag: '后续' },
-          { Icon: Inbox, label: '候选人池与人才库', tag: '后续' },
-        ].map(({ Icon, label, tag }) => (
-          <div
-            key={label}
-            className="flex items-center gap-2.5 border-b border-border px-4 py-3.5 last:border-b-0"
+        <button
+          type="button"
+          onClick={openCompanyEdit}
+          className="flex w-full items-center gap-2.5 border-b border-border px-4 py-3.5 text-left transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Building2 className="h-4 w-4 text-primary" />
+          <span className="flex-1 text-[14px] text-foreground">公司资料</span>
+          <span className="text-[11px] text-pl-sub">编辑</span>
+          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+        </button>
+
+        <button
+          type="button"
+          onClick={openCompanyVerify}
+          className="flex w-full items-center gap-2.5 border-b border-border px-4 py-3.5 text-left transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <ShieldCheck
+            className={cn('h-4 w-4', company?.verified ? 'text-primary' : 'text-muted-foreground')}
+          />
+          <span className="flex-1 text-[14px] text-foreground">企业认证</span>
+          <span
+            className={cn(
+              'text-[11px]',
+              company?.verified
+                ? 'text-primary'
+                : company?.status === 'PENDING'
+                  ? 'text-amber-600 dark:text-amber-400'
+                  : 'text-pl-sub',
+            )}
           >
-            <Icon className="h-4 w-4 text-muted-foreground" />
-            <span className="flex-1 text-[14px] text-foreground">{label}</span>
-            <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
-              {tag}
-            </span>
-            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-          </div>
-        ))}
+            {verifyText}
+          </span>
+          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+        </button>
+
+        <div className="flex items-center gap-2.5 px-4 py-3.5">
+          <Inbox className="h-4 w-4 text-muted-foreground" />
+          <span className="flex-1 text-[14px] text-foreground">候选人池与人才库</span>
+          <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+            后续
+          </span>
+          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+        </div>
       </section>
 
       {/* 退出登录 */}

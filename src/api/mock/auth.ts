@@ -21,7 +21,7 @@ import type {
   UserProfile,
 } from '@/types/api'
 import { RoleEnum, SeekingStatusEnum } from '@/types/api'
-import { companyByName } from './companies'
+import { companyByName, registerCompany } from './companies'
 import { jobs } from './jobs'
 
 /** 测试账号密码（Mock 阶段统一） */
@@ -171,3 +171,109 @@ export const DEMO_ACCOUNTS: DemoAccountHint[] = [
  */
 export const companyJobCount = (companyId: string): number =>
   jobs.filter(j => j.company.id === companyId).length
+
+// ============================================================
+// 短信验证码（Mock）与注册账号登记
+// ============================================================
+
+/** 短信验证码固定值（演示环境不外发短信，登录页会给出提示） */
+export const MOCK_SMS_CODE = '123456'
+/** 验证码有效期（5 分钟） */
+export const MOCK_SMS_TTL_MS = 5 * 60 * 1000
+/** 同手机号重发间隔（秒），与契约 §1.1 的 60s 限流一致 */
+export const MOCK_SMS_RESEND_SECONDS = 60
+
+export interface MockSmsRecord {
+  code: string
+  expiresAt: number
+}
+
+/** `scene:phone` → 验证码记录（service 层读写，一次性使用） */
+export const mockSmsRecords = new Map<string, MockSmsRecord>()
+/** phone → 可再次发送的时间戳（60s 限流） */
+export const mockSmsCooldownUntil = new Map<string, number>()
+
+/** 注册账号的画像 / 公司 / 成员登记（键 userId；演示账号走专门分支，不在此表） */
+const registeredProfiles = new Map<string, UserProfile | HrProfile>()
+const registeredCompanies = new Map<string, Company>()
+const registeredMembers = new Map<string, CompanyMember>()
+
+let registerSeq = 0
+
+/**
+ * 注册新账号（Mock）：追加用户与登录凭据。
+ * - 求职者：仅用户 + 空画像；
+ * - HR：自动创建「未认证」新公司（ADMIN 成员），联动企业认证流程。
+ */
+export function registerMockAccount(input: {
+  phone: string
+  password: string
+  role: RoleEnum.JOB_SEEKER | RoleEnum.HR
+}): { user: User; profile: UserProfile | HrProfile; company?: Company; member?: CompanyMember } {
+  registerSeq += 1
+  const now = new Date().toISOString()
+  const user: User = {
+    id: `u-reg-${registerSeq}`,
+    phone: input.phone,
+    role: input.role,
+    status: 'ACTIVE',
+    lastLoginAt: now,
+    createdAt: now,
+    updatedAt: now,
+  }
+  MOCK_USERS.push(user)
+  MOCK_CREDENTIALS[input.phone] = input.password
+
+  if (input.role === RoleEnum.JOB_SEEKER) {
+    const profile: UserProfile = {
+      id: `up-reg-${registerSeq}`,
+      userId: user.id,
+      name: `求职者${input.phone.slice(-4)}`,
+      seekingStatus: SeekingStatusEnum.ACTIVE,
+    }
+    registeredProfiles.set(user.id, profile)
+    return { user, profile }
+  }
+
+  const company = registerCompany(`新注册企业-${input.phone.slice(-4)}`)
+  const hrProfile: HrProfile = {
+    id: `hr-reg-${registerSeq}`,
+    userId: user.id,
+    companyId: company.id,
+    name: `招聘官${input.phone.slice(-4)}`,
+    title: '招聘负责人',
+  }
+  const member: CompanyMember = {
+    id: `cm-reg-${registerSeq}`,
+    userId: user.id,
+    companyId: company.id,
+    role: 'ADMIN',
+    joinedAt: now,
+    user,
+    hrProfile,
+  }
+  registeredProfiles.set(user.id, hrProfile)
+  registeredCompanies.set(user.id, company)
+  registeredMembers.set(user.id, member)
+  return { user, profile: hrProfile, company, member }
+}
+
+/**
+ * 登录后的会话上下文（画像 / 公司 / 成员）。
+ * 演示账号与注册账号的统一出口，避免各处重复判断。
+ */
+export function mockSessionContextOf(user: User): {
+  profile?: UserProfile | HrProfile
+  company?: Company
+  member?: CompanyMember
+} {
+  if (user.id === MOCK_SEEKER_USER.id) return { profile: MOCK_SEEKER_PROFILE }
+  if (user.id === MOCK_HR_USER.id) {
+    return { profile: MOCK_HR_PROFILE, company: MOCK_COMPANY, member: MOCK_COMPANY_MEMBER }
+  }
+  return {
+    profile: registeredProfiles.get(user.id),
+    company: registeredCompanies.get(user.id),
+    member: registeredMembers.get(user.id),
+  }
+}

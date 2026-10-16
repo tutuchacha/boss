@@ -14,8 +14,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Loader2, Send } from 'lucide-react'
-import { MessageFromEnum } from '@/types/api'
+import { ArrowLeft, CalendarClock, Loader2, MessageSquare, Send } from 'lucide-react'
+import { InterviewFormatEnum, MessageFromEnum, MessageTypeEnum } from '@/types/api'
 import {
   getHrConversation,
   listHrMessages,
@@ -23,8 +23,10 @@ import {
   replyAsCandidate,
   sendHrMessage,
 } from '@/api/hrConversations'
+import { INTERVIEW_FORMAT_TEXT } from '@/api/mock/applications'
 import { useAuthStore } from '@/store/auth'
 import { useHrStore } from '@/store/hr'
+import { formatDateTime } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { AvatarBadge } from '../AvatarBadge'
 
@@ -170,22 +172,36 @@ export function HrChatPage({ conversationId }: Props) {
           <p className="py-6 text-center text-[12px] text-pl-sub">加载消息中…</p>
         )}
 
+        {!isPending && messages.length === 0 && (
+          <div className="flex flex-col items-center py-12 text-center">
+            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-secondary">
+              <MessageSquare className="h-5 w-5 text-muted-foreground" />
+            </span>
+            <p className="mt-2.5 text-[13px] text-pl-sub">暂无消息</p>
+            <p className="mt-1 text-[11px] text-pl-sub">可以用下方快捷回复开始沟通</p>
+          </div>
+        )}
+
         <div className="space-y-3">
           {rendered.map(m => {
             const mine = m.fromType === MessageFromEnum.HR
             return (
               <div key={m.id} className={cn('flex', mine ? 'justify-end' : 'justify-start')}>
                 <div className={cn('flex max-w-[78%] flex-col', mine && 'items-end')}>
-                  <div
-                    className={cn(
-                      'rounded-2xl px-3 py-2 text-[13px] leading-relaxed',
-                      mine
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-secondary text-secondary-foreground',
-                    )}
-                  >
-                    {m.content}
-                  </div>
+                  {m.type === MessageTypeEnum.INTERVIEW_INVITE ? (
+                    <InterviewInviteCard content={m.content} />
+                  ) : (
+                    <div
+                      className={cn(
+                        'rounded-2xl px-3 py-2 text-[13px] leading-relaxed',
+                        mine
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-secondary text-secondary-foreground',
+                      )}
+                    >
+                      {m.content}
+                    </div>
+                  )}
                   <span className="mt-1 px-1 text-[10px] text-pl-sub">{msgTime(m.createdAt)}</span>
                 </div>
               </div>
@@ -248,6 +264,63 @@ export function HrChatPage({ conversationId }: Props) {
           )}
         </button>
       </div>
+    </div>
+  )
+}
+
+// ============================================================
+// 面试邀请气泡卡片（MessageType.INTERVIEW_INVITE）
+// ============================================================
+
+/** 面试邀请消息载荷（content 为 JSON 字符串，见 mock/applications.appendInterviewInviteMessage） */
+interface InterviewInvitePayload {
+  interviewId: string
+  scheduledAt: string
+  format: InterviewFormatEnum
+  location?: string
+  onlineUrl?: string
+  note?: string
+}
+
+function parseInterviewInvite(content: string): InterviewInvitePayload | null {
+  try {
+    const p = JSON.parse(content) as InterviewInvitePayload
+    return p && p.scheduledAt ? p : null
+  } catch {
+    return null
+  }
+}
+
+/** 面试邀请卡片：与普通文本气泡区分展示 */
+function InterviewInviteCard({ content }: { content: string }) {
+  const p = parseInterviewInvite(content)
+  if (!p) {
+    return (
+      <div className="rounded-2xl bg-secondary px-3 py-2 text-[13px] text-secondary-foreground">
+        [面试邀请]
+      </div>
+    )
+  }
+  const where =
+    p.format === InterviewFormatEnum.ONSITE
+      ? p.location
+      : p.format === InterviewFormatEnum.VIDEO
+        ? p.onlineUrl
+        : undefined
+  return (
+    <div className="w-full min-w-[200px] rounded-2xl border border-primary/25 bg-primary/5 px-3.5 py-3">
+      <p className="flex items-center gap-1.5 text-[12px] font-medium text-primary">
+        <CalendarClock className="h-3.5 w-3.5" />
+        面试邀请
+      </p>
+      <p className="mt-1.5 text-[13px] font-medium text-foreground">
+        {formatDateTime(p.scheduledAt)}
+      </p>
+      <p className="mt-0.5 text-[11px] text-pl-sub">
+        {INTERVIEW_FORMAT_TEXT[p.format]}
+        {where ? ` · ${where}` : ''}
+      </p>
+      {p.note && <p className="mt-1.5 text-[11px] leading-relaxed text-pl-sub">{p.note}</p>}
     </div>
   )
 }

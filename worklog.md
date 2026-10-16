@@ -562,3 +562,80 @@ Stage Summary:
 - 项目现在有单一、充要、环境无关的接续入口 docs/AI-CONTINUE.md；
   换任何 AI 只需给它这一份文件即可开工。
 - 文档间状态矛盾已消除（过期文档均已加 banner 并修正误导性事实）。
+
+---
+Task ID: 11
+Agent: orchestrator (main)
+Task: 开发交接 — 盘点工作区实际状态、复验构建与验收、产出交接文档，供新会话无缝接续
+
+Work Log:
+- 复核 Git：基线 592cc78（已提交且验收通过）；工作区 2 文件修改 + 4 源码文件新增（全部未提交）；
+  无 stash；未动任何业务代码
+- 实测复验（2026-10-16）：
+  - npx tsc --noEmit：仅 3 个既有错误（examples/websocket/*、src/lib/db.ts），新文件零错误
+  - npx eslint（新增/修改的 6 个文件）：0 告警
+  - npm run e2e：27/27 通过（求职者端 9 / HR 端 15 / 跨端联动 1 / 质量 2）；
+    用户 Chrome 18→18 未受影响
+  - dev server：端口 3000 HTTP 200
+- 盘点在建内容（未提交、未接 UI，全仓 grep 无 import 证实）：
+  - mock/candidates.ts（候选人种子，自 hrConversations 抽出共享）
+  - mock/applications.ts（投递/面试内存数据 + 双端视图 + 状态文案）
+  - api/applications.ts / api/hrApplications.ts（求职者、HR 两端 service）
+  - mock/hrConversations.ts（引用共享种子 + appendHrMessage 支持 type +
+    ensureHrConversationForCandidate）
+  - types/api.ts（CompanyVerifyInput / SmsCodeResult）
+- 产出交接文档（根目录五件套）：PROJECT.md（目标与范围）、ARCHITECTURE.md（现状结构）、
+  PROGRESS.md（状态唯一定稿：已完成/进行中/下一步/风险/命令与测试结果）、CHANGELOG.md
+  （未提交变更清单 + 历史提交摘要）；AGENTS.md 追加项目约束与规范
+  （保留 next dev 托管区块，已核对 upsert 实现不会被覆盖）
+- 同步 docs/AI-CONTINUE.md（定位改为深读手册 + 工作区未提交快照 + v1.3 修订记录）
+
+Stage Summary:
+- 交接完成：新会话按 PROGRESS.md → ARCHITECTURE.md → PROJECT.md → AI-CONTINUE.md 顺序
+  即可无损接续；五项功能任务的准确进度见 PROGRESS.md §5（投递/候选人/面试：数据与服务层
+  完成未提交；验证码注册、公司资料/认证：未开始）。
+- 本次交接任务本身未提交（与在建功能改动同处工作区）；功能完成后应作为下一条
+  worklog（Task 12）记录，并把未提交改动整理进 CHANGELOG 正式条目。
+
+---
+Task ID: 12
+Agent: orchestrator (main)
+Task: 验收五项功能开发 — 投递 / 候选人 / 面试流程、手机验证码登录 / 注册、公司资料编辑 + 企业认证接入 UI；扩展 e2e 并同步文档
+
+Work Log:
+- 数据与 service（沿用上一轮已就绪的内存层，本轮接线 + 补齐）：
+  - 公司资料 / 企业认证：mock/companyOps.ts + api/company.ts（PENDING → 约 1.2s 自动通过；
+    42210 / 40916）
+  - 验证码 / 注册：mock/auth.ts、api/auth.ts、store/auth.ts（固定 123456、按手机号 60s 限流；
+    HR 注册自动建未认证公司「新注册企业-{手机尾4}」）
+  - hrJobs owner 上下文：新建职位归属按登录注入（原硬编码云杉）
+- Store 与 UI 接线：
+  - hr store：第 4 个 Tab 'candidates' + 5 个覆盖页类型 + open actions；
+    pinliao store：PageEntry 增加 'applications'
+  - HR 新页：HrCandidatesPage / HrCandidateDetailPage / HrInterviewInvitePage /
+    HrCompanyEditPage / HrCompanyVerifyPage；HrShell 四 Tab；HrMePage 入口与认证角标；
+    HrChatPage 面试邀请气泡 + 空消息提示
+  - 求职者：JobDetailPage 投递 Sheet（已投递态）、MyApplicationsPage（撤回 / 接受或婉拒面试）、
+    MeView 入口、AppShell 渲染
+  - LoginPage 重写为密码 / 验证码 / 注册三模式；登录成功统一重置双端落地页签
+    （修：重新登录会落回上次停留页签）
+- e2e 扩展（tests/e2e-verify.cjs）：
+  - 新增助手 clickAria（按 aria-label 点返回）/ clickSubmit（form button[type=submit]，
+    规避模式页签「登录」文本歧义）/ waitText（轮询文本）
+  - 修复：聊天覆盖层未退出导致后续点击静默落空（历史断言靠容错侥幸通过）
+  - 新增段落：HR 候选人管理、跨端投递闭环（投递 → 约面 → 接受 → 回看）、验证码登录、
+    注册 + 企业认证 + 公司资料
+- 实测（2026-10-16）：
+  - npm run e2e：57/57 通过（求职者 11 / HR 15 / 候选人 7 / 跨端 14 / 验证码 1 /
+    注册认证 7 / 质量 2）；用户 Chrome 18 → 18 未受影响
+  - npx tsc --noEmit：仅 3 个既有错误；eslint（新增 / 修改文件）：0 告警
+- 文档同步：docs/api-endpoints.md（§5.6 + 公司行 5→6 + 账目说明 + 修订记录）、
+  README.md（功能现状 / 演示账号 / 未实现清单 / 目录）、docs/AI-CONTINUE.md v1.4
+  （状态 / 验收记录 57/57 / 坑清单）、PROGRESS.md v1.1、CHANGELOG 正式条目
+- 清理：api/company.ts 删除未被使用且未登记契约的 getCompanyVerifyRecord
+  （其真实分支会调未登记的 GET /company/me/verify；审核进度实际走 §5.3 轮询）
+
+Stage Summary:
+- 五项功能全部完成并自动化验收（57/57）：投递 / 候选人 / 面试闭环、验证码登录 / 注册、
+  公司资料 / 企业认证；本轮改动一条中文提交入库（含 AGENTS.md / CLAUDE.md）。
+- 下一步：用户逐页验收（AI-CONTINUE §5）与待确认事项（§9）；随后进入 Step 3 后端。

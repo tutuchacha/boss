@@ -22,6 +22,7 @@ import type { Conversation, Message } from '@/types/api'
 import { MessageFromEnum, MessageTypeEnum } from '@/types/api'
 import { jobs } from './jobs'
 import { MOCK_HR_PROFILE, MOCK_COMPANY, MOCK_SEEKER_USER } from './auth'
+import { CANDIDATES } from './candidates'
 
 /** HR 侧会话视图所需的数据 */
 export interface HrConversationView {
@@ -40,25 +41,7 @@ export interface HrConversationView {
   lastMessage?: Message
 }
 
-/** 候选人名单（姓名与画像为演示数据） */
-interface CandidateSeed {
-  userId: string
-  name: string
-  expect: string
-  city: string
-  workYears: number
-  edu: string
-  resumeCompleteness: number
-}
-
-const CANDIDATES: CandidateSeed[] = [
-  { userId: 'u-cand-1', name: '林小满', expect: '前端开发', city: '上海', workYears: 3, edu: '本科', resumeCompleteness: 85 },
-  { userId: 'u-cand-2', name: '周叙白', expect: '后端开发', city: '上海', workYears: 6, edu: '硕士', resumeCompleteness: 92 },
-  { userId: 'u-cand-3', name: '沈禾', expect: '测试', city: '上海', workYears: 4, edu: '本科', resumeCompleteness: 78 },
-  { userId: 'u-cand-4', name: '赵之衡', expect: '运维/安全', city: '上海', workYears: 5, edu: '本科', resumeCompleteness: 88 },
-  { userId: 'u-cand-5', name: '苏晚', expect: '产品经理', city: '上海', workYears: 4, edu: '硕士', resumeCompleteness: 81 },
-  { userId: 'u-cand-6', name: '何知遥', expect: 'UI/UX设计', city: '上海', workYears: 3, edu: '本科', resumeCompleteness: 74 },
-]
+/** 候选人名单（姓名与画像为演示数据，定义在 ./candidates，与「候选人管理」共用） */
 
 /** 稳定的基准时间（不用 Date.now，避免服务端/客户端渲染不一致） */
 const BASE_TIME = new Date(Date.UTC(2026, 8, 21, 10, 0, 0)).getTime()
@@ -231,18 +214,19 @@ export function hrMessagesOf(conversationId: string): Message[] {
   return hrMessagesByConv[conversationId] ?? []
 }
 
-/** HR 发送消息（追加并更新会话统计） */
+/** HR 发送消息（追加并更新会话统计）。type 默认 TEXT，可传 INTERVIEW_INVITE 等 */
 export function appendHrMessage(
   conversationId: string,
   content: string,
   hrId: string,
+  type: MessageTypeEnum = MessageTypeEnum.TEXT,
 ): Message {
   const msg: Message = {
     id: nextId('msg-hr'),
     conversationId,
     fromType: MessageFromEnum.HR,
     fromHrId: hrId,
-    type: MessageTypeEnum.TEXT,
+    type,
     content,
     createdAt: new Date(BASE_TIME + idSeq * MIN).toISOString(),
     readByUser: false,
@@ -288,6 +272,41 @@ export function markHrConversationRead(conversationId: string): void {
   hrMessagesByConv[conversationId] = msgs.map(m =>
     m.fromType === MessageFromEnum.USER ? { ...m, readByHr: true } : m,
   )
+}
+
+/**
+ * 确保「候选人 × 职位」存在一条 HR 侧会话（不存在则创建）。
+ * 用途：候选人管理页的「发消息」与「发送面试邀请」——
+ *   投递（Application）本身不建会话，HR 主动触达时按需创建。
+ * @returns 会话 id
+ */
+export function ensureHrConversationForCandidate(
+  userId: string,
+  jobId: string,
+  hrId: string,
+  companyId: string,
+): string {
+  seedHrConversations()
+  const existing = hrConversations.find(
+    c => c.userId === userId && c.jobId === jobId && c.companyId === companyId,
+  )
+  if (existing) return existing.id
+
+  const conv: Conversation = {
+    id: nextId('conv-hr'),
+    jobId,
+    userId,
+    hrId,
+    companyId,
+    lastMessageAt: new Date(BASE_TIME + idSeq * MIN).toISOString(),
+    userUnreadCount: 0,
+    hrUnreadCount: 0,
+    closedByHr: false,
+    createdAt: new Date(BASE_TIME + idSeq * MIN).toISOString(),
+  }
+  hrConversations.push(conv)
+  hrMessagesByConv[conv.id] = []
+  return conv.id
 }
 
 /** 候选人自动回复文案（与求职者侧 mockHrReply 对称） */

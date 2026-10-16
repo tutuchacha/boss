@@ -17,14 +17,19 @@ import { JobStatusEnum } from '@/types/api'
 import type { JobFormDraft } from '@/api/hrJobs'
 import { EMPTY_JOB_FORM } from '@/api/hrJobs'
 
-export type HrTabKey = 'jobs' | 'messages' | 'me'
+export type HrTabKey = 'jobs' | 'candidates' | 'messages' | 'me'
 
-/** HR 端页面栈元素。根视图（job-list / messages-root）不进入栈，由 tab 决定 */
+/** HR 端页面栈元素。根视图（job-list / candidate-list / messages-root）不进入栈，由 tab 决定 */
 export type HrPage =
   | { type: 'job-list' }
+  | { type: 'candidate-list' }
   | { type: 'messages-root' }
   | { type: 'job-editor'; jobId?: string }
   | { type: 'hr-chat'; conversationId: string }
+  | { type: 'candidate-detail'; applicationId: string }
+  | { type: 'interview-invite'; applicationId: string }
+  | { type: 'company-edit' }
+  | { type: 'company-verify' }
 
 export interface HrFilterState {
   status: JobStatusEnum | 'ALL'
@@ -61,6 +66,14 @@ interface HrActions {
   openEditor: (jobId?: string, initial?: JobFormDraft) => void
   /** 打开某个候选人的聊天页 */
   openChat: (conversationId: string) => void
+  /** 打开候选人详情（按投递 id） */
+  openCandidate: (applicationId: string) => void
+  /** 打开「发起面试邀请」表单 */
+  openInterviewInvite: (applicationId: string) => void
+  /** 打开公司资料编辑 */
+  openCompanyEdit: () => void
+  /** 打开企业认证 */
+  openCompanyVerify: () => void
   /** 更新草稿字段 */
   patchDraft: (patch: Partial<JobFormDraft>) => void
   /** 表单字段级错误 */
@@ -118,6 +131,17 @@ export const useHrStore = create<HrStore>()(set => ({
   openChat: conversationId =>
     set(s => ({ pageStack: [...s.pageStack, { type: 'hr-chat', conversationId }] })),
 
+  openCandidate: applicationId =>
+    set(s => ({ pageStack: [...s.pageStack, { type: 'candidate-detail', applicationId }] })),
+
+  openInterviewInvite: applicationId =>
+    set(s => ({ pageStack: [...s.pageStack, { type: 'interview-invite', applicationId }] })),
+
+  openCompanyEdit: () => set(s => ({ pageStack: [...s.pageStack, { type: 'company-edit' }] })),
+
+  openCompanyVerify: () =>
+    set(s => ({ pageStack: [...s.pageStack, { type: 'company-verify' }] })),
+
   patchDraft: patch =>
     set(s => {
       // 修改某字段时清掉该字段的错误，提升填写体验
@@ -139,6 +163,7 @@ export const useHrStore = create<HrStore>()(set => ({
 
 /** 稳定的根视图常量：选择器返回它们可保证引用不变 */
 const JOB_LIST_ROOT: HrPage = { type: 'job-list' }
+const CANDIDATE_LIST_ROOT: HrPage = { type: 'candidate-list' }
 const MESSAGES_ROOT: HrPage = { type: 'messages-root' }
 
 /**
@@ -152,7 +177,11 @@ const MESSAGES_ROOT: HrPage = { type: 'messages-root' }
  */
 export const hrCurrentPage = (s: HrStore): HrPage =>
   s.pageStack[s.pageStack.length - 1] ??
-  (s.tab === 'messages' ? MESSAGES_ROOT : JOB_LIST_ROOT)
+  (s.tab === 'messages'
+    ? MESSAGES_ROOT
+    : s.tab === 'candidates'
+      ? CANDIDATE_LIST_ROOT
+      : JOB_LIST_ROOT)
 
 /**
  * 组件内获取当前页面。
@@ -162,5 +191,9 @@ export function useHrCurrentPage(): HrPage {
   const top = useHrStore(s => s.pageStack[s.pageStack.length - 1])
   const tab = useHrStore(s => s.tab)
   if (top) return top
-  return tab === 'messages' ? MESSAGES_ROOT : JOB_LIST_ROOT
+  return tab === 'messages'
+    ? MESSAGES_ROOT
+    : tab === 'candidates'
+      ? CANDIDATE_LIST_ROOT
+      : JOB_LIST_ROOT
 }
