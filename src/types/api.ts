@@ -461,6 +461,49 @@ export interface InviteInterviewInput {
 }
 
 // ============================================================
+// 人才筛选（HR：按技能需求匹配候选人；演示版为关键词匹配）
+// ============================================================
+
+/** 筛选入参（§4.5）：query 为自然语言需求描述，与 tags 至少一个非空 */
+export interface CandidateMatchInput {
+  query?: string
+  tags?: string[]
+}
+
+/** 命中证据（关联数据片段）：关键词命中的简历原文与所在栏目 */
+export interface CandidateMatchEvidence {
+  /** 命中的关键词（展示词典原文大小写） */
+  token: string
+  /** 所在栏目，如「技能 / 个人简介 / 工作经历 · 某公司 / 项目经历 · 某项目」 */
+  field: string
+  /** 命中片段（已带上下文省略号，前端按 token 高亮） */
+  snippet: string
+}
+
+/** 单个候选人的匹配结果（§4.5 出参，按匹配度倒序） */
+export interface CandidateMatchView {
+  /** 用于跳转候选人详情（同一候选人多条投递时取最近一条） */
+  applicationId: string
+  candidate: {
+    userId: string
+    name: string
+    expect: string
+    city: string
+    workYears: number
+    edu: string
+    resumeCompleteness: number
+  }
+  /** 应聘职位（最近一条投递） */
+  jobTitle: string
+  /** 匹配度分值（演示版为加权命中分，仅用于排序与展示） */
+  score: number
+  /** 命中的关键词（去重，按权重倒序） */
+  hitTokens: string[]
+  /** 关联证据片段（简历原文，前端高亮命中词） */
+  evidences: CandidateMatchEvidence[]
+}
+
+// ============================================================
 // 收藏
 // ============================================================
 

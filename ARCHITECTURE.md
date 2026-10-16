@@ -38,7 +38,7 @@ src/app/page.tsx                    ← 唯一可见路由（单页 SPA）
         └─ <HrShell/>                HR 工作台（HR）
               └─ 根视图（tab：职位管理/候选人/沟通/我的）+ 页面栈覆盖层
                  HrJobsPage / HrJobEditorPage / HrCandidatesPage / HrCandidateDetailPage /
-                 HrInterviewInvitePage / HrMessagesPage / HrChatPage /
+                 HrInterviewInvitePage / HrTalentMatchPage（人才筛选）/ HrMessagesPage / HrChatPage /
                  HrCompanyEditPage / HrCompanyVerifyPage / HrMePage / …
 
 状态层（Zustand）
@@ -53,12 +53,14 @@ service 层（src/api/*.ts）—— 组件只依赖这一层，不直接 fetch
    conversations.ts / hrConversations.ts   两端会话
    applications.ts / hrApplications.ts     两端投递与面试（双端 UI 已接，e2e 覆盖）
    company.ts     公司资料 / 企业认证（Mock 提交后约 1.2s 自动通过）
+   hrTalentMatch.ts  人才筛选（§4.5 / §4.6）：候选人匹配 + 技能标签词表
 
 Mock 数据层（src/api/mock/*.ts）—— USE_MOCK=true 时被 service 直读
    bootstrap.ts（装配）· jobs.ts（51 条基础职位）· hrJobs.ts（HR 可变职位）
    seekerJobs.ts（求职者可见职位合成）· companies.ts（公司字典）· companyOps.ts（资料 / 认证）
    auth.ts（账号 / 画像 / 公司绑定）· dict / categories / filter（字典与筛选）
    hrConversations.ts（HR 会话）· candidates.ts（候选人种子，跨模块共享）
+   resumes.ts（简历正文种子，人才筛选数据源）· talentMatch.ts（关键词匹配与证据提取）
    applications.ts（投递 / 面试 可变数据）
 ```
 
@@ -88,6 +90,7 @@ src/
 │  │     ├─ HrShell.tsx      外壳（四 Tab：职位管理 / 候选人 / 沟通 / 我的）
 │  │     ├─ HrJobsPage.tsx   / HrJobEditorPage.tsx
 │  │     ├─ HrCandidatesPage.tsx / HrCandidateDetailPage.tsx / HrInterviewInvitePage.tsx
+│  │     ├─ HrTalentMatchPage.tsx  人才筛选（关键词匹配 + 命中证据高亮）
 │  │     ├─ HrMessagesPage.tsx / HrChatPage.tsx
 │  │     ├─ HrCompanyEditPage.tsx / HrCompanyVerifyPage.tsx
 │  │     └─ HrMePage.tsx
@@ -97,6 +100,7 @@ src/
 │  ├─ auth.ts / jobs.ts / hrJobs.ts / hrConversations.ts / conversations.ts / categories.ts
 │  ├─ applications.ts        求职者投递 / 面试 service（投递闭环）
 │  ├─ hrApplications.ts      HR 候选人 / 投递 / 面试 service
+│  ├─ hrTalentMatch.ts       人才筛选 service（候选人匹配 / 标签词表）
 │  ├─ company.ts             公司资料 / 企业认证 service
 │  ├─ index.ts               出口（当前无人使用，组件习惯直接按模块导入）
 │  └─ mock/                  Mock 数据与装配
@@ -104,7 +108,9 @@ src/
 │     ├─ jobs.ts / hrJobs.ts / seekerJobs.ts / companies.ts / companyOps.ts
 │     ├─ auth.ts / dict.ts / categories.ts / filter.ts / conversations.ts / hrConversations.ts
 │     ├─ candidates.ts       候选人种子（hrConversations 与 applications 共用）
-│     └─ applications.ts     投递 / 面试可变数据
+│     ├─ resumes.ts          简历正文种子（人才筛选检索的数据源）
+│     ├─ applications.ts     投递 / 面试可变数据
+│     └─ talentMatch.ts      人才筛选：关键词匹配与证据提取（演示版，无 AI）
 ├─ store/
 │  ├─ pinliao.ts             求职者端（持久化 pinliao.v3）
 │  ├─ auth.ts                认证（持久化 pinliao.auth.v1）
@@ -236,6 +242,15 @@ src/
 HR 端统一 Query。新增求职者端页面时优先 Query，不要扩大同步 Mock 的适用范围
 （参照 `docs/AI-CONTINUE.md` §7.5 对照表）。
 
+### 6.5 人才筛选为关键词匹配（演示版，非语义检索）
+
+`hrTalentMatch` 演示版在「公司收到的投递候选人」范围内做**关键词匹配**：
+标签 / 需求文本 → 词典与分词提取关键词 → 检索在线简历（`mock/resumes.ts`），
+命中项返回证据片段。同义词不会被识别（如「React」与「前端框架」），词典命中
+为包含式匹配（演示数据已规避短词误报，如无 JavaScript 技能项避免被「Java」命中）。
+升级为语义检索（embedding + 向量库）时替换 `mock/talentMatch.ts` 与服务端实现即可，
+接口（`docs/api-endpoints.md` §4.5 / §4.6）与页面不变。
+
 ---
 
 ## 7. 修订记录
@@ -244,3 +259,4 @@ HR 端统一 Query。新增求职者端页面时优先 Query，不要扩大同�
 | --- | --- | --- |
 | v1.0 | 2026-10-16 | 首版：按工作区实况记录技术栈、运行时结构、目录、模块关系、约定与已知限制 |
 | v1.1 | 2026-10-16 | 五项验收功能完成：补录候选人 / 投递 / 面试 / 验证码 / 公司资料认证相关页面与模块 |
+| v1.2 | 2026-10-16 | 人才筛选（演示版）增量：运行时总览 / 目录 / Mock 模块图接入；§6.5 记录关键词匹配边界与语义升级路径 |

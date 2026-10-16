@@ -28,6 +28,7 @@ export type HrPage =
   | { type: 'hr-chat'; conversationId: string }
   | { type: 'candidate-detail'; applicationId: string }
   | { type: 'interview-invite'; applicationId: string }
+  | { type: 'talent-match' }
   | { type: 'company-edit' }
   | { type: 'company-verify' }
 
@@ -70,6 +71,8 @@ interface HrActions {
   openCandidate: (applicationId: string) => void
   /** 打开「发起面试邀请」表单 */
   openInterviewInvite: (applicationId: string) => void
+  /** 打开「人才筛选」（按技能需求匹配候选人） */
+  openTalentMatch: () => void
   /** 打开公司资料编辑 */
   openCompanyEdit: () => void
   /** 打开企业认证 */
@@ -136,6 +139,8 @@ export const useHrStore = create<HrStore>()(set => ({
 
   openInterviewInvite: applicationId =>
     set(s => ({ pageStack: [...s.pageStack, { type: 'interview-invite', applicationId }] })),
+
+  openTalentMatch: () => set(s => ({ pageStack: [...s.pageStack, { type: 'talent-match' }] })),
 
   openCompanyEdit: () => set(s => ({ pageStack: [...s.pageStack, { type: 'company-edit' }] })),
 

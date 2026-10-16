@@ -6,6 +6,41 @@
 
 ---
 
+## [未提交] 2026-10-16 — HR 人才筛选（演示版）：关键词匹配 + 技能标签 + 命中证据
+
+> 方向确认：先做**无 AI 演示版**（关键词匹配）；范围限「站内投递候选人」；输入支持
+> 自然语言描述 + 技能标签；语义检索（embedding）升级时保持契约与页面不变；HR 上传外部
+> 简历库为后续增量。契约新增 §4.5 / §4.6（正文 68 → 70）；`npm run e2e` 扩展至
+> **63/63** 通过（新增「HR 人才筛选」6 项断言）。
+
+### Added
+
+- `src/api/mock/resumes.ts` — 简历正文种子（`ResumeContent` 形状，7 份：6 位演示候选人 +
+  求职者测试账号）；简历 id 沿用 `resume-{userId}` 约定（无简历的候选人不会出现在匹配结果）。
+- `src/api/mock/talentMatch.ts` — 人才筛选演示引擎：标签词表 / 英文技术词 / 中文分词
+  去停用词 → 关键词提取 → 检索简历 → 技能项加权排序 + 证据片段截取。
+- `src/api/hrTalentMatch.ts` — service：§4.5 `POST /hr/candidates/match`、
+  §4.6 `GET /hr/candidates/match/tags`（USE_MOCK 双分支；空筛选条件 42210）。
+- `src/components/pinliao/hr/HrTalentMatchPage.tsx` — 筛选页：需求输入 + 标签 chips +
+  结果卡片（命中关键词 / 证据片段原文高亮 / 进候选人详情）。
+
+### Changed
+
+- `src/types/api.ts` — 契约类型 `CandidateMatchInput` / `CandidateMatchEvidence` / `CandidateMatchView`。
+- `src/store/hr.ts` / `src/components/pinliao/hr/HrShell.tsx` — 页面类型 `'talent-match'`
+  与覆盖层接入；`HrCandidatesPage` 新增「按技能筛选」入口。
+- `tests/e2e-verify.cjs` — 新增「HR 人才筛选」6 项；注册与企业认证段落由固定 sleep 改为
+  `waitText` 轮询（消除偶发时序抖动）；新增 `matchOverlayText` 助手。
+
+### Docs
+
+- `docs/api-endpoints.md` v0.3.2 — 新增 §4.5 / §4.6；正文 68 → 70 条（GET 27 → 28 / POST 32 → 33）。
+- `PROGRESS.md` v1.4 / `ARCHITECTURE.md` v1.2 / `PROJECT.md` v1.2 / `AGENTS.md` / `README.md` /
+  `docs/AI-CONTINUE.md` v1.6（新坑：覆盖层「不出现」断言的取数范围；人才筛选依赖简历数据）。
+- `worklog.md` — Task 15。
+
+---
+
 ## [本轮文档整理] 2026-10-16 — 交接文档一致性刷新（纯文档，无代码变更）
 
 > 目的：任何 AI / 人接手时第一时间进入状态。以 `8b69b87` 为基准，消除残留的

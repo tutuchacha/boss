@@ -18,7 +18,8 @@
  *            消息/退出登录
  *   认证    ：验证码登录（60s 倒计时）、HR 注册（自动建未认证公司）
  *   HR 端   ：工作台/四 Tab/职位筛选/发布(含空表单校验)/编辑/关闭/
- *            沟通/聊天/候选人管理/约面试/公司资料/企业认证(自动通过)
+ *            沟通/聊天/候选人管理/约面试/人才筛选(关键词+标签匹配)/
+ *            公司资料/企业认证(自动通过)
  *   跨端    ：关闭职位对求职者不可见；求职者投递→HR 候选人可见→约面→
  *            求职者接受→HR 回看「候选人已接受」
  *   质量    ：零控制台错误、零 hydration 报错
@@ -463,6 +464,52 @@ async function main() {
     })()`)
     push('候选人状态更新为面试中', /面试中/.test(inviteState))
 
+    // ============================== HR 人才筛选 ==============================
+    console.log('\n=== HR 人才筛选 ===')
+    /**
+     * 人才筛选覆盖层的文本（页面栈顶层）。
+     * ⚠️ 不要用 document.body.innerText：被覆盖层遮住的根视图（候选人列表）
+     * 文本仍在 DOM 中，会让「未命中不出现」类断言误判。
+     */
+    const matchOverlayText = () =>
+      cdp.eval(`(() => {
+        const els = [...document.querySelectorAll('.pl-page-enter')]
+        const el = els[els.length - 1]
+        return el ? el.innerText : ''
+      })()`)
+
+    await cdp.click('按技能筛选')
+    await sleep(1500)
+    let mt = await matchOverlayText()
+    push('人才筛选页可打开', /人才筛选/.test(mt) && /技能需求/.test(mt))
+
+    await cdp.setInput('input[aria-label="技能需求"]', 'React')
+    await sleep(400)
+    await cdp.click('开始筛选')
+    await sleep(1400)
+    mt = await matchOverlayText()
+    push('关键词筛选命中候选人', /找到 \d+ 位相关候选人/.test(mt) && mt.includes('林小满'))
+    push('展示关联证据片段', mt.includes('技术栈') && /项目经历/.test(mt))
+    push('未命中候选人不出现', /找到 \d+ 位相关候选人/.test(mt) && !mt.includes('沈禾'))
+
+    await cdp.setInput('input[aria-label="技能需求"]', 'COBOL')
+    await sleep(400)
+    await cdp.click('开始筛选')
+    await sleep(1400)
+    push('无匹配时给出提示', /没有匹配的候选人/.test(await matchOverlayText()))
+
+    await cdp.setInput('input[aria-label="技能需求"]', '')
+    await sleep(300)
+    await cdp.click('自动化测试')
+    await sleep(300)
+    await cdp.click('开始筛选')
+    await sleep(1400)
+    mt = await matchOverlayText()
+    push('标签筛选命中测试候选人', mt.includes('沈禾') && mt.includes('回归'))
+
+    await cdp.clickAria('返回')
+    await sleep(1000)
+
     // ============================== 跨端联动：投递闭环 ==============================
     console.log('\n=== 跨端联动 ===')
     await cdp.click('我的')
@@ -646,16 +693,15 @@ async function main() {
     await sleep(1200)
     push('新公司显示未认证', /未认证/.test(await cdp.text()))
     await cdp.click('企业认证')
-    await sleep(1600)
-    push('认证表单可打开', /认证资料/.test(await cdp.text()))
+    const verifyOpen = await cdp.waitText(/认证资料/, 8000)
+    push('认证表单可打开', verifyOpen, verifyOpen ? '' : (await cdp.text()).slice(0, 160))
     await cdp.click('提交认证资料')
-    const pending = await cdp.waitText(/认证审核中/, 6000)
+    const pending = await cdp.waitText(/认证审核中/, 8000)
     push('提交后进入审核中', pending)
     const approved = await cdp.waitText(/企业认证已通过/, 12000)
     push('Mock 审核自动通过', approved)
     await cdp.clickAria('返回')
-    await sleep(1000)
-    push('认证状态同步到「我的」', /已认证/.test(await cdp.text()))
+    push('认证状态同步到「我的」', await cdp.waitText(/已认证/, 8000))
 
     await cdp.click('公司资料')
     await sleep(1400)

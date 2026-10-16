@@ -17,7 +17,7 @@
 
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Search, Users } from 'lucide-react'
+import { Search, SearchCheck, Users } from 'lucide-react'
 import { ApplicationStatusEnum } from '@/types/api'
 import { APPLICATION_STATUS_TEXT } from '@/api/mock/applications'
 import { HR_APPLICATIONS_QUERY_KEY, listHrApplications } from '@/api/hrApplications'
@@ -51,6 +51,7 @@ export const STATUS_TONE: Record<ApplicationStatusEnum, string> = {
 export function HrCandidatesPage() {
   const company = useAuthStore(s => s.company)
   const openCandidate = useHrStore(s => s.openCandidate)
+  const openTalentMatch = useHrStore(s => s.openTalentMatch)
   const dataVersion = useHrStore(s => s.dataVersion)
 
   const [status, setStatus] = useState<ApplicationStatusEnum | 'ALL'>('ALL')
@@ -96,16 +97,26 @@ export function HrCandidatesPage() {
           <span className="ml-auto text-[11px] text-pl-sub">共 {views.length} 位候选人</span>
         </div>
 
-        <div className="relative mt-2.5">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <input
-            type="text"
-            value={q}
-            onChange={e => setQ(e.target.value)}
-            placeholder="搜索候选人 / 职位"
-            aria-label="搜索候选人"
-            className="h-9 w-full rounded-lg border border-border bg-background pl-8 pr-3 text-[13px] text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          />
+        <div className="relative mt-2.5 flex items-center gap-2">
+          <div className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              value={q}
+              onChange={e => setQ(e.target.value)}
+              placeholder="搜索候选人 / 职位"
+              aria-label="搜索候选人"
+              className="h-9 w-full rounded-lg border border-border bg-background pl-8 pr-3 text-[13px] text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={openTalentMatch}
+            className="flex h-9 shrink-0 items-center gap-1 rounded-lg border border-primary/50 px-2.5 text-[12px] text-primary transition-colors hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <SearchCheck className="h-3.5 w-3.5" />
+            按技能筛选
+          </button>
         </div>
 
         <div className="mt-2 flex gap-1.5 overflow-x-auto pb-0.5">

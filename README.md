@@ -73,6 +73,9 @@ npm run dev
   - 数据概览：招聘中数量、累计投递、累计浏览
 - **候选人**：按投递状态筛选（待处理 / 已查看 / 面试中 / 已录用 / 未通过 / 已撤回）、
   搜索；候选人详情（简历完善度、标记已查看 / 录用 / 不合适）、**发起面试邀请**
+- **人才筛选**：按技能需求匹配收到的候选人简历——自然语言描述 + 技能标签组合，
+  展示命中关键词与关联证据片段（简历原文高亮）；演示版为关键词匹配，接口预留
+  语义检索（embedding）升级
 - **候选人沟通**：会话列表（候选人画像 + 应聘职位 + 未读角标）、仅看未读、按职位筛选、搜索
   - 聊天页：气泡、快捷回复、候选人自动回复（含「正在输入」）、进入即标记已读、
     面试邀请卡片
@@ -107,7 +110,7 @@ src/
 ├─ api/                      service 层（组件不直接 fetch）
 │  ├─ client.ts              统一 fetch + 响应包络解包 + ApiError
 │  ├─ auth.ts / jobs.ts / hrJobs.ts / hrConversations.ts
-│  ├─ applications.ts / hrApplications.ts / company.ts
+│  ├─ applications.ts / hrApplications.ts / hrTalentMatch.ts / company.ts
 │  └─ mock/                  Mock 数据（真实接口切换时整体替换）
 ├─ store/                    Zustand（pinliao 求职者 / auth 认证 / hr 工作台）
 ├─ hooks/                    通用 hooks（含水合守卫）
@@ -209,7 +212,7 @@ npx tsc --noEmit   # 类型检查
 |---|---|---|
 | Step 0 | 框架无关的架构、数据模型、API 契约 | ✅ |
 | Step 1 | 前端开发（Next.js + Mock） | ✅ |
-| Step 2 | 前端验收（五项验收功能已完成，`npm run e2e` 57/57） | ⏳ 进行中 |
+| Step 2 | 前端验收（五项验收功能 + 人才筛选演示增量已完成，`npm run e2e` 63/63） | ⏳ 进行中 |
 | Step 3 | 后端开发（Spring Boot，按契约实现接口） | ⏸ 待开始 |
 | Step 4 | 联调（`USE_MOCK=false`，Mock → 真实接口） | ⏸ 待开始 |
 | 未来 | App / 小程序（若决定多端，复用 API 契约） | — |
