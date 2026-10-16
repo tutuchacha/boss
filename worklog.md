@@ -714,7 +714,7 @@ Work Log:
   - 排障 2：注册与企业认证段落偶发时序抖动 → 固定 sleep 改 `waitText` 轮询
 - 文档：PROGRESS v1.4 / ARCHITECTURE v1.2 / PROJECT v1.2 / README / AGENTS /
   docs/AI-CONTINUE v1.6（新坑：覆盖层断言取数范围、人才筛选依赖简历数据）+ CHANGELOG 条目
-- 提交：见下一条「docs: 结算」提交（本轮 feat：HR 人才筛选演示版）
+- 提交：`af6197e`（feat: HR 人才筛选演示版）
 
 Stage Summary:
 - 演示路径：HR `13800000002` → 候选人 Tab →「按技能筛选」→ 输入「React」/「自动化测试」
