@@ -14,10 +14,11 @@
 | 项 | 值 |
 | --- | --- |
 | 上一提交（历史基线） | `592cc78`（fix: 修复 build / start 在 Windows 不可用 + e2e 脚本） |
-| 本轮提交 | `8b69b87`（feat: 完成前端验收五项功能）；若 `git status` 仍有未提交文件，以工作区现状为准 |
+| 本轮提交 | `8b69b87`（feat: 五项验收功能）、`bcac84a`（docs: 交接文档一致性刷新）；若 `git status` 仍有未提交文件，以工作区现状为准 |
 | dev server | 端口 3000 运行中（实测 HTTP 200）；未运行时用 `npm run dev` 启动 |
 | 测试账号 | 求职者 `13800000001` / HR `13800000002`，密码均 `123456`；短信验证码固定 `123456` |
 | 环境 | Windows（`D:\boss`）+ PowerShell；Node 实测 v24 可跑；**无 bun，统一用 npm** |
+| 远端仓库 | `origin` → GitHub `tutuchacha/boss`（SSH）；接手前先 `git pull` 与远端对齐 |
 
 > 接手时先跑一次 `git status --porcelain` 与 `npx tsc --noEmit` 核对本表是否仍然成立。
 
@@ -29,7 +30,7 @@
 | --- | --- | --- |
 | Step 0 架构 + 契约 | ✅ 完成 | `docs/architecture.md`、`data-model.md`、`api-*.md`、`prisma/schema.prisma` |
 | Step 1 双端前端开发 | ✅ 完成 | `src/components/pinliao/`（求职者端 + HR 端 + 登录） |
-| Step 2 前端验收 | ⏳ 进行中 | 验收五项功能已全部完成，`npm run e2e` 57/57 通过（见 §2/§5）；等待用户逐页验收与确认事项 |
+| Step 2 前端验收 | ⏳ 进行中 | 验收五项功能已全部完成，`npm run e2e` 57/57 通过（见 §2/§5）；**用户人工验收初步通过（2026-10-16）**；待确认 §9 待决事项 |
 | Step 3 后端（Spring Boot） | ⏸ 未开始 | 等前端验收完成 |
 | Step 4 联调 | ⏸ 未开始 | `NEXT_PUBLIC_USE_MOCK=false` |
 
@@ -109,8 +110,8 @@
 
 ## 4. 下一步
 
-1. **等待用户逐页验收**本轮五项功能（验收清单见 `docs/AI-CONTINUE.md` §5），并确认
-   `docs/AI-CONTINUE.md` §9 的待决事项（前端最终框架、接口账目口径等）。
+1. 用户人工验收**初步通过**（2026-10-16）；继续确认 `docs/AI-CONTINUE.md` §9 的待决事项
+   （前端最终框架、接口账目口径等），并按用户后续反馈补齐。
 2. **Step 3 后端（Spring Boot）**：按 `docs/api-endpoints.md` 正文 68 条契约实现；
    切换 `USE_MOCK=false` 进入 Step 4 联调。
 3. 可选增量（未被本轮涵盖）：招聘者端桌面 Web 后台、简历模块完善等。
@@ -183,3 +184,4 @@ npm start              # 生产启动（node .next/standalone/server.js；可用
 | v1.0 | 2026-10-16 | 首版：开发交接产出。基于工作区实况盘点（未提交改动 6 个文件 + 文档），记录 27/27 复验、下一步任务与风险 |
 | v1.1 | 2026-10-16 | 五项验收功能全部完成（投递 / 候选人 / 面试闭环、验证码登录 / 注册、公司资料 / 企业认证）；e2e 扩展至 57/57；文档同步 `api-endpoints` §5.6 / `README` / `AI-CONTINUE` v1.4 |
 | v1.2 | 2026-10-16 | 交接文档一致性刷新：§0 结算 `8b69b87` 实际 hash；`PROJECT` / `ARCHITECTURE` / `AGENTS` / `README` / `AI-CONTINUE` 口径与提交对齐（无代码变更） |
+| v1.3 | 2026-10-16 | 用户人工验收初步通过；快照补远端仓库（`origin` → GitHub）；提交推送远端 |
