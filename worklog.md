@@ -689,3 +689,35 @@ Work Log:
 Stage Summary:
 - 本地与远端一致，任意机器 git pull 后可无损接续；接续阅读顺序见上一 Task。
 - 下一步：用户确认 AI-CONTINUE §9 待决事项；随后 Step 3 后端（按 api-endpoints 正文 68 条契约）。
+
+---
+
+Task ID: 15
+Agent: orchestrator (main)
+Task: HR 人才筛选（演示版）— 站内投递候选人关键词匹配：自然语言 + 技能标签输入、命中证据展示；e2e 扩展至 63/63
+
+Work Log:
+- 背景：用户选定先做**无 AI 演示版**（关键词匹配）；范围仅「站内投递简历」（HR 上传外部
+  简历库为后续增量）；语义检索（embedding）升级需保持契约与页面不变
+- 实现：
+  - 数据层 `src/api/mock/resumes.ts`（7 份简历正文种子，id 沿用 `resume-{userId}` 约定）
+    + 匹配引擎 `src/api/mock/talentMatch.ts`（标签词表 / 英文技术词 / 中文去停用词 →
+    技能项加权命中 + 证据片段截取与高亮）
+  - service `src/api/hrTalentMatch.ts`（§4.5 匹配 / §4.6 标签词表；USE_MOCK 双分支；空条件 42210）
+  - UI `HrTalentMatchPage`（需求输入 + 标签 chips + 结果卡片）+ `HrCandidatesPage` 入口；
+    `store/hr.ts` 页面类型 / `HrShell` 覆盖层接入
+  - 契约 `docs/api-endpoints.md` v0.3.2（正文 68 → 70 条；GET 27 → 28 / POST 32 → 33）
+- 验收：e2e 新增「HR 人才筛选」6 项（命中 / 证据 / 未命中 / 空结果 / 标签），全量 63/63 通过
+  （修复断言取数后复跑连续通过）
+  - 排障 1：首轮「未命中」断言误报 → 根因 `body.innerText` 含覆盖层下方的页面文本，
+    改为取顶层 `.pl-page-enter`（新增 `matchOverlayText` 助手）
+  - 排障 2：注册与企业认证段落偶发时序抖动 → 固定 sleep 改 `waitText` 轮询
+- 文档：PROGRESS v1.4 / ARCHITECTURE v1.2 / PROJECT v1.2 / README / AGENTS /
+  docs/AI-CONTINUE v1.6（新坑：覆盖层断言取数范围、人才筛选依赖简历数据）+ CHANGELOG 条目
+- 提交：见下一条「docs: 结算」提交（本轮 feat：HR 人才筛选演示版）
+
+Stage Summary:
+- 演示路径：HR `13800000002` → 候选人 Tab →「按技能筛选」→ 输入「React」/「自动化测试」
+  （命中；证据含原文高亮）；「COBOL」（无命中提示）；结果卡片可进候选人详情
+- 下一步：HR 上传外部简历库、语义检索升级（替换 `mock/talentMatch.ts` + 服务端实现，
+  接口 / 页面不变）；用户确认 AI-CONTINUE §9 待决事项后进入 Step 3 后端（正文 70 条契约）

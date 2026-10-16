@@ -29,6 +29,7 @@ import { HrCandidateDetailPage } from './HrCandidateDetailPage'
 import { HrInterviewInvitePage } from './HrInterviewInvitePage'
 import { HrMessagesPage } from './HrMessagesPage'
 import { HrChatPage } from './HrChatPage'
+import { HrTalentMatchPage } from './HrTalentMatchPage'
 import { HrMePage } from './HrMePage'
 import { HrCompanyEditPage } from './HrCompanyEditPage'
 import { HrCompanyVerifyPage } from './HrCompanyVerifyPage'
@@ -47,6 +48,7 @@ const OVERLAY_TYPES = new Set<HrPage['type']>([
   'hr-chat',
   'candidate-detail',
   'interview-invite',
+  'talent-match',
   'company-edit',
   'company-verify',
 ])
@@ -146,6 +148,13 @@ export function HrShell() {
               return (
                 <div key={`invite-${p.applicationId}`} className={overlayCls} style={overlayStyle}>
                   <HrInterviewInvitePage applicationId={p.applicationId} />
+                </div>
+              )
+            }
+            if (p.type === 'talent-match') {
+              return (
+                <div key="talent-match" className={overlayCls} style={overlayStyle}>
+                  <HrTalentMatchPage />
                 </div>
               )
             }
