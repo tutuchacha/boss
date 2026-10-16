@@ -10,11 +10,23 @@
  */
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useTheme } from 'next-themes'
-import { ChevronRight, FileText, Heart, Settings2, Moon, Sun, Monitor, LogOut } from 'lucide-react'
+import {
+  ChevronRight,
+  ClipboardList,
+  FileText,
+  Heart,
+  Settings2,
+  Moon,
+  Sun,
+  Monitor,
+  LogOut,
+} from 'lucide-react'
 import { usePinliaoStore } from '@/store/pinliao'
 import { useAuthStore } from '@/store/auth'
+import { listMyApplications } from '@/api/applications'
 import { AvatarBadge } from './AvatarBadge'
 import type { ThemePref } from '@/types/api'
 import { RESUME_COMPLETENESS } from '@/api/mock/conversations'
@@ -28,9 +40,17 @@ export function MeView() {
   const openSheet = usePinliaoStore(s => s.openSheet)
   const toast = usePinliaoStore(s => s.toast)
   const logout = useAuthStore(s => s.logout)
+  const userId = useAuthStore(s => s.user?.id ?? '')
   const [confirmingLogout, setConfirmingLogout] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
   const { theme, setTheme } = useTheme()
+
+  /** 我的投递数量（与「我的投递」页共用查询缓存） */
+  const { data: applicationViews = [] } = useQuery({
+    queryKey: ['my-applications', userId],
+    queryFn: () => listMyApplications(userId),
+    enabled: Boolean(userId),
+  })
 
   const onLogout = async () => {
     setLoggingOut(true)
@@ -124,6 +144,12 @@ export function MeView() {
             label="求职期望"
             trailing="编辑"
             onClick={() => openSheet('wish')}
+          />
+          <MenuRow
+            icon={<ClipboardList className="h-4 w-4" />}
+            label="我的投递"
+            trailing={applicationViews.length > 0 ? `${applicationViews.length} 条` : '查看'}
+            onClick={() => pushPage({ type: 'applications' })}
           />
           <MenuRow
             icon={<Heart className="h-4 w-4" />}

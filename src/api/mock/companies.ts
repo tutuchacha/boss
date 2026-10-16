@@ -59,3 +59,26 @@ for (const [name, info] of Object.entries(CO_RAW)) {
 export const companies: Company[] = _companyList
 export const companyByName = (name: string): Company | undefined => _companyMap.get(name)
 export const companyById = (id: string): Company | undefined => _companyList.find(c => c.id === id)
+
+/**
+ * 注册新公司（Mock）：HR 注册新账号时调用，把公司加入字典。
+ * 初始为「未认证」（verified=false），完成企业认证后置 true。
+ * 用递增计数生成 id（避免 Date.now / Math.random，保持确定性）。
+ */
+let newCompanySeq = 0
+
+export function registerCompany(name: string): Company {
+  newCompanySeq += 1
+  const c: Company = {
+    id: `co-new-${newCompanySeq}`,
+    name,
+    stage: '未融资',
+    size: '1-19人',
+    industry: '企业服务',
+    verified: false,
+    status: 'ACTIVE',
+  }
+  _companyList.push(c)
+  _companyMap.set(name, c)
+  return c
+}

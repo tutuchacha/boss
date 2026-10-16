@@ -28,13 +28,17 @@ import type {
   Company,
   CompanyMember,
   HrProfile,
+  RegisterInput,
   User,
   UserProfile,
 } from '@/types/api'
 import { RoleEnum } from '@/types/api'
 import {
   loginWithPassword,
+  loginWithSms as apiLoginSms,
   logout as apiLogout,
+  register as apiRegister,
+  type LoginResult,
 } from '@/api/auth'
 
 export interface AuthState {
@@ -59,6 +63,12 @@ interface AuthActions {
    *   RoleMismatchError，此时不会写入登录态（登录页可提示切换身份）。
    */
   login: (account: string, password: string, expectRole?: RoleEnum) => Promise<User>
+  /** 手机验证码登录（未注册手机号会抛 40110，可引导去注册） */
+  loginSms: (phone: string, code: string, expectRole?: RoleEnum) => Promise<User>
+  /** 注册并登录（HR 注册会自动创建「未认证」新公司，联动企业认证） */
+  register: (input: RegisterInput) => Promise<User>
+  /** 公司资料编辑 / 企业认证后同步公司信息，驱动界面即时刷新 */
+  updateCompany: (company: Company) => void
   /** 退出登录并清理 token */
   logout: () => Promise<void>
   /** 是否具备招聘者权限（HR 或企业管理员） */
@@ -79,6 +89,20 @@ const INITIAL: AuthState = {
   pending: false,
 }
 
+/** 登录结果 → store 身份状态（密码 / 验证码 / 注册三路共用） */
+function toAuthState(
+  result: LoginResult,
+): Pick<AuthState, 'user' | 'seekerProfile' | 'hrProfile' | 'company' | 'member'> {
+  const isHr = result.user.role === RoleEnum.HR
+  return {
+    user: result.user,
+    seekerProfile: isHr ? null : ((result.profile as UserProfile) ?? null),
+    hrProfile: isHr ? ((result.profile as HrProfile) ?? null) : null,
+    company: isHr ? (result.company ?? null) : null,
+    member: isHr ? (result.member ?? null) : null,
+  }
+}
+
 export const useAuthStore = create<AuthStore>()(
   persist(
     (set, get) => ({
@@ -88,21 +112,39 @@ export const useAuthStore = create<AuthStore>()(
         set({ pending: true })
         try {
           const result = await loginWithPassword({ account, password }, expectRole)
-          const isHr = result.user.role === RoleEnum.HR
-          set({
-            user: result.user,
-            seekerProfile: isHr ? null : (result.profile as UserProfile),
-            hrProfile: isHr ? (result.profile as HrProfile) : null,
-            company: isHr ? (result.company ?? null) : null,
-            member: isHr ? (result.member ?? null) : null,
-            pending: false,
-          })
+          set({ ...toAuthState(result), pending: false })
           return result.user
         } catch (err) {
           set({ pending: false })
           throw err
         }
       },
+
+      loginSms: async (phone, code, expectRole) => {
+        set({ pending: true })
+        try {
+          const result = await apiLoginSms({ phone, code }, expectRole)
+          set({ ...toAuthState(result), pending: false })
+          return result.user
+        } catch (err) {
+          set({ pending: false })
+          throw err
+        }
+      },
+
+      register: async input => {
+        set({ pending: true })
+        try {
+          const result = await apiRegister(input)
+          set({ ...toAuthState(result), pending: false })
+          return result.user
+        } catch (err) {
+          set({ pending: false })
+          throw err
+        }
+      },
+
+      updateCompany: company => set({ company }),
 
       logout: async () => {
         await apiLogout()

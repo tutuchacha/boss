@@ -16,9 +16,8 @@
  * =====================================================================
  */
 
-import type { JobStatusEnum, JobSummary, JobUpsertInput } from '@/types/api'
+import type { Company, HrProfile, JobStatusEnum, JobSummary, JobUpsertInput } from '@/types/api'
 import { JobStatusEnum as Status } from '@/types/api'
-import { MOCK_HR_PROFILE, MOCK_COMPANY } from './auth'
 
 /** HR 端可见的记录 = 职位精简信息 + 详情字段 + 状态 */
 export interface HrJobRecord extends JobSummary {
@@ -30,6 +29,16 @@ export interface HrJobRecord extends JobSummary {
   deleted: boolean
   /** 所属公司 id（多租户字段，冗余存储便于过滤） */
   companyId: string
+}
+
+/**
+ * 职位归属上下文：由 service 层按当前登录身份注入。
+ * 历史上这里写死演示公司（云杉科技），导致注册的新公司 HR 发布职位
+ * 会挂到云杉名下；改为显式传参后，多租户语义才成立。
+ */
+export interface HrJobOwner {
+  company: Pick<Company, 'id' | 'name' | 'stage' | 'size'>
+  hr: Pick<HrProfile, 'id' | 'name' | 'title'>
 }
 
 /** 稳定哈希（不用 Math.random，保证每次渲染结果一致） */
@@ -108,9 +117,9 @@ export const hrJobById = (jobId: string): HrJobRecord | undefined =>
 /** 把表单入参转成完整记录 */
 const toRecord = (
   input: JobUpsertInput,
-  opts: { id: string; status: JobStatusEnum },
+  opts: { id: string; status: JobStatusEnum; owner: HrJobOwner },
 ): HrJobRecord => {
-  const { id, status } = opts
+  const { id, status, owner } = opts
   const now = new Date().toISOString()
   return {
     id,
@@ -126,15 +135,15 @@ const toRecord = (
     sub: input.sub,
     tags: input.tags,
     company: {
-      id: MOCK_COMPANY.id,
-      name: MOCK_COMPANY.name,
-      stage: MOCK_COMPANY.stage,
-      size: MOCK_COMPANY.size,
+      id: owner.company.id,
+      name: owner.company.name,
+      stage: owner.company.stage ?? '',
+      size: owner.company.size ?? '',
     },
     hr: {
-      id: MOCK_HR_PROFILE.id,
-      name: MOCK_HR_PROFILE.name,
-      title: MOCK_HR_PROFILE.title,
+      id: owner.hr.id,
+      name: owner.hr.name,
+      title: owner.hr.title,
     },
     days: 0,
     publishedAt: now,
@@ -145,18 +154,18 @@ const toRecord = (
     requirements: input.requirements,
     welfare: input.welfare,
     deleted: false,
-    companyId: MOCK_COMPANY.id,
+    companyId: owner.company.id,
   }
 }
 
-/** 发布职位 */
-export const createHrJob = (input: JobUpsertInput): HrJobRecord => {
-  const rec = toRecord(input, { id: nextJobId(), status: Status.OPEN })
+/** 发布职位（归属公司 / HR 由调用方注入） */
+export const createHrJob = (input: JobUpsertInput, owner: HrJobOwner): HrJobRecord => {
+  const rec = toRecord(input, { id: nextJobId(), status: Status.OPEN, owner })
   hrJobRecords.unshift(rec)
   return rec
 }
 
-/** 更新职位（仅允许本公司） */
+/** 更新职位（仅允许本公司；保留原发布者与统计） */
 export const updateHrJob = (
   jobId: string,
   input: JobUpsertInput,
@@ -168,7 +177,11 @@ export const updateHrJob = (
   // 保留原状态与统计，只替换可编辑字段
   const next: HrJobRecord = {
     ...prev,
-    ...toRecord(input, { id: prev.id, status: prev.status }),
+    ...toRecord(input, {
+      id: prev.id,
+      status: prev.status,
+      owner: { company: prev.company, hr: prev.hr },
+    }),
     publishedAt: prev.publishedAt,
     viewCount: prev.viewCount,
     applyCount: prev.applyCount,

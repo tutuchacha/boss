@@ -24,6 +24,13 @@ export function convTimeText(iso: string): string {
   return `${d.getMonth() + 1}月${d.getDate()}日`
 }
 
+/** ISO 时间 → 「M月D日 HH:mm」（投递 / 面试等业务时间展示） */
+export function formatDateTime(iso: string): string {
+  const d = new Date(iso)
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getMonth() + 1}月${d.getDate()}日 ${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
 /** 聊天消息列表中"上一条"文案（用于会话列表） */
 export function lastMessageText(m: Message | undefined): string {
   if (!m) return ''

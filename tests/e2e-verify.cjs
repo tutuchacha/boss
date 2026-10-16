@@ -14,9 +14,13 @@
  *   BASE_URL=http://localhost:3000 CHROME_PATH="C:\\...\\chrome.exe" node tests/e2e-verify.cjs
  *
  * 覆盖范围：
- *   求职者端：登录页/错误密码/身份不匹配拦截/职位列表/详情/消息/退出登录
- *   HR 端   ：工作台/三 Tab/职位筛选/发布(含空表单校验)/编辑/关闭/沟通/聊天
- *   跨端    ：HR 发布的职位对求职者可见；关闭后不可见
+ *   求职者端：登录页/错误密码/身份不匹配拦截/职位列表/详情/投递/我的投递/
+ *            消息/退出登录
+ *   认证    ：验证码登录（60s 倒计时）、HR 注册（自动建未认证公司）
+ *   HR 端   ：工作台/四 Tab/职位筛选/发布(含空表单校验)/编辑/关闭/
+ *            沟通/聊天/候选人管理/约面试/公司资料/企业认证(自动通过)
+ *   跨端    ：关闭职位对求职者不可见；求职者投递→HR 候选人可见→约面→
+ *            求职者接受→HR 回看「候选人已接受」
  *   质量    ：零控制台错误、零 hydration 报错
  *
  * ⚠️ 进程清理：只终止本脚本 spawn 的 Chrome 进程树（killChromeTree）。
@@ -44,6 +48,10 @@ const CHROME_PATH =
 /** 演示账号（与 src/api/mock/auth.ts 保持一致） */
 const SEEKER = { phone: '13800000001', password: '123456' }
 const HR = { phone: '13800000002', password: '123456' }
+/** 注册验收专用（新手机号 → 自动创建「新注册企业-4321」） */
+const REG = { phone: '13900004321', password: '123456', company: '新注册企业-4321' }
+/** 演示环境固定验证码 */
+const SMS_CODE = '123456'
 
 /** 本脚本自建的职位名（避免与既有 Mock 数据冲突） */
 const NEW_JOB = `E2E验收职位${Date.now().toString(36).slice(-4)}`
@@ -107,9 +115,37 @@ class Cdp {
     return r?.result?.value ? JSON.parse(r.result.value) : null
   }
 
+  /** 按可见文本点击第一个包含该文本的 button */
   async click(text) {
     const r = await this.eval(`(() => {
       const el = [...document.querySelectorAll('button')].find(e => (e.textContent||'').includes(${JSON.stringify(text)}))
+      if (!el) return { ok: false }
+      el.click(); return { ok: true }
+    })()`)
+    await sleep(450)
+    return r
+  }
+
+  /** 按 aria-label 点击（返回键等纯图标按钮） */
+  async clickAria(label) {
+    const sel = `button[aria-label=${JSON.stringify(label)}]`
+    const r = await this.eval(`(() => {
+      const el = document.querySelector(${JSON.stringify(sel)})
+      if (!el) return { ok: false }
+      el.click(); return { ok: true }
+    })()`)
+    await sleep(450)
+    return r
+  }
+
+  /**
+   * 点击登录 / 注册表单的提交按钮。
+   * 登录页有三个模式页签（密码登录 / 验证码登录 / 注册），
+   * 「登录」文本会同时命中页签，故用 form 内 [type=submit] 精确定位。
+   */
+  async clickSubmit() {
+    const r = await this.eval(`(() => {
+      const el = document.querySelector('form button[type="submit"]')
       if (!el) return { ok: false }
       el.click(); return { ok: true }
     })()`)
@@ -130,6 +166,17 @@ class Cdp {
 
   async text() {
     return this.eval(`document.body.innerText`)
+  }
+
+  /** 轮询等待页面文本命中正则（异步渲染用，替代固定 sleep） */
+  async waitText(re, timeout = 8000, step = 350) {
+    const t0 = Date.now()
+    for (;;) {
+      const t = await this.text()
+      if (re.test(t)) return true
+      if (Date.now() - t0 > timeout) return false
+      await sleep(step)
+    }
   }
 
   /** 收集控制台错误（已过滤已知噪音） */
@@ -236,19 +283,19 @@ async function main() {
     await cdp.click('求职者')
     await cdp.setInput('#login-account', SEEKER.phone)
     await cdp.setInput('#login-password', 'wrong-password')
-    await cdp.click('登录')
+    await cdp.clickSubmit()
     await sleep(1500)
     push('错误密码被拒绝', /账号或密码错误/.test(await cdp.text()))
 
     await cdp.setInput('#login-account', HR.phone)
     await cdp.setInput('#login-password', HR.password)
-    await cdp.click('登录')
+    await cdp.clickSubmit()
     await sleep(1500)
     const mismatch = await cdp.text()
     push('身份不匹配被拦截', /公司代表/.test(mismatch) && /切换/.test(mismatch))
 
     await cdp.click('求职者')
-    await cdp.click('登录')
+    await cdp.clickSubmit()
     await sleep(3200)
     t = await cdp.text()
     const jobTotal = t.match(/共 (\d+) 个职位/)?.[1]
@@ -257,7 +304,8 @@ async function main() {
     await cdp.eval(`(() => { document.querySelector('article').click(); return true })()`)
     await sleep(1800)
     push('职位详情可打开', /立即沟通|继续沟通/.test(await cdp.text()))
-    await cdp.click('返回')
+    push('职位详情提供投递入口', /投递简历|已投递/.test(await cdp.text()))
+    await cdp.clickAria('返回')
     await sleep(1200)
 
     await cdp.click('消息')
@@ -266,7 +314,9 @@ async function main() {
 
     await cdp.click('我的')
     await sleep(1200)
-    push('「我的」提供退出登录', /退出登录/.test(await cdp.text()))
+    t = await cdp.text()
+    push('「我的」提供退出登录', /退出登录/.test(t))
+    push('「我的」提供我的投递入口', /我的投递/.test(t))
     await cdp.click('退出登录')
     await sleep(700)
     await cdp.click('确认退出')
@@ -276,11 +326,14 @@ async function main() {
     // ============================== HR 端 ==============================
     console.log('\n=== HR 端 ===')
     await cdp.click('公司代表 HR')
-    await cdp.click('登录')
+    await cdp.clickSubmit()
     await sleep(3200)
     t = await cdp.text()
     push('HR 进入工作台', /HR 工作台/.test(t) && /云杉科技/.test(t))
-    push('底部三个 Tab', /职位管理/.test(t) && /沟通/.test(t) && /我的/.test(t))
+    push(
+      '底部四个 Tab',
+      /职位管理/.test(t) && /候选人/.test(t) && /沟通/.test(t) && /我的/.test(t),
+    )
 
     const jobCount = await cdp.eval(`document.querySelectorAll('article').length`)
     push('职位列表有数据', jobCount > 0, `${jobCount} 条`)
@@ -371,26 +424,245 @@ async function main() {
       await sleep(2600)
       push('候选人自动回复到达', /方便|可以|好的|随时|期望/.test(await cdp.text()))
     }
+    await cdp.clickAria('返回') // 退出聊天覆盖层（此前遗漏，会导致后续点击落空）
+    await sleep(1200)
 
-    // ============================== 跨端联动 ==============================
+    // ============================== HR 候选人管理 ==============================
+    console.log('\n=== HR 候选人管理 ===')
+    await cdp.click('候选人')
+    await sleep(1600)
+    t = await cdp.text()
+    push('候选人管理可用', /候选人管理/.test(t) && /共 \d+ 位候选人/.test(t))
+    const candCount = await cdp.eval(`[...document.querySelectorAll('button')].filter(b => /应聘：/.test(b.innerText)).length`)
+    push('候选人列表有数据', candCount > 0, `${candCount} 条`)
+
+    const openedCand = await cdp.eval(`(() => {
+      const b = [...document.querySelectorAll('button')].find(x => x.innerText.includes('林小满'))
+      if (!b) return false
+      b.click(); return true
+    })()`)
+    await sleep(1600)
+    t = await cdp.text()
+    push('候选人详情可打开', openedCand && /候选人详情/.test(t) && /简历完善度/.test(t))
+    push('候选人详情提供约面试', /约面试/.test(t))
+
+    await cdp.click('约面试')
+    await sleep(1300)
+    t = await cdp.text()
+    push('面试邀请表单可打开', /发起面试邀请/.test(t) && /面试形式/.test(t))
+    await cdp.click('发起面试邀请')
+    await sleep(2000)
+    t = await cdp.text()
+    push('面试邀请已发送', /面试安排/.test(t) && /等待候选人确认/.test(t))
+
+    await cdp.clickAria('返回')
+    await sleep(1400)
+    const inviteState = await cdp.eval(`(() => {
+      const b = [...document.querySelectorAll('button')].find(x => x.innerText.includes('林小满'))
+      return b ? b.innerText : ''
+    })()`)
+    push('候选人状态更新为面试中', /面试中/.test(inviteState))
+
+    // ============================== 跨端联动：投递闭环 ==============================
     console.log('\n=== 跨端联动 ===')
+    await cdp.click('我的')
+    await sleep(1100)
+    await cdp.click('退出登录')
+    await sleep(700)
+    await cdp.click('确认退出')
+    await sleep(2500)
+
+    // 切回求职者：搜索云杉职位并投递
+    await cdp.click('求职者')
+    await cdp.clickSubmit()
+    await sleep(3200)
+    push('求职者重新登录', /共 \d+ 个职位/.test(await cdp.text()))
+
+    await cdp.setInput('input[placeholder*="搜索职位"]', '云杉')
+    await sleep(1300)
+    const cloudCount = await cdp.eval(`document.querySelectorAll('article').length`)
+    push('可按公司搜索到职位', cloudCount > 0, `${cloudCount} 条`)
+    await cdp.eval(`(() => { const a = document.querySelector('article'); if (a) a.click(); return !!a })()`)
+    await sleep(1900)
+    push('职位详情可打开', /投递简历/.test(await cdp.text()))
+    const cloudJobTitle = String(await cdp.eval(`(document.querySelector('h1')?.innerText || '')`)).trim()
+
+    await cdp.click('投递简历')
+    await sleep(900)
+    t = await cdp.text()
+    push('投递表单可打开', /在线简历/.test(t) && /确认投递/.test(t))
+    await cdp.click('确认投递')
+    await sleep(1200)
+    push('投递成功', /投递成功/.test(await cdp.text()))
+    const appliedBtn = await cdp.eval(`[...document.querySelectorAll('button')].some(b => b.textContent.includes('已投递'))`)
+    push('按钮切换为已投递', appliedBtn)
+
+    await cdp.clickAria('返回')
+    await sleep(1200)
+
+    // 已关闭职位对求职者不可见
+    await cdp.setInput('input[placeholder*="搜索职位"]', NEW_JOB)
+    await sleep(1300)
+    push('已关闭职位对求职者不可见', !(await cdp.text()).includes(NEW_JOB))
+    await cdp.setInput('input[placeholder*="搜索职位"]', '')
+    await sleep(700)
+
+    // 我的投递：新投递出现在列表
+    await cdp.click('我的')
+    await sleep(1100)
+    await cdp.click('我的投递')
+    await sleep(1600)
+    t = await cdp.text()
+    push(
+      '我的投递包含新投递',
+      Boolean(cloudJobTitle) && t.includes(cloudJobTitle) && /待处理/.test(t),
+      cloudJobTitle,
+    )
+
+    await cdp.clickAria('返回')
+    await sleep(900)
+    await cdp.click('退出登录')
+    await sleep(700)
+    await cdp.click('确认退出')
+    await sleep(2500)
+
+    // ============================== HR 处理新投递 ==============================
+    console.log('\n=== HR 处理新投递 ===')
+    await cdp.click('公司代表 HR')
+    await cdp.clickSubmit()
+    await sleep(3200)
+    await cdp.click('候选人')
+    await sleep(1600)
+    await cdp.setInput('input[aria-label="搜索候选人"]', '林晓')
+    await sleep(1100)
+    const hasSeekerApp = await cdp.eval(`[...document.querySelectorAll('button')].some(b => b.innerText.includes('林晓'))`)
+    push('HR 收到求职者新投递', hasSeekerApp)
+
+    await cdp.eval(`(() => {
+      const b = [...document.querySelectorAll('button')].find(x => x.innerText.includes('林晓'))
+      if (b) b.click(); return !!b
+    })()`)
+    await sleep(1600)
+    t = await cdp.text()
+    push('HR 可查看投递详情', /候选人详情/.test(t) && /应聘职位/.test(t))
+
+    await cdp.click('约面试')
+    await sleep(1300)
+    await cdp.click('发起面试邀请')
+    await sleep(2000)
+    t = await cdp.text()
+    push('面试邀请已发送给求职者', /面试安排/.test(t) && /等待候选人确认/.test(t))
+
+    await cdp.clickAria('返回')
+    await sleep(1000)
     await cdp.click('我的')
     await sleep(1000)
     await cdp.click('退出登录')
     await sleep(700)
     await cdp.click('确认退出')
     await sleep(2500)
+
+    // ============================== 求职者接受面试 ==============================
+    console.log('\n=== 求职者接受面试 ===')
     await cdp.click('求职者')
-    await cdp.click('登录')
+    await cdp.clickSubmit()
     await sleep(3200)
+    await cdp.click('我的')
+    await sleep(1100)
+    await cdp.click('我的投递')
+    await sleep(1600)
+    t = await cdp.text()
+    push('面试邀请已送达求职者', /面试邀请/.test(t) && /待你确认/.test(t))
+    await cdp.click('接受面试')
+    await sleep(1800)
+    push('面试邀请已接受', /已接受邀请/.test(await cdp.text()))
+
+    await cdp.clickAria('返回')
+    await sleep(900)
+    await cdp.click('退出登录')
+    await sleep(700)
+    await cdp.click('确认退出')
+    await sleep(2500)
+
+    // HR 回看：候选人已接受
+    await cdp.click('公司代表 HR')
+    await cdp.clickSubmit()
+    await sleep(3200)
+    await cdp.click('候选人')
+    await sleep(1600)
+    await cdp.setInput('input[aria-label="搜索候选人"]', '林晓')
+    await sleep(1100)
     await cdp.eval(`(() => {
-      const el = document.querySelector('input[placeholder*="搜索职位"]')
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, ${JSON.stringify(NEW_JOB)})
-      el.dispatchEvent(new Event('input', { bubbles: true }))
-      return true
+      const b = [...document.querySelectorAll('button')].find(x => x.innerText.includes('林晓'))
+      if (b) b.click(); return !!b
     })()`)
+    await sleep(1600)
+    push('HR 可见候选人已接受', /候选人已接受/.test(await cdp.text()))
+
+    await cdp.clickAria('返回')
+    await sleep(900)
+    await cdp.click('我的')
+    await sleep(900)
+    await cdp.click('退出登录')
+    await sleep(700)
+    await cdp.click('确认退出')
+    await sleep(2500)
+
+    // ============================== 验证码登录 ==============================
+    console.log('\n=== 验证码登录 ===')
+    await cdp.click('验证码登录')
+    await sleep(500)
+    await cdp.setInput('#sms-phone', SEEKER.phone)
+    await cdp.click('获取验证码')
+    await sleep(1000)
+    await cdp.setInput('#sms-code', SMS_CODE)
+    await cdp.clickSubmit()
+    await sleep(3200)
+    push('验证码登录成功', /共 \d+ 个职位/.test(await cdp.text()))
+    await cdp.click('我的')
+    await sleep(1000)
+    await cdp.click('退出登录')
+    await sleep(700)
+    await cdp.click('确认退出')
+    await sleep(2500)
+
+    // ============================== 注册（HR）→ 企业认证 → 公司资料 ==============================
+    console.log('\n=== 注册与企业认证 ===')
+    await cdp.click('注册')
+    await sleep(500)
+    await cdp.click('公司代表')
+    await sleep(400)
+    await cdp.setInput('#reg-phone', REG.phone)
+    await cdp.click('获取验证码')
+    await sleep(1000)
+    await cdp.setInput('#reg-code', SMS_CODE)
+    await cdp.setInput('#reg-password', REG.password)
+    await cdp.clickSubmit()
+    await sleep(3600)
+    t = await cdp.text()
+    push('注册后可进入 HR 工作台', /HR 工作台/.test(t) && t.includes(REG.company))
+
+    await cdp.click('我的')
     await sleep(1200)
-    push('已关闭职位对求职者不可见', !(await cdp.text()).includes(NEW_JOB))
+    push('新公司显示未认证', /未认证/.test(await cdp.text()))
+    await cdp.click('企业认证')
+    await sleep(1600)
+    push('认证表单可打开', /认证资料/.test(await cdp.text()))
+    await cdp.click('提交认证资料')
+    const pending = await cdp.waitText(/认证审核中/, 6000)
+    push('提交后进入审核中', pending)
+    const approved = await cdp.waitText(/企业认证已通过/, 12000)
+    push('Mock 审核自动通过', approved)
+    await cdp.clickAria('返回')
+    await sleep(1000)
+    push('认证状态同步到「我的」', /已认证/.test(await cdp.text()))
+
+    await cdp.click('公司资料')
+    await sleep(1400)
+    await cdp.setInput('#company-name', 'E2E验收企业')
+    await cdp.click('保存修改')
+    await sleep(2200)
+    push('公司资料编辑已保存', (await cdp.text()).includes('E2E验收企业'))
 
     // ============================== 质量 ==============================
     console.log('\n=== 质量 ===')

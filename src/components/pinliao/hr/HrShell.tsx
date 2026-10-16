@@ -16,24 +16,40 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import { Briefcase, MessageSquare, Plus, UserRound } from 'lucide-react'
+import { Briefcase, MessageSquare, Plus, UserRound, Users } from 'lucide-react'
 import { listHrConversations } from '@/api/hrConversations'
 import { useAuthStore } from '@/store/auth'
-import { useHrCurrentPage, useHrStore, type HrTabKey } from '@/store/hr'
+import { useHrCurrentPage, useHrStore, type HrPage, type HrTabKey } from '@/store/hr'
 import { cn } from '@/lib/utils'
 import { PinliaoToast } from '../PinliaoToast'
 import { HrJobsPage } from './HrJobsPage'
 import { HrJobEditorPage } from './HrJobEditorPage'
+import { HrCandidatesPage } from './HrCandidatesPage'
+import { HrCandidateDetailPage } from './HrCandidateDetailPage'
+import { HrInterviewInvitePage } from './HrInterviewInvitePage'
 import { HrMessagesPage } from './HrMessagesPage'
 import { HrChatPage } from './HrChatPage'
 import { HrMePage } from './HrMePage'
+import { HrCompanyEditPage } from './HrCompanyEditPage'
+import { HrCompanyVerifyPage } from './HrCompanyVerifyPage'
 
 /** 底部 Tab 定义 */
 const TABS: { key: HrTabKey; label: string; Icon: typeof Briefcase }[] = [
   { key: 'jobs', label: '职位管理', Icon: Briefcase },
+  { key: 'candidates', label: '候选人', Icon: Users },
   { key: 'messages', label: '沟通', Icon: MessageSquare },
   { key: 'me', label: '我的', Icon: UserRound },
 ]
+
+/** 覆盖层页面类型：自带顶栏，隐藏主顶栏与底部 Tab */
+const OVERLAY_TYPES = new Set<HrPage['type']>([
+  'job-editor',
+  'hr-chat',
+  'candidate-detail',
+  'interview-invite',
+  'company-edit',
+  'company-verify',
+])
 
 export function HrShell() {
   const company = useAuthStore(s => s.company)
@@ -57,10 +73,8 @@ export function HrShell() {
   })
   const unreadTotal = convViews.reduce((a, v) => a + v.conversation.hrUnreadCount, 0)
 
-  /** 覆盖层页面（编辑器 / 聊天）会自带顶栏，此时隐藏主顶栏 */
-  const isOverlay = current.type === 'job-editor' || current.type === 'hr-chat'
-  /** 聊天页需要隐藏底部 Tab，避免误触离开 */
-  const isChat = current.type === 'hr-chat'
+  /** 覆盖层页面（编辑器 / 聊天 / 候选人详情等）会自带顶栏，此时隐藏主顶栏与底部 Tab */
+  const isOverlay = OVERLAY_TYPES.has(current.type)
 
   return (
     <div className="flex min-h-screen flex-col bg-pl-desk">
@@ -93,6 +107,7 @@ export function HrShell() {
         <div className="relative flex flex-1 flex-col overflow-hidden">
           <div className="absolute inset-0 flex flex-col">
             {tab === 'jobs' && <HrJobsPage />}
+            {tab === 'candidates' && <HrCandidatesPage />}
             {tab === 'messages' && <HrMessagesPage />}
             {tab === 'me' && <HrMePage />}
           </div>
@@ -117,6 +132,34 @@ export function HrShell() {
               return (
                 <div key={`chat-${p.conversationId}`} className={overlayCls} style={overlayStyle}>
                   <HrChatPage conversationId={p.conversationId} />
+                </div>
+              )
+            }
+            if (p.type === 'candidate-detail') {
+              return (
+                <div key={`cand-${p.applicationId}`} className={overlayCls} style={overlayStyle}>
+                  <HrCandidateDetailPage applicationId={p.applicationId} />
+                </div>
+              )
+            }
+            if (p.type === 'interview-invite') {
+              return (
+                <div key={`invite-${p.applicationId}`} className={overlayCls} style={overlayStyle}>
+                  <HrInterviewInvitePage applicationId={p.applicationId} />
+                </div>
+              )
+            }
+            if (p.type === 'company-edit') {
+              return (
+                <div key="company-edit" className={overlayCls} style={overlayStyle}>
+                  <HrCompanyEditPage />
+                </div>
+              )
+            }
+            if (p.type === 'company-verify') {
+              return (
+                <div key="company-verify" className={overlayCls} style={overlayStyle}>
+                  <HrCompanyVerifyPage />
                 </div>
               )
             }

@@ -143,7 +143,6 @@ function EditorForm({ jobId, origin }: { jobId?: string; origin: HrJobRecord | n
   const [saving, setSaving] = useState(false)
 
   const isEdit = Boolean(jobId)
-  const companyId = company?.id ?? ''
 
   const subOptions = useMemo(() => subsOf(draft.cat), [draft.cat])
   const tagList = useMemo(() => parseTags(draft.tagsText), [draft.tagsText])
@@ -176,8 +175,8 @@ function EditorForm({ jobId, origin }: { jobId?: string; origin: HrJobRecord | n
       toast('请检查表单中标红的字段')
       return
     }
-    if (!companyId) {
-      toast('未绑定公司，无法发布职位')
+    if (!company || !hrProfile) {
+      toast('未绑定公司与 HR 身份，无法发布职位')
       return
     }
 
@@ -185,10 +184,18 @@ function EditorForm({ jobId, origin }: { jobId?: string; origin: HrJobRecord | n
     try {
       const input = draftToInput(draft)
       if (isEdit && jobId) {
-        await updateJob(jobId, input, companyId)
+        await updateJob(jobId, input, company.id)
         toast('职位已更新')
       } else {
-        await createJob(input)
+        await createJob(input, {
+          company: {
+            id: company.id,
+            name: company.name,
+            stage: company.stage,
+            size: company.size,
+          },
+          hr: { id: hrProfile.id, name: hrProfile.name, title: hrProfile.title },
+        })
         toast('职位已发布，求职者端可搜索到')
       }
       bumpDataVersion()
