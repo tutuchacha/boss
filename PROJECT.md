@@ -4,7 +4,7 @@
 > 当前状态与进度见 [`PROGRESS.md`](./PROGRESS.md)；技术实现见 [`ARCHITECTURE.md`](./ARCHITECTURE.md)；
 > 开发约束见 [`AGENTS.md`](./AGENTS.md)；变更记录见 [`CHANGELOG.md`](./CHANGELOG.md)。
 >
-> 最后更新：2026-10-16 · 对应已提交基线 `8b69b87`（五项验收功能已完成，`npm run e2e` 57/57）
+> 最后更新：2026-10-16 · 对应已提交基线 `af6197e`（五项验收功能 + 人才筛选演示增量，`npm run e2e` 63/63）
 
 ---
 
