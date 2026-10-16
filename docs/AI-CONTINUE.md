@@ -66,7 +66,7 @@ npm run dev          # 端口 3000
 |---|---|---|
 | Step 0 架构 + 数据模型 + API 契约 | ✅ 完成 | `docs/architecture.md`、`data-model.md`、`api-contract.md`、`api-endpoints.md`、`prisma/schema.prisma`、`src/types/api.ts` |
 | Step 1 前端开发（Next.js + Mock） | ✅ 完成 | `src/components/pinliao/`、`src/api/`、`src/store/` |
-| Step 2 前端验收 | ⏳ 进行中 | 五项验收功能已完成且 e2e 57/57 通过；等待用户逐页验收 |
+| Step 2 前端验收 | ⏳ 进行中 | 五项验收功能已完成且 e2e 57/57 通过；**用户人工验收初步通过（2026-10-16）**；待确认 §9 待决事项 |
 | Step 3 后端（Spring Boot） | ⏸ 未开始 | 按契约实现接口 |
 | Step 4 联调 | ⏸ 未开始 | `USE_MOCK=false` 切真实接口 |
 
@@ -520,3 +520,4 @@ HR 新建 → 追加。
 | v1.2 | 2026-09-28 | 新增可复用验收脚本 `tests/e2e-verify.cjs` + `npm run e2e`；修复 `npm run build` / `npm start` 在 Windows 上不可用的问题（改用跨平台构建脚本）；补「构建与生产启动」说明 |
 | v1.3 | 2026-10-16 | 开发交接：定位调整为「运维与深读手册」，状态指针指向根目录 `PROGRESS.md`；补工作区未提交在建改动（投递/面试数据层与 service，未接 UI）的快照说明 |
 | v1.4 | 2026-10-16 | 五项验收功能全部完成并接入 UI（投递 / 候选人 / 面试闭环、验证码登录 / 注册、公司资料 / 企业认证）；e2e 扩展至 57/57；补登录页签残留、e2e 文本匹配 / 覆盖层、HR 职位归属等坑记录 |
+| v1.5 | 2026-10-16 | 用户人工验收初步通过；补记远端仓库指向（`origin` → GitHub），状态与提交对齐 |

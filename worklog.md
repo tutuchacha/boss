@@ -668,3 +668,24 @@ Stage Summary:
 - 交接链路已一致：新会话按 PROGRESS.md → ARCHITECTURE.md → PROJECT.md → docs/AI-CONTINUE.md
   → worklog.md 顺序阅读即可无损接续，无「多份真相」。
 - 下一步：等待用户逐页验收与 AI-CONTINUE §9 待确认事项；之后进入 Step 3 后端。
+
+---
+
+Task ID: 14
+Agent: orchestrator (main)
+Task: 交付收尾 — 用户人工验收初步通过后固化状态；提交并推送远端（origin / GitHub）
+
+Work Log:
+- 人工验收：用户按 AI-CONTINUE §5 清单逐页过完，初步通过（2026-10-16）
+- 交付前复跑（dev server 端口 3000）：npm run e2e 57/57 通过；无头 Chrome 清理检查通过
+  （headless 残留 0，未影响用户 Chrome）
+- 文档固化：
+  - PROGRESS：快照补「远端仓库」行、本轮提交列 8b69b87 + bcac84a；§1/§4 状态改为
+    「用户人工验收初步通过（2026-10-16）」；v1.3 修订记录
+  - AGENTS / PROJECT / docs/AI-CONTINUE（v1.5）：同步该状态；AI-CONTINUE 补远端指向
+- 提交推送：main → origin/main（SSH，GitHub tutuchacha/boss；推送前落后 0、领先 3：
+  8b69b87 + bcac84a + 本条固化提交）
+
+Stage Summary:
+- 本地与远端一致，任意机器 git pull 后可无损接续；接续阅读顺序见上一 Task。
+- 下一步：用户确认 AI-CONTINUE §9 待决事项；随后 Step 3 后端（按 api-endpoints 正文 68 条契约）。
