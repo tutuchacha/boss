@@ -6,10 +6,10 @@
 
 ---
 
-## [未提交] 2026-10-17 — Step 3 T0：后端工程骨架与本地环境（MySQL 3307 / Redis 6379）
+## [dd7a948] 2026-10-17 — Step 3 T0：后端工程骨架与本地环境（MySQL 3307 / Redis 6379）
 
 > 单仓 `backend/` 落地；技术基线调整：数据库 PostgreSQL → **MySQL 8**（用户拍板，免 Docker 直装）、
-> JDK 用 IDEA 自带 JBR 21。提交 hash 见紧后 docs 结算提交。
+> JDK 用 IDEA 自带 JBR 21。提交 hash：`dd7a948`（结算见紧后 docs 提交）。
 
 ### Added
 
@@ -22,13 +22,13 @@
 ### Changed
 
 - 技术基线：PostgreSQL → MySQL 8（用户拍板）；JDK「装 Temurin 17」→「IDEA 自带 JBR 21」；运行数据统一 `.local/`。
-- 根 `.gitignore` — 新增 `/.local/`。
+- 根 `.gitignore` — 新增 `/.local/`；裸规则 `test`/`prompt` 收窄为根级 `/test`、`/prompt`（避免误伤 `backend/src/test` 测试源码）。
 
 ### Docs
 
-- `docs/step3-plan.md` v1.1 — T0 勾选；§1 环境定案；§4 T0 实际完成；§6 待拍板结项。
-- `PROGRESS.md` v1.6 — §0 快照 / §1 状态 / §4 下一步（T1 具体动作）/ §7 后端命令与实测结果。
-- `worklog.md` — Task 17；`AGENTS.md` 速览与后端命令；`docs/AI-CONTINUE.md` §6.8 后端环境坑。
+- `docs/step3-plan.md` v1.1 — T0 勾选；§1 环境定案；§4 T0 实际完成；§6 决策结项。
+- `PROGRESS.md` v1.6 — §0 快照 / §1 状态 / §4 下一步（T1 具体动作）/ §6.3 后端注意 / §7 后端命令与实测结果。
+- `worklog.md` — Task 17；`AGENTS.md` 速览与后端命令；`docs/AI-CONTINUE.md` §6.8 后端环境坑 + §7.4 口径修正（PG→MySQL）；`docs/architecture.md` 实现注记。
 
 ---
 
