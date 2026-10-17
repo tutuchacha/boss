@@ -766,6 +766,7 @@ Work Log:
 - 验收（实测 2026-10-17）：mvnw test 3/3；spring-boot:run 3.5s 启动、Flyway 连 MySQL 8.0（0 迁移 + 建 history 表）；
   /actuator/health 200 UP；ping 包络/traceId 一致；validate 422+42201+errors；error 404+40401；swagger 200
 - 文档：step3-plan v1.1（T0 勾选、基线 MySQL、§6 结项）、PROGRESS v1.6、CHANGELOG、AGENTS 速览、AI-CONTINUE §6.8
+- 提交：`dd7a948`（feat(backend): Step 3 T0 后端工程骨架与本地环境）
 
 Stage Summary:
 - T0 完成。后端本地可启动（:8080），MySQL(3307)/Redis(6379) 一键起停（dev-up/dev-down）。
