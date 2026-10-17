@@ -6,6 +6,32 @@
 
 ---
 
+## [未提交] 2026-10-17 — Step 3 T0：后端工程骨架与本地环境（MySQL 3307 / Redis 6379）
+
+> 单仓 `backend/` 落地；技术基线调整：数据库 PostgreSQL → **MySQL 8**（用户拍板，免 Docker 直装）、
+> JDK 用 IDEA 自带 JBR 21。提交 hash 见紧后 docs 结算提交。
+
+### Added
+
+- `backend/` — Spring Boot **3.5.16** 工程（Maven Wrapper 3.3.2 → Maven 3.9.16；MyBatis-Plus 3.5.17、springdoc 2.9.1）。
+- 统一层：`ApiResponse` 包络 / `ApiCodes` 错误码表（code→HTTP 前 3 位）/ `GlobalExceptionHandler` /
+  `TraceIdFilter`（`X-Trace-Id` + MDC）/ `ResponseAdvice`；`/actuator/health` 暴露。
+- 样例自检接口 `/api/v1/_demo/{ping,error,validate}`（非契约，T9 后可移除）+ MockMvc 冒烟测试 3 项全过。
+- `backend/scripts/` — MySQL 8 专用实例（3307）与 Redis（6379）初始化 / 起停脚本（`db-init` / `dev-up` / `dev-down` 等）。
+
+### Changed
+
+- 技术基线：PostgreSQL → MySQL 8（用户拍板）；JDK「装 Temurin 17」→「IDEA 自带 JBR 21」；运行数据统一 `.local/`。
+- 根 `.gitignore` — 新增 `/.local/`。
+
+### Docs
+
+- `docs/step3-plan.md` v1.1 — T0 勾选；§1 环境定案；§4 T0 实际完成；§6 待拍板结项。
+- `PROGRESS.md` v1.6 — §0 快照 / §1 状态 / §4 下一步（T1 具体动作）/ §7 后端命令与实测结果。
+- `worklog.md` — Task 17；`AGENTS.md` 速览与后端命令；`docs/AI-CONTINUE.md` §6.8 后端环境坑。
+
+---
+
 ## [Step 3 规划] 2026-10-17 — 后端分块执行计划与上下文交接协议（纯文档）
 
 > 提交 hash 见 `git log -1`。回答「Step 3 怎么分块做、上下文满了怎么接力」；

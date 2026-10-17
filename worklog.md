@@ -746,3 +746,27 @@ Stage Summary:
 - 下一步（用户执行）：装 JDK 17（`winget install EclipseAdoptium.Temurin.17.JDK`）、
   选定 PostgreSQL/Redis 安装方式（待拍板见 step3-plan §6）；然后开新会话从 T0 开工
 - 接力方式：新会话按 step3-plan §5.2 开工 checklist - T0/T1 两轮内应可看到后端健康检查与种子数据
+
+---
+
+Task ID: 17
+Agent: orchestrator (main)
+Task: Step 3 T0 — 环境与工程骨架（Spring Boot 3.5.16 + 统一包络/异常/traceId + MySQL/Redis 专用实例）
+
+Work Log:
+- 环境决策（用户拍板）：单仓 backend/；JDK 用 IDEA 自带 JBR 21（免安装，本机原仅 JDK 1.8）；
+  数据库改用 MySQL 8（替代计划中 PostgreSQL）；Docker 评估可行但需 WSL2 + 重启 1~2 次 + 镜像加速，
+  用户选「免 Docker 直装」：复用本机 MySQL 8.0.29 二进制另起专用实例（3307，数据 .local/mysql），
+  Redis 用 Windows 版 zip（tporadowski 5.0.14.1，.local/redis）
+- 工程骨架：start.spring.io 已下架 Boot 3.x → 手工建 backend/（Boot 3.5.16 + Maven Wrapper 3.3.2/Maven 3.9.16；
+  MyBatis-Plus 3.5.17、springdoc 2.9.1；Web/Validation/MySQL/Flyway/Data Redis/WebSocket/Actuator/Lombok）
+- 统一层：ApiResponse 包络 + ApiCodes 错误码表（code→HTTP 前 3 位推导）+ GlobalExceptionHandler +
+  TraceIdFilter（MDC / X-Trace-Id 响应头）+ ResponseAdvice；样例接口 /api/v1/_demo/{ping,error,validate}
+- 本地环境脚本（backend/scripts）：_env / db-init / db-start / db-stop / redis-start / redis-stop / dev-up / dev-down
+- 验收（实测 2026-10-17）：mvnw test 3/3；spring-boot:run 3.5s 启动、Flyway 连 MySQL 8.0（0 迁移 + 建 history 表）；
+  /actuator/health 200 UP；ping 包络/traceId 一致；validate 422+42201+errors；error 404+40401；swagger 200
+- 文档：step3-plan v1.1（T0 勾选、基线 MySQL、§6 结项）、PROGRESS v1.6、CHANGELOG、AGENTS 速览、AI-CONTINUE §6.8
+
+Stage Summary:
+- T0 完成。后端本地可启动（:8080），MySQL(3307)/Redis(6379) 一键起停（dev-up/dev-down）。
+- 下一步：T1 数据库迁移与演示种子（Flyway V1 建表 MySQL 方言 + V2 种子，数字对齐 step3-plan §3）

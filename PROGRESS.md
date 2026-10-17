@@ -13,13 +13,14 @@
 
 | 项 | 值 |
 | --- | --- |
-| 上一提交（历史基线） | `a7c1fbd`（docs: 固化「人工验收初步通过」状态并补远端仓库信息；五项功能轮见 `8b69b87` / `bcac84a`） |
-| 本轮提交 | `af6197e`（feat: HR 人才筛选演示版）+ 紧后 docs 结算提交；若 `git status` 仍有未提交文件，以工作区现状为准 |
-| dev server | 端口 3000 运行中（实测 HTTP 200）；未运行时用 `npm run dev` 启动 |
+| 上一提交（历史基线） | `45864ed`（docs: Step 3 后端分块执行计划与上下文交接协议） |
+| 本轮提交 | T0 后端骨架 `feat(backend)`（hash 见紧后 docs 结算提交或 `git log -2`）；若 `git status` 仍有未提交文件，以工作区现状为准 |
+| dev server（前端） | 端口 3000；未运行时用 `npm run dev` 启动（本会话未复测） |
+| 后端（Step 3） | `backend/`（Spring Boot 3.5.16，:8080）；MySQL 专用实例 **3307** + Redis **6379** 已在运行；起停脚本 `backend/scripts/` |
 | 测试账号 | 求职者 `13800000001` / HR `13800000002`，密码均 `123456`；短信验证码固定 `123456` |
-| 环境 | Windows（`D:\boss`）+ PowerShell；Node 实测 v24 可跑；**无 bun，统一用 npm** |
+| 环境 | Windows（`D:\boss`）+ PowerShell；Node 实测 v24 可跑；**无 bun，统一用 npm**；后端 JDK 用 IDEA 自带 **JBR 21**（跑 `mvnw` 必设 `JAVA_HOME`，见 §7.2） |
 | 远端仓库 | `origin` → GitHub `tutuchacha/boss`（SSH）；接手前先 `git pull` 与远端对齐 |
-| Step 3 计划 | [`docs/step3-plan.md`](./docs/step3-plan.md)（分块 T0~T9 + 上下文交接协议）；当前：待开工 T0 |
+| Step 3 计划 | [`docs/step3-plan.md`](./docs/step3-plan.md)（分块 T0~T9 + 上下文交接协议）；**T0 ✅（2026-10-17）**，当前：**T1 数据库迁移与演示种子** |
 
 > 接手时先跑一次 `git status --porcelain` 与 `npx tsc --noEmit` 核对本表是否仍然成立。
 
@@ -32,7 +33,7 @@
 | Step 0 架构 + 契约 | ✅ 完成 | `docs/architecture.md`、`data-model.md`、`api-*.md`、`prisma/schema.prisma` |
 | Step 1 双端前端开发 | ✅ 完成 | `src/components/pinliao/`（求职者端 + HR 端 + 登录） |
 | Step 2 前端验收 | ⏳ 进行中 | 验收五项功能已全部完成，并新增**人才筛选（演示版）**增量；`npm run e2e` 63/63 通过（见 §2/§5）；**用户人工验收初步通过（2026-10-16）**；待确认 `docs/AI-CONTINUE.md` §9 待决事项 |
-| Step 3 后端（Spring Boot） | ⏸ 计划已就绪 | 分块计划 [`docs/step3-plan.md`](./docs/step3-plan.md)；待开工 T0（环境与骨架） |
+| Step 3 后端（Spring Boot） | 🔄 进行中（T1） | `backend/` Spring Boot 3.5.16 骨架 + MySQL 专用实例 3307 / Redis 6379；**T0 ✅ 2026-10-17**（实测见 §7.2）；下一步 T1（数据库迁移与演示种子） |
 | Step 4 联调 | ⏸ 未开始 | `NEXT_PUBLIC_USE_MOCK=false` |
 
 ---
@@ -122,7 +123,12 @@
 1. 用户人工验收**初步通过**（2026-10-16）；继续确认 `docs/AI-CONTINUE.md` §9 的待决事项
    （前端最终框架、接口账目口径等），并按用户后续反馈补齐。
 2. **Step 3 后端（Spring Boot）**：按 [`docs/step3-plan.md`](./docs/step3-plan.md) 分块推进
-   （T0 → T9，契约正文 70 条；每会话一块，按计划内「收工 checklist」交接）；
+   （T0 → T9，契约正文 70 条；每会话一块，按计划内「收工 checklist」交接）。
+   **T0 ✅（2026-10-17）**，下一个动作 = **T1 数据库迁移与演示种子**：
+   在 `backend/src/main/resources/db/migration/` 写 `V1__schema.sql`（MySQL 方言，按
+   `docs/data-model.md` 建表：`companyId` 多租户列 + 必要索引）与 `V2__seed_demo.sql`
+   （数字对齐 step3-plan §3：可见职位 38 / 云杉职位 7 / 候选人 6 / 会话 6 / 投递 6+3 / 简历 7）；
+   并接 MyBatis-Plus 分页 + 租户拦截器 + 时间自动填充；验收 = 启动自动 migrate + 抽查各表行数。
    T9 切换 `USE_MOCK=false` 跑通前端 e2e 63/63 后进入 Step 4 联调。
 3. 可选增量（未被本轮涵盖）：招聘者端桌面 Web 后台、HR 上传外部简历库、人才筛选语义检索升级（接口不变）等。
 
@@ -167,13 +173,19 @@
   **严禁** `Get-Process chrome | Stop-Process -Force`（会杀掉用户全部标签页）。
 - Mock 数据刷新即重置：跨端联动测试必须用应用内退出登录切换账号。
 - 水合安全：新页面 / 新数据只在登录后的客户端路径渲染；新建 id 用递增计数。
+- **后端（`backend/`）**：JDK 用 IDEA 自带 **JBR 21**，跑 `mvnw` 前必设 `JAVA_HOME`
+  （本机系统仅 JDK 1.8）；MySQL / Redis 是 `.local/` 下的**专用实例 3307 / 6379**
+  （**不要连 3306 的本机原服务**），用 `backend/scripts/` 起停；`.ps1` 含中文必须 UTF-8 BOM
+  （详见 `AI-CONTINUE.md` §6.8）。
 - localStorage 键：求职者 `pinliao.v3`、认证 `pinliao.auth.v1`、token `pinliao.accessToken` / `pinliao.refreshToken`。
 - `AGENTS.md` / `CLAUDE.md` 由 `next dev` 自动维护（只管理 `<!-- BEGIN:nextjs-agent-rules -->` 区块，
   其余内容安全保留）；提交时一并带上可保持工作区干净。
 
 ---
 
-## 7. 运行命令与测试结果（2026-10-16 实测）
+## 7. 运行命令与测试结果
+
+### 7.1 前端（2026-10-16 实测）
 
 ```powershell
 npm run dev            # 端口 3000；另开终端保持运行
@@ -185,6 +197,29 @@ npm start              # 生产启动（node .next/standalone/server.js；可用
 ```
 
 可覆盖的环境变量：`npm run e2e` 支持 `BASE_URL` / `CHROME_PATH` / `CDP_PORT`。
+
+### 7.2 后端 `backend/`（2026-10-17 实测，Step 3 T0）
+
+```powershell
+cd backend
+$env:JAVA_HOME='C:\Program Files\JetBrains\IntelliJ IDEA Community Edition 2025.2.6.2\jbr'  # 必设（本机仅 JDK 1.8）
+.\scripts\dev-up.ps1         # 起 MySQL 专用实例 3307 + Redis 6379（首次先 .\scripts\db-init.ps1）
+.\mvnw.cmd spring-boot:run   # 后端 :8080；Ctrl+C 停止（收尾用 .\scripts\dev-down.ps1）
+.\mvnw.cmd test              # 冒烟测试（包络 / 错误码 / traceId）
+.\mvnw.cmd -DskipTests package  # 打包（target/pinliao-backend-*.jar）
+```
+
+| 检查 | 结果 |
+| --- | --- |
+| `mvnw.cmd test` | **3/3 通过**（`EnvelopeSmokeTest`） |
+| `spring-boot:run` | **3.5s 启动**；Flyway 连上 MySQL 8.0（0 迁移 + 建 `flyway_schema_history`，T1 补 V1/V2） |
+| `/actuator/health` | `{"status":"UP"}`（200） |
+| `/api/v1/_demo/ping` | 包络 `{code:0,...}`，`traceId` 与响应头 `X-Trace-Id` 一致 |
+| `/api/v1/_demo/validate?phone=123` | 422 + `42201` + `errors` 数组 |
+| `/api/v1/_demo/error` | 404 + `40401` |
+| `/swagger-ui.html`、`/v3/api-docs` | 200 |
+
+运行数据在 `.local/`（已 gitignore）；MySQL / Redis 起停详见 `backend/README.md` 与 `backend/scripts/`。
 
 ---
 
@@ -198,3 +233,4 @@ npm start              # 生产启动（node .next/standalone/server.js；可用
 | v1.3 | 2026-10-16 | 用户人工验收初步通过；快照补远端仓库（`origin` → GitHub）；提交推送远端 |
 | v1.4 | 2026-10-16 | 人才筛选（演示版）增量：关键词匹配 + 技能标签 + 证据片段（契约 §4.5/§4.6，正文 70 条）；e2e 扩展至 63/63；同步覆盖层断言取数坑 |
 | v1.5 | 2026-10-17 | Step 3 分块计划（`docs/step3-plan.md`）与上下文交接协议就绪；快照/下一步指向计划 |
+| v1.6 | 2026-10-17 | Step 3 T0 完成：`backend/` Spring Boot 3.5.16 骨架（包络 / 错误码 / traceId / health）+ MySQL 3307 / Redis 6379 专用实例与起停脚本；mvnw test 3/3；基线调整 PG→MySQL、JDK→JBR 21 |

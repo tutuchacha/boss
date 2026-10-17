@@ -2,7 +2,7 @@
 
 > 本文件回答两个问题：**Step 3 怎么分块做**、**每个新会话怎么低上下文接力**。
 > 状态唯一定稿在 `PROGRESS.md`；本文件是执行计划与任务板（勾选进度以这里为准）。
-> 最后更新：2026-10-17 · 状态：计划就绪，待开工 T0
+> 最后更新：2026-10-17 · 状态：T0 ✅（环境与骨架），下一步 T1（数据库迁移与演示种子）
 
 ---
 
@@ -20,14 +20,14 @@
 
 | 项 | 定 |
 |---|---|
-| 语言/框架 | Java 17+ · Spring Boot 3.x · MyBatis-Plus |
-| 数据库 | PostgreSQL（生产基线；多租户 `companyId`，RLS 兜底） |
+| 语言/框架 | Java 17+（**JBR 21**，IDEA 自带）· Spring Boot **3.5.16** · MyBatis-Plus 3.5.17 |
+| 数据库 | **MySQL 8**（用户拍板，替代原 PostgreSQL；多租户 `companyId`；本机专用实例 3307） |
 | 缓存/限流 | Redis |
 | 实时 | WebSocket（4 主题，规范见 `docs/api-contract.md`） |
 | 构建 | Maven Wrapper（`mvnw`，不依赖本机 Maven 版本） |
 | 迁移 | Flyway（`V1__schema.sql` / `V2__seed_demo.sql`） |
 | 接口文档 | springdoc-openapi（/swagger-ui） |
-| 目录 | 建议 `backend/`（单仓，与契约/文档同一 git 历史；备选独立仓库） |
+| 目录 | **`backend/` 单仓已落地**（2026-10-17；与契约/文档同一 git 历史） |
 
 **本机环境盘点（2026-10-17 实测）**：
 
@@ -35,6 +35,14 @@
 - Maven 3.6.3（用 `mvnw` 规避）；Git 2.20.1 可用；winget v1.29 可用
 - 无 Docker；MySQL 服务存在但**已停止**（3306 空闲）；无 PostgreSQL/Redis（5432/6379 空闲）
 - `C:\dev` 有 Tomcat/Nacos/MySQL/Navicat 等工具链（本机是 Java 开发机）
+
+**T0 环境定案（2026-10-17，已实施）**：
+
+- JDK：不装 Temurin 17，改用 IDEA 自带 **JBR 21**（免安装；构建/运行前设 `JAVA_HOME` 到 jbr）
+- 数据库：不装 PostgreSQL，复用本机 MySQL 8.0.29 二进制另起**专用实例 3307**
+  （数据 `.local/mysql`；3306 留给本机原服务）；Redis 用 tporadowski Windows 版 zip（`.local/redis`，6379）
+- Docker 实测：`registry-1.docker.io` 不可达（`docker.m.daocloud.io` 可达）；Docker Desktop 需 WSL2 +
+  重启 1~2 次（Win10），用户选**免 Docker 直装**；运行数据统一 `.local/`（已 gitignore）
 
 **前端对接开关（已就绪，零代码改动）**：`src/config/env.ts` 读
 `NEXT_PUBLIC_USE_MOCK=false` / `NEXT_PUBLIC_API_BASE_URL` / `NEXT_PUBLIC_WS_BASE_URL` / `NEXT_PUBLIC_WS_PORT`。
@@ -46,7 +54,7 @@
 
 | 编号 | 内容 | 接口范围 | 预估会话 | 状态 |
 |---|---|---|---|---|
-| T0 | 环境安装与工程骨架（含统一包络/异常/健康检查） | — | 1 | ⬜ |
+| T0 | 环境安装与工程骨架（含统一包络/异常/健康检查） | — | 1 | ✅ 2026-10-17 |
 | T1 | 数据库迁移与演示种子（对齐 mock 数字） | 全部表 | 1–2 | ⬜ |
 | T2 | 鉴权模块（JWT 双 token、验证码、注册） | §1（7 条） | 1 | ⬜ |
 | T3 | 职位 + 分类字典（浏览/搜索/HR 管理） | §6 / §7（12 条） | 1 | ⬜ |
@@ -84,13 +92,16 @@ T9 必须最后；每个 chunk 一次会话（或按需拆小）。
 
 ## 4. 每 chunk 规格（概要）
 
-- **T0 环境与骨架**
-  - 装 JDK 17（winget）；选装 PostgreSQL 16 + Redis（见 §6 决策）
-  - 生成 `backend/`（start.spring.io：Web、Validation、PostgreSQL Driver、Flyway、
-    Data Redis、WebSocket、Actuator、Lombok；MyBatis-Plus 与 springdoc 手动加依赖）
-  - 统一包络（ResponseAdvice）+ 全局异常（@RestControllerAdvice）+ 错误码表 + traceId + `/actuator/health`
-  - 多环境配置（local：本机 PG/Redis）；`.gitignore`（target/ 等）；代码注释与提交用中文
-  - 验收：`mvnw spring-boot:run` 启动 + health 200 + 样例接口包络正确
+- **T0 环境与骨架 ✅ 2026-10-17 实际**（与原案差异：JDK 用 IDEA 自带 JBR 21；数据库 MySQL 8 免 Docker 直装；
+  start.spring.io 已下架 Boot 3.x → 手工建工程）
+  - 环境：MySQL 专用实例 **3307**（`.local/mysql`）+ Redis **6379**（`.local/redis`），起停脚本
+    `backend/scripts/`（`db-init` / `dev-up` / `dev-down` 等；`.ps1` 含中文须 UTF-8 BOM）
+  - `backend/`：Spring Boot **3.5.16** + Maven Wrapper 3.3.2（→ Maven 3.9.16）；MyBatis-Plus 3.5.17、springdoc 2.9.1
+  - 统一层：包络 `ApiResponse` / 错误码表 `ApiCodes`（code 前 3 位 → HTTP）/ `GlobalExceptionHandler` /
+    `TraceIdFilter`（MDC + X-Trace-Id）/ `ResponseAdvice`；样例接口 `/api/v1/_demo/{ping,error,validate}`
+  - 验收（实测）：`mvnw test` **3/3**；启动 3.5s 且 `/actuator/health` UP；ping / validate（422+42201+errors）/
+    error（404+40401）包络与错误码符合契约（traceId 与响应头一致）；swagger / api-docs 200；
+    Flyway 已连 MySQL（0 迁移，T1 补 V1/V2）
 - **T1 数据迁移与种子**
   - Flyway `V1` 按 `docs/data-model.md` 建表（`companyId` 多租户列 + 必要索引）；`V2` 演示种子
   - 种子来源：`src/api/mock/`（hrJobs / candidates / applications / hrConversations / resumes /
@@ -157,17 +168,18 @@ T9 必须最后；每个 chunk 一次会话（或按需拆小）。
 - 大输出重定向到文件再看片段；e2e 只在 chunk 收尾跑一次
 - 探索陌生大范围时可用子代理（若客户端支持），保持主上下文干净
 
-## 6. 待用户拍板
+## 6. 关键决策（T0 会话已拍板，勿回退）
 
-| # | 事项 | 建议 |
+| # | 事项 | 结论（2026-10-17） |
 |---|---|---|
-| 1 | 仓库布局 | **单仓 `backend/`**（契约/文档/代码同一历史，AI 接力最省心）；备选独立仓库 |
-| 2 | 数据库/中间件 | **PostgreSQL 16 + Redis 本地安装**（基线已定；未来 pgvector/RLS 同源）。本机 MySQL 已停、无 PG/Redis，需安装；winget 可用 |
-| 3 | JDK | 装 **Temurin 17**（`winget install EclipseAdoptium.Temurin.17.JDK`）；21 可用但非必须 |
-| 4 | 开工时机 | 开新会话从 T0 开始（本文件与 PROGRESS 已就绪） |
+| 1 | 仓库布局 | ✅ **单仓 `backend/`**（契约/文档/代码同一历史，AI 接力最省心） |
+| 2 | 数据库/中间件 | ✅ **MySQL 8 专用实例 3307 + Redis 6379**（免 Docker 直装，数据 `.local/`；原 PostgreSQL 16 方案作废） |
+| 3 | JDK | ✅ **IDEA 自带 JBR 21**（免安装；构建前设 `JAVA_HOME`；不装 Temurin） |
+| 4 | 开工时机 | ✅ 2026-10-17 T0 已开工并完成；当前 T1 |
 
 ## 7. 修订记录
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
 | v1.0 | 2026-10-17 | 首版：T0~T9 分块任务板、演示语义对齐清单、上下文交接协议（开工/收工/应急）、待拍板事项 |
+| v1.1 | 2026-10-17 | T0 完成：环境定案（JBR 21 / MySQL 3307 / Redis 6379 / 免 Docker 直装）与骨架落地（Boot 3.5.16、统一包络 / 异常 / traceId）；T0 行 ✅、§4 实测结果、§6 决策结项 |

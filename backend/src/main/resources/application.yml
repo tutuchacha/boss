@@ -1,0 +1,25 @@
+# 聘聊后端 · 通用配置（契约见 docs/api-contract.md）
+spring:
+  application:
+    name: pinliao-backend
+  profiles:
+    active: local
+  jackson:
+    time-zone: UTC
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+
+logging:
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %-5level [%X{traceId:-}] %logger{40} - %msg%n"
