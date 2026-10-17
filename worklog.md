@@ -803,3 +803,22 @@ Stage Summary:
 - T2a 完成：鉴权 6 接口在真实 MySQL/Redis 上可用（access 2h / refresh 30d / 验证码 123456）；
   受保护接口统一 40101/40102；T9 联调前无需再动鉴权主干
 - 下一步（按用户指示二选一）：T1 剩余迁移（V3 建剩余表 + 种子对齐 §3 数字）或 T2b 注册（§1.2 + 注册建公司）
+
+---
+
+Task ID: 19
+Agent: orchestrator (main)
+Task: 文档同步 —— AGENTS 速览 / 后端 README / 根 README 对齐 Step 3 T2a 现状
+
+Work Log:
+- 用户指示「readme 文件也同步更新一下」
+- `837f534`：AGENTS.md 速览区块更新至 T2a
+- backend/README.md 已在 `6f286e3` 内更新（鉴权命令、冒烟、目录结构），本次复核无残留旧口径
+- 根 README.md：阶段口径改「Step 2 验收版 + Step 3 进行中（T0 ✅ / T2a ✅）」；技术栈表加后端行；
+  多租户说明改 MySQL 8（RLS 随 T0 定案作废）；数据库说明改 Flyway 迁移；常用命令加
+  「后端（Step 3，进行中）」段；文档索引补 `docs/step3-plan.md`；启动提示词与开发路线表同步
+- 提交：`29c21c1`（docs: 根 README 同步 Step 3 进度）
+
+Stage Summary:
+- 根/后端 README、AGENTS 速览三处口径与 T2a 现状一致；其余文档（PROGRESS/CHANGELOG/AI-CONTINUE/step3-plan）此前已同步
+- 下一步不变（待用户拍板）：T1 剩余迁移（V3+）或 T2b 注册（§1.2 + 注册建公司）
