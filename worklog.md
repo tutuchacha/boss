@@ -797,6 +797,7 @@ Work Log:
   → 改 BOOLEAN 重建本地库重跑（日志干净）
 - 文档：PROGRESS v1.7、step3-plan v1.2（T2 拆 T2a/T2b；T1 顺延 V3+）、CHANGELOG、AI-CONTINUE §6.8+v1.8、
   backend/README（鉴权命令与冒烟）
+- 提交：`6f286e3`（feat(backend): Step 3 T2a 鉴权）
 
 Stage Summary:
 - T2a 完成：鉴权 6 接口在真实 MySQL/Redis 上可用（access 2h / refresh 30d / 验证码 123456）；
