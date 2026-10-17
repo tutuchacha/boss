@@ -5,7 +5,7 @@
 > 项目目标见 [`PROJECT.md`](./PROJECT.md)；技术结构见 [`ARCHITECTURE.md`](./ARCHITECTURE.md)；
 > 运维与踩坑深读见 [`docs/AI-CONTINUE.md`](./docs/AI-CONTINUE.md)。
 >
-> 最后更新：2026-10-16
+> 最后更新：2026-10-17
 
 ---
 
@@ -19,6 +19,7 @@
 | 测试账号 | 求职者 `13800000001` / HR `13800000002`，密码均 `123456`；短信验证码固定 `123456` |
 | 环境 | Windows（`D:\boss`）+ PowerShell；Node 实测 v24 可跑；**无 bun，统一用 npm** |
 | 远端仓库 | `origin` → GitHub `tutuchacha/boss`（SSH）；接手前先 `git pull` 与远端对齐 |
+| Step 3 计划 | [`docs/step3-plan.md`](./docs/step3-plan.md)（分块 T0~T9 + 上下文交接协议）；当前：待开工 T0 |
 
 > 接手时先跑一次 `git status --porcelain` 与 `npx tsc --noEmit` 核对本表是否仍然成立。
 
@@ -31,7 +32,7 @@
 | Step 0 架构 + 契约 | ✅ 完成 | `docs/architecture.md`、`data-model.md`、`api-*.md`、`prisma/schema.prisma` |
 | Step 1 双端前端开发 | ✅ 完成 | `src/components/pinliao/`（求职者端 + HR 端 + 登录） |
 | Step 2 前端验收 | ⏳ 进行中 | 验收五项功能已全部完成，并新增**人才筛选（演示版）**增量；`npm run e2e` 63/63 通过（见 §2/§5）；**用户人工验收初步通过（2026-10-16）**；待确认 `docs/AI-CONTINUE.md` §9 待决事项 |
-| Step 3 后端（Spring Boot） | ⏸ 未开始 | 等前端验收完成 |
+| Step 3 后端（Spring Boot） | ⏸ 计划已就绪 | 分块计划 [`docs/step3-plan.md`](./docs/step3-plan.md)；待开工 T0（环境与骨架） |
 | Step 4 联调 | ⏸ 未开始 | `NEXT_PUBLIC_USE_MOCK=false` |
 
 ---
@@ -120,8 +121,9 @@
 
 1. 用户人工验收**初步通过**（2026-10-16）；继续确认 `docs/AI-CONTINUE.md` §9 的待决事项
    （前端最终框架、接口账目口径等），并按用户后续反馈补齐。
-2. **Step 3 后端（Spring Boot）**：按 `docs/api-endpoints.md` 正文 70 条契约实现；
-   切换 `USE_MOCK=false` 进入 Step 4 联调。
+2. **Step 3 后端（Spring Boot）**：按 [`docs/step3-plan.md`](./docs/step3-plan.md) 分块推进
+   （T0 → T9，契约正文 70 条；每会话一块，按计划内「收工 checklist」交接）；
+   T9 切换 `USE_MOCK=false` 跑通前端 e2e 63/63 后进入 Step 4 联调。
 3. 可选增量（未被本轮涵盖）：招聘者端桌面 Web 后台、HR 上传外部简历库、人才筛选语义检索升级（接口不变）等。
 
 ---
@@ -195,3 +197,4 @@ npm start              # 生产启动（node .next/standalone/server.js；可用
 | v1.2 | 2026-10-16 | 交接文档一致性刷新：§0 结算 `8b69b87` 实际 hash；`PROJECT` / `ARCHITECTURE` / `AGENTS` / `README` / `AI-CONTINUE` 口径与提交对齐（无代码变更） |
 | v1.3 | 2026-10-16 | 用户人工验收初步通过；快照补远端仓库（`origin` → GitHub）；提交推送远端 |
 | v1.4 | 2026-10-16 | 人才筛选（演示版）增量：关键词匹配 + 技能标签 + 证据片段（契约 §4.5/§4.6，正文 70 条）；e2e 扩展至 63/63；同步覆盖层断言取数坑 |
+| v1.5 | 2026-10-17 | Step 3 分块计划（`docs/step3-plan.md`）与上下文交接协议就绪；快照/下一步指向计划 |
