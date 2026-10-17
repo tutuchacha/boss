@@ -3,8 +3,8 @@
 参考 Boss 直聘模式的招聘平台原型：**C 端求职者 + 多 B 端企业客户共存**。
 求职者跨企业共享（同一份简历可投多家），每个注册企业即一个「租户」（Tenant）。
 
-> **当前阶段**：Step 1/2 前端验收版。数据全部来自本地 Mock，无需后端即可运行。
-> Step 3（Spring Boot 后端）与 Step 4（联调）尚未开始。
+> **当前阶段**：Step 2 前端验收版（e2e 63/63）· Step 3 后端进行中（**T0 骨架 ✅、T2a 鉴权 ✅ 2026-10-17**，
+> 任务板见 `docs/step3-plan.md`）。前端仍走本地 Mock，无需后端即可运行；T9 再切 `USE_MOCK=false` 联调。
 
 ---
 
@@ -45,6 +45,7 @@ npm run dev
 | 状态 | Zustand（含 persist） | 客户端状态 |
 | 数据 | TanStack Query | 服务端状态（两端新模块均走 Query，旧模块部分同步 Mock） |
 | ORM | Prisma | **当前未接入业务**，见下文 |
+| 后端 | Spring Boot 3.5 + MySQL 8 + Redis（`backend/`） | Step 3 进行中：T0 骨架 ✅、T2a 鉴权 ✅（JWT + Redis 令牌）；计划见 `docs/step3-plan.md` |
 
 > `zod`、`react-hook-form` 等已随模板装好但**当前代码尚未使用**，故不列入上表。
 
@@ -88,7 +89,7 @@ npm run dev
 | 功能 | 状态 |
 |---|---|
 | 招聘者端桌面 Web 后台 | 未实现（当前仅移动端布局） |
-| 真实后端 | Step 3 待开始（接口契约见 `docs/api-endpoints.md`） |
+| 真实后端（其余模块） | Step 3 进行中：鉴权（验证码 / 登录 / 刷新 / 退出 / me，§1）已落地；其余按 `docs/step3-plan.md` 任务板推进（接口契约见 `docs/api-endpoints.md`） |
 
 ---
 
@@ -124,7 +125,8 @@ src/
   引入 `next/navigation` 会改变架构，请先阅读 `docs/HANDOFF.md`。
 - **service 层隔离**：组件只依赖 `src/api/*`，不直接 `fetch`。
   `src/config/env.ts` 的 `USE_MOCK` 控制 Mock / 真实接口切换。
-- **多租户**：业务表带 `companyId`；生产后端由 MyBatis-Plus 拦截器注入，PostgreSQL RLS 兜底。
+- **多租户**：业务表带 `companyId`；后端（MySQL 8）由 MyBatis-Plus 拦截器注入租户条件，
+  应用层校验兜底（原 PostgreSQL RLS 方案已随 T0 数据库定案作废，见 `docs/step3-plan.md` §6）。
 - **水合安全**：persist store 使用 `skipHydration: true`，由 `RootGate` 挂载后统一
   `rehydrate()`，避免 SSR/CSR 不一致导致 hydration 报错。
 
@@ -151,6 +153,20 @@ npx tsc --noEmit   # 类型检查
 >
 > 端口请按本机实际代理填写。彻底解决可改为自托管字体（`next/font/local`）。
 
+### 后端（Step 3，进行中）
+
+`backend/` 为 Spring Boot 3.5 工程（MySQL 专用实例 3307 + Redis 6379，运行数据在 `.local/`，
+环境要求与完整说明见 `backend/README.md`）：
+
+```powershell
+cd backend
+$env:JAVA_HOME='C:\Program Files\JetBrains\IntelliJ IDEA Community Edition 2025.2.6.2\jbr'  # 必设（本机仅 JDK 1.8）
+.\scripts\dev-up.ps1         # 起 MySQL 3307 + Redis 6379
+.\mvnw.cmd spring-boot:run   # 后端服务 :8080
+.\mvnw.cmd test              # 单元冒烟（基线 8/8）
+node scripts\smoke-auth.mjs  # 鉴权接口冒烟（T2a 起，14 项）
+```
+
 ### 数据库说明
 
 `prisma/schema.prisma` 是**领域模型设计文档**（19 个模型 + 10 个枚举 + 多租户字段标注），
@@ -158,7 +174,8 @@ npx tsc --noEmit   # 类型检查
 
 - 当前无人 `import` `src/lib/db.ts`，因此 **`prisma generate` 不是启动前置条件**
 - datasource 为 SQLite，路径取自 `.env` 的 `DATABASE_URL`
-- 生产数据库为 PostgreSQL，由 Spring Boot + MyBatis-Plus 另维护建表 SQL
+- 真实数据库为 **MySQL 8**（用户拍板，2026-10-17；专用实例 3307），由 `backend/` 的
+  Flyway 迁移维护建表（`backend/src/main/resources/db/migration/`；V1 鉴权建表 / V2 演示账号）
 
 ---
 
@@ -189,6 +206,7 @@ npx tsc --noEmit   # 类型检查
 | `data-model.md` | 表清单、字段说明、索引、ER 图 |
 | `api-contract.md` | API 通用规范（包络 / 错误码 / 分页 / 限流 / WebSocket / 安全） |
 | `api-endpoints.md` | 全部业务接口清单（13 个模块，按模块标注方法与鉴权角色） |
+| `step3-plan.md` | Step 3 后端分块开发计划与任务板（T0~T9 进度、每块规格、交接协议） |
 | `dev-notes.md` | 决策记录与路线图 |
 | `HANDOFF.md` | ⚠️ 已降级为「Step 0 决策历史」，当前状态以 `AI-CONTINUE.md` 为准 |
 | `legacy/` | 原始 HTML 原型与 v0.2 开发笔记 |
@@ -197,7 +215,7 @@ npx tsc --noEmit   # 类型检查
 ### 给接续开发者 / AI 的启动提示词
 
 ```
-我有一个招聘平台项目「聘聊」，当前是前端验收版（Next.js 16 + Mock，无后端）。
+我有一个招聘平台项目「聘聊」，当前是前端验收版（Next.js 16 + Mock）+ Step 3 后端进行中（Spring Boot，鉴权已落地）。
 请先读 docs/AI-CONTINUE.md —— 它包含项目全貌、当前状态、架构约定、
 已踩过的坑与协作规范，读完即可开工，无需再问我背景问题。
 
@@ -213,7 +231,7 @@ npx tsc --noEmit   # 类型检查
 | Step 0 | 框架无关的架构、数据模型、API 契约 | ✅ |
 | Step 1 | 前端开发（Next.js + Mock） | ✅ |
 | Step 2 | 前端验收（五项验收功能 + 人才筛选演示增量已完成，`npm run e2e` 63/63） | ⏳ 进行中 |
-| Step 3 | 后端开发（Spring Boot，按契约实现接口） | ⏸ 待开始 |
+| Step 3 | 后端开发（Spring Boot 3.5 + MySQL/Redis；分块计划 `docs/step3-plan.md`） | 🔄 进行中（T0 ✅ 骨架 / T2a ✅ 鉴权登录与退出，2026-10-17） |
 | Step 4 | 联调（`USE_MOCK=false`，Mock → 真实接口） | ⏸ 待开始 |
 | 未来 | App / 小程序（若决定多端，复用 API 契约） | — |
 
