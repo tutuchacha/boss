@@ -1,0 +1,4 @@
+# 保证跨平台 checkout 时换行符正确（mvnw 为 shell 脚本需 LF）
+* text=auto
+mvnw text eol=lf
+*.cmd text eol=crlf

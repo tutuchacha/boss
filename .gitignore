@@ -46,12 +46,15 @@ local-*
 *.log
 dev.log
 dev.out.log
-test
-prompt
+/test
+/prompt
 
 server.log
 # Skills directory
 /skills/
+
+# 后端本地运行数据（MySQL/Redis 数据文件，见 backend/scripts/）
+/.local/
 
 # 沙箱搬家遗留的中间产物（2026-09-21 从 Linux 沙箱迁到 Windows 时产生）
 # 保留在本地以便需要时回溯，不纳入版本控制

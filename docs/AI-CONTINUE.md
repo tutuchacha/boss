@@ -135,8 +135,9 @@ Mock / 真实接口切换，组件无感。新增接口请照 `src/api/hrJobs.ts
 若将来出 App/小程序，计划另起 uni-app 工程复用同一套 API 契约。
 
 **4. 多租户。**
-业务表带 `companyId`；生产后端由 MyBatis-Plus 拦截器注入 `WHERE company_id = ?`，
-PostgreSQL RLS 兜底。求职者跨租户共享的表（`User`/`UserProfile`/`Resume`）**不带** `companyId`。
+业务表带 `companyId`；生产后端由 MyBatis-Plus 拦截器注入 `WHERE company_id = ?`。
+（原 PostgreSQL RLS 兜底方案随数据库改 MySQL 作废，见 `docs/step3-plan.md` §1。）
+求职者跨租户共享的表（`User`/`UserProfile`/`Resume`）**不带** `companyId`。
 
 **5. 水合安全（hydration）。**
 persist store 一律 `skipHydration: true`，由 `RootGate` 挂载后统一 `rehydrate()`。
@@ -444,6 +445,22 @@ const { data, isPending } = useQuery({
   （按 userId 关联，简历 id 约定 `resume-{userId}`）。新增候选人 / 求职者投递若没有
   对应简历正文，不会出现在匹配结果中——这是预期行为（先有简历数据才有可筛内容）。
 
+### 6.8 后端本地环境（Step 3 T0 起）
+
+- **JDK 用 IDEA 自带 JBR 21**：本机系统仅 JDK 1.8，构建 / 运行 `mvnw` 前必须先设
+  `$env:JAVA_HOME='C:\Program Files\JetBrains\IntelliJ IDEA Community Edition 2025.2.6.2\jbr'`，
+  否则报 JAVA_HOME 不合法。不装 Temurin（原计划作废）。
+- **MySQL 专用实例 3307**：复用本机 MySQL 8.0.29 二进制 + 独立数据目录 `.local/mysql/data`
+  （root/123456，库 `pinliao`）；**3306 是本机原服务（自动启动），不要连**。首次初始化
+  `backend/scripts/db-init.ps1`（可重入），日常 `dev-up.ps1` / `dev-down.ps1` 一键起停。
+- **Redis 6379**：tporadowski Windows 版（5.0.14.1）解压于 `.local/redis`，`redis-start/stop` 脚本管理。
+- **`.ps1` 含中文必须 UTF-8 BOM**：Windows PowerShell 5.1 按 ANSI 读脚本，无 BOM 会乱码 / 报错。
+- **Docker 结论（勿重复评估）**：`registry-1.docker.io` 本机不可达；Docker Desktop 需 WSL2 +
+  重启 1~2 次，用户已选免 Docker 直装；运行数据统一 `.local/`（已 gitignore）。
+- **后端两条 WARN 属预期**：Flyway「No migrations found」（T1 补 V1/V2 后消失）、
+  MyBatis-Plus「No MyBatis mapper was found」（T2 起有 mapper 后消失）。
+- 后端进程结束按**端口 8080 定位 PID** 精确处理；勿按名杀 `java`（同机 IDEA 常驻）。
+
 ---
 
 ## 7. 数据与契约
@@ -484,7 +501,8 @@ HR 新建 → 追加。
 **不是运行时依赖**：
 - 当前无人 `import src/lib/db.ts`，故 `prisma generate` 非启动前置；
 - datasource 为 SQLite（`.env` 的 `DATABASE_URL`），仅供本地原型；
-- 生产为 PostgreSQL，由 Spring Boot + MyBatis-Plus 另维护建表 SQL。
+- 生产为 **MySQL 8**（2026-10-17 T0 定案，原 PostgreSQL 计划作废），由 Spring Boot + MyBatis-Plus
+  另维护建表 SQL；T1 起由 Flyway 管理（`backend/src/main/resources/db/migration/`）。
 
 ### 7.5 视图组件的数据来源（易踩）
 
@@ -537,3 +555,4 @@ HR 新建 → 追加。
 | v1.4 | 2026-10-16 | 五项验收功能全部完成并接入 UI（投递 / 候选人 / 面试闭环、验证码登录 / 注册、公司资料 / 企业认证）；e2e 扩展至 57/57；补登录页签残留、e2e 文本匹配 / 覆盖层、HR 职位归属等坑记录 |
 | v1.5 | 2026-10-16 | 用户人工验收初步通过；补记远端仓库指向（`origin` → GitHub），状态与提交对齐 |
 | v1.6 | 2026-10-16 | 人才筛选（演示版）增量：关键词匹配引擎 / 简历种子 / §4.5-§4.6 / 页面接入；e2e 扩展至 63/63；补覆盖层断言取数坑（§6.7） |
+| v1.7 | 2026-10-17 | Step 3 T0：`backend/` Spring Boot 3.5.16 骨架（包络 / 错误码 / traceId）与本地环境定案（JBR 21 / MySQL 3307 / Redis 6379 / 免 Docker 直装）；补 §6.8 后端环境坑 |

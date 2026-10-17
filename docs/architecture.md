@@ -2,6 +2,10 @@
 
 > 版本：v0.3 · 最后更新：2026-09-21
 > 状态：Step 0 产出，框架无关。前端框架与后端实现完成后可在此文档基础上修订。
+>
+> **实现注记（2026-10-17，Step 3 T0）**：本期后端实现按用户拍板改用 **MySQL 8**（本机专用实例 3307）
+> 与 **JBR 21**；本文档中 PostgreSQL / RLS 等表述保留为远期演进备选，当前现状以
+> `PROGRESS.md` 与 `docs/step3-plan.md` §1 为准。
 
 ---
 
@@ -223,7 +227,7 @@
 | 框架 | Spring Boot 3.x | Java 17 |
 | Web | Spring MVC + Bean Validation | |
 | ORM | MyBatis-Plus | 多租户拦截器原生支持 |
-| DB | PostgreSQL 15 | RLS 兜底 |
+| DB | **MySQL 8**（2026-10-17 改；原 PostgreSQL 15 为演进备选） | 专用实例 3307；RLS 兜底随 PG 方案暂缓 |
 | 缓存 | Spring Cache + Redisson | L1 Caffeine + L2 Redis |
 | 实时 | Spring WebSocket + STOMP | Redis broker |
 | 鉴权 | Spring Security + JWT | 无状态 |

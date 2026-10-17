@@ -20,7 +20,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 聘聊 = Boss 直聘模式招聘平台原型（求职者端 + HR 端双端 H5），Next.js 16 + Tailwind 4 + Zustand +
 TanStack Query，数据全部为前端 Mock。当前处于 **Step 2 前端验收**：五项验收功能（投递 / 候选人 /
 面试、验证码登录 / 注册、公司资料 / 企业认证）已完成，并新增**人才筛选（演示版）**
-增量，`npm run e2e` **63/63** 通过；用户人工验收初步通过（2026-10-16）；Step 3 后端计划已就绪（`docs/step3-plan.md`），未开工。
+增量，`npm run e2e` **63/63** 通过；用户人工验收初步通过（2026-10-16）。Step 3 后端已开工：**T0 完成**（`backend/` Spring Boot 3.5 骨架 + MySQL 3307 / Redis 6379 专用实例，2026-10-17），当前 **T1（数据库迁移与演示种子）**，计划见 `docs/step3-plan.md`。
 演示账号：`13800000001`（求职者）/ `13800000002`（HR），密码均 `123456`；短信验证码固定 `123456`。
 
 ## 1. 运行与验收（统一用 npm，不用 bun）
@@ -31,6 +31,16 @@ npm run e2e          # 端到端验收（tests/e2e-verify.cjs）；基线 63/63
 npx tsc --noEmit     # 类型检查；基线仅 3 个既有错误（见 §3）
 npm run lint         # ESLint
 npm run build        # 生产构建（需能访问 Google Fonts）
+```
+
+后端（`backend/`，Step 3；详见 `backend/README.md`）：
+
+```powershell
+cd backend
+$env:JAVA_HOME='C:\Program Files\JetBrains\IntelliJ IDEA Community Edition 2025.2.6.2\jbr'  # 必设：本机系统仅 JDK 1.8
+.\scripts\dev-up.ps1        # 起 MySQL 专用实例 3307 + Redis 6379（首次先 .\scripts\db-init.ps1）
+.\mvnw.cmd spring-boot:run  # 后端 :8080；收工用 .\scripts\dev-down.ps1
+.\mvnw.cmd test             # 包络 / 错误码 / traceId 冒烟（基线 3/3）
 ```
 
 ## 2. 硬性约束（违反会破坏已验收功能）
