@@ -67,7 +67,7 @@ npm run dev          # 端口 3000
 | Step 0 架构 + 数据模型 + API 契约 | ✅ 完成 | `docs/architecture.md`、`data-model.md`、`api-contract.md`、`api-endpoints.md`、`prisma/schema.prisma`、`src/types/api.ts` |
 | Step 1 前端开发（Next.js + Mock） | ✅ 完成 | `src/components/pinliao/`、`src/api/`、`src/store/` |
 | Step 2 前端验收 | ⏳ 进行中 | 五项验收功能已完成，并新增人才筛选演示增量；e2e 63/63 通过；**用户人工验收初步通过（2026-10-16）**；待确认 §9 待决事项 |
-| Step 3 后端（Spring Boot） | ⏸ 未开始 | 按契约实现接口 |
+| Step 3 后端（Spring Boot） | 🔄 进行中 | `backend/`（Spring Boot 3.5.16）：T0 骨架 ✅、T2a 鉴权（登录 / 退出等 6 接口）✅ 2026-10-17；进度与实测以 `../PROGRESS.md` §7.2 为准 |
 | Step 4 联调 | ⏸ 未开始 | `USE_MOCK=false` 切真实接口 |
 
 > ⚠️ **状态快照（2026-10-16）**：五项功能（投递 / 候选人 / 面试、验证码登录 /
@@ -101,7 +101,7 @@ npm run dev          # 端口 3000
 | 功能 | 备注 |
 |---|---|
 | 招聘者端桌面 Web 后台 | 当前仅移动端布局 |
-| 真实后端 | Step 3，按 `docs/api-endpoints.md` 契约实现 |
+| 真实后端（其余模块） | Step 3 进行中：T2a 鉴权（登录 / 退出等）已落地；其余模块按 `docs/step3-plan.md` 任务板推进 |
 
 ---
 
@@ -457,8 +457,13 @@ const { data, isPending } = useQuery({
 - **`.ps1` 含中文必须 UTF-8 BOM**：Windows PowerShell 5.1 按 ANSI 读脚本，无 BOM 会乱码 / 报错。
 - **Docker 结论（勿重复评估）**：`registry-1.docker.io` 本机不可达；Docker Desktop 需 WSL2 +
   重启 1~2 次，用户已选免 Docker 直装；运行数据统一 `.local/`（已 gitignore）。
-- **后端两条 WARN 属预期**：Flyway「No migrations found」（T1 补 V1/V2 后消失）、
-  MyBatis-Plus「No MyBatis mapper was found」（T2 起有 mapper 后消失）。
+- **后端 WARN 现状（T2a 起）**：原两条（Flyway「No migrations found」/ MyBatis-Plus「No MyBatis mapper」）
+  已随 V1/V2 与 mapper 落地消失；仅剩 springdoc 的两条 INFO 级 WARN（无害）。
+- **种子密码 hash 双处同步**：`V2__seed_auth_demo.sql` 里的 BCrypt hash 与
+  `backend/src/test/java/.../PasswordHashTest.SEED_HASH` 必须一致（改演示密码时两处一起改；
+  重新生成：临时加 `System.out.println(new BCryptPasswordEncoder().encode("123456"))` 跑一次测试）。
+- **建表用 `BOOLEAN` 不要 `TINYINT(1)`**：MySQL 8 对整型显示宽度（如 `TINYINT(1)`）报弃用告警，
+  `BOOLEAN` 落库等价 `tinyint(1)` 且无告警（T2a 已踩）。
 - 后端进程结束按**端口 8080 定位 PID** 精确处理；勿按名杀 `java`（同机 IDEA 常驻）。
 
 ---
@@ -556,3 +561,4 @@ HR 新建 → 追加。
 | v1.5 | 2026-10-16 | 用户人工验收初步通过；补记远端仓库指向（`origin` → GitHub），状态与提交对齐 |
 | v1.6 | 2026-10-16 | 人才筛选（演示版）增量：关键词匹配引擎 / 简历种子 / §4.5-§4.6 / 页面接入；e2e 扩展至 63/63；补覆盖层断言取数坑（§6.7） |
 | v1.7 | 2026-10-17 | Step 3 T0：`backend/` Spring Boot 3.5.16 骨架（包络 / 错误码 / traceId）与本地环境定案（JBR 21 / MySQL 3307 / Redis 6379 / 免 Docker 直装）；补 §6.8 后端环境坑 |
+| v1.8 | 2026-10-17 | Step 3 T2a：鉴权（验证码 / 登录 / 刷新 / 退出 / me）落地；§2 状态行更新；§6.8 补种子 hash 双处同步与 BOOLEAN 建表坑 |

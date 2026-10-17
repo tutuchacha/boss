@@ -1,9 +1,13 @@
 package com.pinliao.backend.common.web;
 
+import com.pinliao.backend.auth.config.WebAuthConfig;
+import com.pinliao.backend.auth.web.AuthInterceptor;
 import com.pinliao.backend.demo.DemoController;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -11,7 +15,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /** T0 骨架自检：统一包络 / traceId / 异常映射 / 参数校验（不依赖数据库与 Redis）。 */
-@WebMvcTest(controllers = DemoController.class)
+@WebMvcTest(controllers = DemoController.class,
+        // WebMvcTest 切片会加载 WebMvcConfigurer 与 HandlerInterceptor；鉴权拦依赖 Redis/JWT，排除之
+        excludeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE,
+                classes = {WebAuthConfig.class, AuthInterceptor.class}))
 class EnvelopeSmokeTest {
 
     @Autowired

@@ -6,6 +6,43 @@
 
 ---
 
+## [未提交] 2026-10-17 — Step 3 T2a：鉴权（验证码 / 密码·短信登录 / 刷新 / 退出 / me）
+
+> 按用户指示「先完成登入和退出」，T2a 先行于 T1（T1 剩余迁移顺延为 V3+）。
+> JWT（access 2h，HS256）+ Redis（refresh 30d 白名单一次性轮换、退出吊销 jti、验证码 60s 限流）；
+> 鉴权拦截器默认保护 `/api/v1/**`。提交 hash 见紧后 docs 结算提交。
+
+### Added
+
+- `backend/.../auth/` 鉴权模块：`JwtService`（jjwt HS256）、`AuthTokenStore`（Redis 白名单 / 吊销名单）、
+  `SmsCodeService`（固定 123456 / 5min / 60s 限流 / 一次性）、`AuthService`、`AuthInterceptor` +
+  `UserContext`、`AuthController`（§1.1、§1.3~§1.7 六接口）；`ApiCodes` 新增 40110 / 40111。
+- Flyway `V1__auth_schema.sql`（users / user_profiles / companies / company_members / hr_profiles，MySQL 8，
+  companyId 租户列 + 外键 + 索引）；`V2__seed_auth_demo.sql`（13800000001 求职者 / 13800000002 HR，密码 123456；
+  云杉科技 `co-acgiw7`、HR `hr-x2270n` —— id 与前端 mock 哈希一致）。
+- 登录 / me 响应在契约 `AuthResult` 之上带 `company` / `member`（对齐前端 `LoginResult`；HR 工作台渲染需要）。
+- `backend/scripts/smoke-auth.mjs` — node 冒烟脚本（14 项：登录 / 限流 / 轮换 / 退出全链路）。
+- 测试：`JwtServiceTest`（4 项）、`PasswordHashTest`（种子 hash 回归 1 项）。
+
+### Changed
+
+- `backend/pom.xml` — + jjwt 0.12.6（api/impl/jackson）+ spring-security-crypto（仅 BCrypt，不引入 Security 过滤链）。
+- 鉴权拦截器默认保护全部 `/api/v1/**`（白名单：`auth/sms`、`auth/login`、`auth/refresh`、`auth/register`、`_demo`）。
+- `EnvelopeSmokeTest` — WebMvcTest 切片排除 `WebAuthConfig` / `AuthInterceptor`（拦截器依赖 Redis / JWT）。
+
+### Fixed
+
+- `V1` 建表 `verified` 由 `TINYINT(1)` 改 `BOOLEAN`：消除 MySQL 8 整型显示宽度弃用告警
+  （落库等价 `tinyint(1)`）；本地库重建重跑。
+
+### Docs
+
+- `docs/step3-plan.md` v1.2 — T2 拆分 T2a ✅ / T2b ⬜；T1 迁移编号顺延 V3+；§4 T2a 实测。
+- `PROGRESS.md` v1.7 — §0/§1/§4/§6.3/§7.2 同步；`worklog.md` Task 18；`backend/README.md` 鉴权与冒烟说明；
+  `docs/AI-CONTINUE.md` §6.8（种子 hash 双处同步、BOOLEAN 坑）+ 修订 v1.8。
+
+---
+
 ## [dd7a948] 2026-10-17 — Step 3 T0：后端工程骨架与本地环境（MySQL 3307 / Redis 6379）
 
 > 单仓 `backend/` 落地；技术基线调整：数据库 PostgreSQL → **MySQL 8**（用户拍板，免 Docker 直装）、

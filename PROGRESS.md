@@ -13,14 +13,14 @@
 
 | 项 | 值 |
 | --- | --- |
-| 上一提交（历史基线） | `45864ed`（docs: Step 3 后端分块执行计划与上下文交接协议） |
-| 本轮提交 | `dd7a948`（feat(backend): T0 后端工程骨架与本地环境）+ 紧后 docs 结算提交；若 `git status` 仍有未提交文件，以工作区现状为准 |
+| 上一提交（历史基线） | `e79909b`（docs: 结算 T0 提交 hash（dd7a948）并同步 Step 3 任务板与快照） |
+| 本轮提交 | `（回填）`（feat(backend): T2a 鉴权登录与退出 —— 验证码/登录/刷新/退出/me + V1/V2 鉴权表与演示账号）+ 紧后 docs 结算提交；若 `git status` 仍有未提交文件，以工作区现状为准 |
 | dev server（前端） | 端口 3000；未运行时用 `npm run dev` 启动（本会话未复测） |
 | 后端（Step 3） | `backend/`（Spring Boot 3.5.16，:8080）；MySQL 专用实例 **3307** + Redis **6379** 已在运行；起停脚本 `backend/scripts/` |
 | 测试账号 | 求职者 `13800000001` / HR `13800000002`，密码均 `123456`；短信验证码固定 `123456` |
 | 环境 | Windows（`D:\boss`）+ PowerShell；Node 实测 v24 可跑；**无 bun，统一用 npm**；后端 JDK 用 IDEA 自带 **JBR 21**（跑 `mvnw` 必设 `JAVA_HOME`，见 §7.2） |
 | 远端仓库 | `origin` → GitHub `tutuchacha/boss`（SSH）；接手前先 `git pull` 与远端对齐 |
-| Step 3 计划 | [`docs/step3-plan.md`](./docs/step3-plan.md)（分块 T0~T9 + 上下文交接协议）；**T0 ✅（2026-10-17）**，当前：**T1 数据库迁移与演示种子** |
+| Step 3 计划 | [`docs/step3-plan.md`](./docs/step3-plan.md)（分块 T0~T9 + 上下文交接协议）；**T0 ✅、T2a ✅（2026-10-17，登录/退出先行于 T1）**，当前：**T1 剩余迁移（V3+）或 T2b 注册（§1.2）** |
 
 > 接手时先跑一次 `git status --porcelain` 与 `npx tsc --noEmit` 核对本表是否仍然成立。
 
@@ -33,7 +33,7 @@
 | Step 0 架构 + 契约 | ✅ 完成 | `docs/architecture.md`、`data-model.md`、`api-*.md`、`prisma/schema.prisma` |
 | Step 1 双端前端开发 | ✅ 完成 | `src/components/pinliao/`（求职者端 + HR 端 + 登录） |
 | Step 2 前端验收 | ⏳ 进行中 | 验收五项功能已全部完成，并新增**人才筛选（演示版）**增量；`npm run e2e` 63/63 通过（见 §2/§5）；**用户人工验收初步通过（2026-10-16）**；待确认 `docs/AI-CONTINUE.md` §9 待决事项 |
-| Step 3 后端（Spring Boot） | 🔄 进行中（T1） | `backend/` Spring Boot 3.5.16 骨架 + MySQL 专用实例 3307 / Redis 6379；**T0 ✅ 2026-10-17**（实测见 §7.2）；下一步 T1（数据库迁移与演示种子） |
+| Step 3 后端（Spring Boot） | 🔄 进行中（T2a ✅ → T1/T2b） | `backend/` Spring Boot 3.5.16 骨架 + MySQL 专用实例 3307 / Redis 6379；**T0 ✅、T2a 鉴权（验证码/密码·短信登录/刷新/退出/me）✅ 2026-10-17**（实测见 §7.2）；下一步 T1 剩余迁移（V3+）或 T2b 注册（§1.2） |
 | Step 4 联调 | ⏸ 未开始 | `NEXT_PUBLIC_USE_MOCK=false` |
 
 ---
@@ -124,12 +124,17 @@
    （前端最终框架、接口账目口径等），并按用户后续反馈补齐。
 2. **Step 3 后端（Spring Boot）**：按 [`docs/step3-plan.md`](./docs/step3-plan.md) 分块推进
    （T0 → T9，契约正文 70 条；每会话一块，按计划内「收工 checklist」交接）。
-   **T0 ✅（2026-10-17）**，下一个动作 = **T1 数据库迁移与演示种子**：
-   在 `backend/src/main/resources/db/migration/` 写 `V1__schema.sql`（MySQL 方言，按
-   `docs/data-model.md` 建表：`companyId` 多租户列 + 必要索引）与 `V2__seed_demo.sql`
-   （数字对齐 step3-plan §3：可见职位 38 / 云杉职位 7 / 候选人 6 / 会话 6 / 投递 6+3 / 简历 7）；
-   并接 MyBatis-Plus 分页 + 租户拦截器 + 时间自动填充；验收 = 启动自动 migrate + 抽查各表行数。
-   T9 切换 `USE_MOCK=false` 跑通前端 e2e 63/63 后进入 Step 4 联调。
+   **T0 ✅、T2a ✅（2026-10-17）**——按用户指示「先完成登入和退出」，T2a 先行于 T1：
+   - **T2a 已交付**：§1.1 验证码 / §1.3 短信登录 / §1.4 密码登录 / §1.5 刷新 / §1.6 退出 / §1.7 me；
+     JWT（access 2h，HS256）+ Redis（refresh 30d 白名单一次性轮换、退出吊销 jti、验证码 60s 限流）；
+     鉴权拦截器默认保护 `/api/v1/**`（白名单：`auth/sms|login|refresh|register`、`_demo`）；
+     Flyway `V1__auth_schema.sql` + `V2__seed_auth_demo.sql`（5 张鉴权表 + 演示账号，id 与 mock 哈希一致）。
+   - 下一个动作（二选一，按用户后续指示）：**T2b 注册**（§1.2 + 注册自动建公司 `新注册企业-{手机尾4}`、40910）
+     或 **T1 剩余迁移**：`V3__core_schema.sql`（jobs / conversations / messages / applications /
+     interviews / resumes / favorites 等剩余表，companyId 租户列 + 索引）+ 种子迁移
+     （数字对齐 step3-plan §3：可见职位 38 / 云杉职位 7 / 候选人 6 / 会话 6 未读 4 / 投递 6+3 / 简历 7），
+     并接 MyBatis-Plus 分页 + 租户拦截器（companyId 注入）+ 时间自动填充；验收 = 启动自动 migrate + 抽查各表行数。
+   - T9 切换 `USE_MOCK=false` 跑通前端 e2e 63/63 后进入 Step 4 联调。
 3. 可选增量（未被本轮涵盖）：招聘者端桌面 Web 后台、HR 上传外部简历库、人才筛选语义检索升级（接口不变）等。
 
 ---
@@ -177,6 +182,9 @@
   （本机系统仅 JDK 1.8）；MySQL / Redis 是 `.local/` 下的**专用实例 3307 / 6379**
   （**不要连 3306 的本机原服务**），用 `backend/scripts/` 起停；`.ps1` 含中文必须 UTF-8 BOM
   （详见 `AI-CONTINUE.md` §6.8）。
+- **T2a 起鉴权生效**：拦截器默认保护 `/api/v1/**`（白名单 `auth/sms|login|refresh|register`、`_demo`）；
+  调用受保护接口需带 `Authorization: Bearer <accessToken>`（access 2h / refresh 30d）；
+  演示账号密码均 `123456`，短信验证码固定 `123456`（60s 限流）。
 - localStorage 键：求职者 `pinliao.v3`、认证 `pinliao.auth.v1`、token `pinliao.accessToken` / `pinliao.refreshToken`。
 - `AGENTS.md` / `CLAUDE.md` 由 `next dev` 自动维护（只管理 `<!-- BEGIN:nextjs-agent-rules -->` 区块，
   其余内容安全保留）；提交时一并带上可保持工作区干净。
@@ -198,7 +206,7 @@ npm start              # 生产启动（node .next/standalone/server.js；可用
 
 可覆盖的环境变量：`npm run e2e` 支持 `BASE_URL` / `CHROME_PATH` / `CDP_PORT`。
 
-### 7.2 后端 `backend/`（2026-10-17 实测，Step 3 T0）
+### 7.2 后端 `backend/`（2026-10-17 实测，Step 3 T0 + T2a）
 
 ```powershell
 cd backend
@@ -211,13 +219,16 @@ $env:JAVA_HOME='C:\Program Files\JetBrains\IntelliJ IDEA Community Edition 2025.
 
 | 检查 | 结果 |
 | --- | --- |
-| `mvnw.cmd test` | **3/3 通过**（`EnvelopeSmokeTest`） |
-| `spring-boot:run` | **3.5s 启动**；Flyway 连上 MySQL 8.0（0 迁移 + 建 `flyway_schema_history`，T1 补 V1/V2） |
+| `mvnw.cmd test` | **8/8 通过**（包络 3 + JwtService 4 + 种子密码 hash 1；WebMvcTest 切片已排除鉴权拦截器） |
+| `spring-boot:run` | **3.9s 启动**；Flyway 应用 **V1/V2**（鉴权 5 表 + 演示账号）；原两条 WARN（No migrations / No mapper）已消失 |
 | `/actuator/health` | `{"status":"UP"}`（200） |
 | `/api/v1/_demo/ping` | 包络 `{code:0,...}`，`traceId` 与响应头 `X-Trace-Id` 一致 |
 | `/api/v1/_demo/validate?phone=123` | 422 + `42201` + `errors` 数组 |
 | `/api/v1/_demo/error` | 404 + `40401` |
 | `/swagger-ui.html`、`/v3/api-docs` | 200 |
+| 鉴权冒烟（`backend/scripts/smoke-auth.mjs`） | 14 项全过：登录 200（含云杉 company/member）；`40110/40101/40102/40103/42201/42901` 全码位；refresh 一次性轮换；退出后 me=40102 |
+| 鉴权补充（暂改 DB 状态后还原） | 停用账号登录 → 401 + `40111`（账号已被禁用） |
+| 数据库抽查（MySQL 3307） | `flyway_schema_history` V1/V2 success=1；users=2 / companies=1 / user_profiles=1 / company_members=1 / hr_profiles=1；登录成功推进 `last_login_at` |
 
 运行数据在 `.local/`（已 gitignore）；MySQL / Redis 起停详见 `backend/README.md` 与 `backend/scripts/`。
 
@@ -234,3 +245,4 @@ $env:JAVA_HOME='C:\Program Files\JetBrains\IntelliJ IDEA Community Edition 2025.
 | v1.4 | 2026-10-16 | 人才筛选（演示版）增量：关键词匹配 + 技能标签 + 证据片段（契约 §4.5/§4.6，正文 70 条）；e2e 扩展至 63/63；同步覆盖层断言取数坑 |
 | v1.5 | 2026-10-17 | Step 3 分块计划（`docs/step3-plan.md`）与上下文交接协议就绪；快照/下一步指向计划 |
 | v1.6 | 2026-10-17 | Step 3 T0 完成：`backend/` Spring Boot 3.5.16 骨架（包络 / 错误码 / traceId / health）+ MySQL 3307 / Redis 6379 专用实例与起停脚本；mvnw test 3/3；基线调整 PG→MySQL、JDK→JBR 21 |
+| v1.7 | 2026-10-17 | Step 3 T2a 完成（用户指示先做登入/退出）：鉴权 6 接口（§1.1/§1.3~§1.7）+ JWT/Redis 令牌 + V1/V2 鉴权表与演示账号；`mvnw test` 8/8、冒烟 14 项 + 40111 全码位；T1 顺延为 V3+ 剩余迁移 |

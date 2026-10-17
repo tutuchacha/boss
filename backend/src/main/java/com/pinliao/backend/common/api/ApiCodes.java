@@ -19,6 +19,10 @@ public final class ApiCodes {
     public static final int TOKEN_EXPIRED = 40102;
     /** 40103 refresh token 无效 */
     public static final int REFRESH_TOKEN_INVALID = 40103;
+    /** 40110 账号/密码错误或验证码错误（契约 §1.2~§1.4） */
+    public static final int LOGIN_FAILED = 40110;
+    /** 40111 账号已禁用（契约 §1.2~§1.4） */
+    public static final int ACCOUNT_DISABLED = 40111;
     /** 40301 无权限访问该资源（跨租户 / 角色不符） */
     public static final int FORBIDDEN = 40301;
     /** 40401 资源不存在 */
