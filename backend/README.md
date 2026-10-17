@@ -27,6 +27,9 @@ $env:JAVA_HOME = 'C:\Program Files\JetBrains\IntelliJ IDEA Community Edition 202
 
 # 4) 启动后端（首次会下载 Maven 3.9.16 与依赖，耗时较长）
 .\mvnw.cmd spring-boot:run
+
+# 5) 另开终端跑鉴权冒烟（登录 / 刷新 / 退出全链路；需 Node 18+）
+node scripts\smoke-auth.mjs
 ```
 
 自检地址：
@@ -35,11 +38,15 @@ $env:JAVA_HOME = 'C:\Program Files\JetBrains\IntelliJ IDEA Community Edition 202
 - 包络样例 `http://localhost:8080/api/v1/_demo/ping` → `{"code":0,"message":"ok","data":{...},"traceId":"..."}`
 - 参数校验样例 `http://localhost:8080/api/v1/_demo/validate?phone=123` → 422 + `errors` 数组
 - 接口文档 `http://localhost:8080/swagger-ui.html`
+- 鉴权接口 `POST /api/v1/auth/login/password`（演示账号 13800000001 / 13800000002，密码 123456；
+  受保护接口需 `Authorization: Bearer <accessToken>`）
 
 ## 本地账号（仅演示用）
 
 - MySQL：`127.0.0.1:3307`，用户 `root` / 密码 `123456`，库 `pinliao`（utf8mb4）
 - Redis：`127.0.0.1:6379`（仅监听本机）
+- 应用演示账号（V2 种子）：求职者 `13800000001` / HR `13800000002`，密码均 `123456`；
+  短信验证码固定 `123456`（60s 限流）；access 2h / refresh 30d
 
 ## 脚本一览（`scripts/`）
 
@@ -49,6 +56,7 @@ $env:JAVA_HOME = 'C:\Program Files\JetBrains\IntelliJ IDEA Community Edition 202
 | `db-start.ps1` / `db-stop.ps1` | 起 / 停 MySQL |
 | `redis-start.ps1` / `redis-stop.ps1` | 起 / 停 Redis |
 | `dev-up.ps1` / `dev-down.ps1` | 一键起 / 停两者 |
+| `smoke-auth.mjs` | 鉴权接口冒烟（Node 18+；后端启动后运行，14 项断言） |
 
 可用环境变量覆盖：`PINLIAO_MYSQL_HOME`（MySQL 二进制目录）、`PINLIAO_REDIS_HOME`（Redis 目录）。
 
@@ -61,11 +69,12 @@ backend/
 │  ├─ common/api/      统一包络 ApiResponse + 错误码表 ApiCodes
 │  ├─ common/web/      traceId 过滤器 + 包络装配 ResponseAdvice
 │  ├─ common/exception/ 业务异常 + 全局异常处理
+│  ├─ auth/            鉴权模块（JWT / Redis 令牌 / 验证码 / 登录接口，T2a）
 │  ├─ config/          OpenAPI 等配置
 │  └─ demo/            骨架自检样例接口（非契约，T9 后可移除）
 ├─ src/main/resources/
 │  ├─ application.yml          通用配置
 │  ├─ application-local.yml    本地环境（MySQL 3307 / Redis 6379）
-│  └─ db/migration/            Flyway 迁移脚本（T1 起）
-└─ src/test/java/...           包络/异常冒烟测试（不依赖数据库）
+│  └─ db/migration/            Flyway 迁移（V1 鉴权建表 / V2 演示账号；T1 从 V3 起）
+└─ src/test/java/...           包络 / JWT / 种子密码回归测试（不依赖数据库）
 ```

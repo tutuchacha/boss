@@ -771,3 +771,34 @@ Work Log:
 Stage Summary:
 - T0 完成。后端本地可启动（:8080），MySQL(3307)/Redis(6379) 一键起停（dev-up/dev-down）。
 - 下一步：T1 数据库迁移与演示种子（Flyway V1 建表 MySQL 方言 + V2 种子，数字对齐 step3-plan §3）
+
+---
+
+Task ID: 18
+Agent: orchestrator (main)
+Task: Step 3 T2a — 鉴权：验证码 / 密码·短信登录 / 刷新 / 退出 / me（§1.1、§1.3~§1.7）+ V1/V2 鉴权表与演示账号
+
+Work Log:
+- 用户指示：后端先完成「登入和退出」→ 本次 chunk = §1 除注册外的 6 条（注册拆为 T2b 顺延）
+- 建表：V1__auth_schema.sql（users / user_profiles / companies / company_members / hr_profiles，
+  MySQL 8，companyId 租户列 + 外键 + 索引）；V2__seed_auth_demo.sql（13800000001 求职者 / 13800000002 HR，
+  密码 123456；云杉科技 co-acgiw7、HR hr-x2270n —— id 与前端 mock 哈希一致）
+- 依赖：pom + jjwt 0.12.6（api/impl/jackson）+ spring-security-crypto（仅 BCrypt）
+- 代码（com.pinliao.backend.auth）：AuthProperties/AuthConfig；JwtService（HS256，jti/role/companyId 声明）；
+  AuthTokenStore（Redis refresh 白名单 30d + access jti 吊销名单）；SmsCodeService（固定 123456 / 5min /
+  60s 限流 / 一次性消费）；AuthService（登录、刷新轮换、退出、me、会话装配 user+profile+company+member）；
+  AuthInterceptor + UserContext（默认保护 /api/v1/**，白名单 sms/login/refresh/register/_demo）；
+  AuthController 6 接口；ApiCodes + 40110/40111
+- 测试：JwtServiceTest 4 项 + PasswordHashTest 1 项（种子 hash 回归）；EnvelopeSmokeTest 排除鉴权拦截器
+  （WebMvcTest 切片会扫 HandlerInterceptor）；mvnw test 3/3 → 8/8
+- 冒烟（backend/scripts/smoke-auth.mjs，入库）：14 项全过 —— 登录 200（云杉 company/member）、
+  40110/40101/40102/40103/42201/42901 全码位、refresh 一次性轮换、退出后 me=40102；另手工验 40111（暂停账号）
+- 数据库复验：flyway V1/V2 success=1；5 表行数正确；登录推进 last_login_at；发现 TINYINT(1) 弃用告警
+  → 改 BOOLEAN 重建本地库重跑（日志干净）
+- 文档：PROGRESS v1.7、step3-plan v1.2（T2 拆 T2a/T2b；T1 顺延 V3+）、CHANGELOG、AI-CONTINUE §6.8+v1.8、
+  backend/README（鉴权命令与冒烟）
+
+Stage Summary:
+- T2a 完成：鉴权 6 接口在真实 MySQL/Redis 上可用（access 2h / refresh 30d / 验证码 123456）；
+  受保护接口统一 40101/40102；T9 联调前无需再动鉴权主干
+- 下一步（按用户指示二选一）：T1 剩余迁移（V3 建剩余表 + 种子对齐 §3 数字）或 T2b 注册（§1.2 + 注册建公司）
