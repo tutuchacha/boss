@@ -20,7 +20,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 聘聊 = Boss 直聘模式招聘平台原型（求职者端 + HR 端双端 H5），Next.js 16 + Tailwind 4 + Zustand +
 TanStack Query，数据全部为前端 Mock。当前处于 **Step 2 前端验收**：五项验收功能（投递 / 候选人 /
 面试、验证码登录 / 注册、公司资料 / 企业认证）已完成，并新增**人才筛选（演示版）**
-增量，`npm run e2e` **63/63** 通过；用户人工验收初步通过（2026-10-16），Step 3 后端未开始。
+增量，`npm run e2e` **63/63** 通过；用户人工验收初步通过（2026-10-16）；Step 3 后端计划已就绪（`docs/step3-plan.md`），未开工。
 演示账号：`13800000001`（求职者）/ `13800000002`（HR），密码均 `123456`；短信验证码固定 `123456`。
 
 ## 1. 运行与验收（统一用 npm，不用 bun）

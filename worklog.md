@@ -721,3 +721,28 @@ Stage Summary:
   （命中；证据含原文高亮）；「COBOL」（无命中提示）；结果卡片可进候选人详情
 - 下一步：HR 上传外部简历库、语义检索升级（替换 `mock/talentMatch.ts` + 服务端实现，
   接口 / 页面不变）；用户确认 AI-CONTINUE §9 待决事项后进入 Step 3 后端（正文 70 条契约）
+
+---
+
+Task ID: 16
+Agent: orchestrator (main)
+Task: Step 3 后端开发规划 — 分块执行计划（T0~T9 任务板）与上下文交接协议（纯文档）
+
+Work Log:
+- 背景：用户启动 Step 3（Spring Boot 后端）开发；会话上下文预算有限（用户侧约 20w/会话），
+  要求「任务分块 + 上下文触发后可持续接力」
+- 环境盘点（2026-10-17 实测）：本机仅 JDK 1.8（JAVA_HOME=D:\JDK1.8，需装 Temurin 17）；
+  Maven 3.6.3（用 mvnw 规避）；无 Docker；MySQL 服务已停止、无 PostgreSQL/Redis（端口全空闲）；
+  winget v1.29 可用（Temurin 17 包已确认）
+- 产出 `docs/step3-plan.md`（计划与任务板的唯一出处）：
+  - 总验收：后端复刻演示语义（种子数字 / 固定验证码 / 认证 1.2s 自动通过 / 聊天自动回复等），
+    以「前端 e2e 63/63 切真后端跑通」为收官
+  - T0~T9 分块（环境骨架 / 迁移与种子 / 鉴权 / 职位字典 / 投递面试 / 公司认证 / 消息 WS /
+    求职者简历收藏上传 / 招聘者与人才筛选移植 / 全量联调）；T10+ 增量另行
+  - 上下文与交接协议：开工/收工 checklist、上下文将满应急流程、用户开场白模板、预算与省 token 技巧
+- 同步：PROGRESS v1.5（快照 + 下一步指向计划）、AGENTS 速览、CHANGELOG 条目
+
+Stage Summary:
+- 下一步（用户执行）：装 JDK 17（`winget install EclipseAdoptium.Temurin.17.JDK`）、
+  选定 PostgreSQL/Redis 安装方式（待拍板见 step3-plan §6）；然后开新会话从 T0 开工
+- 接力方式：新会话按 step3-plan §5.2 开工 checklist - T0/T1 两轮内应可看到后端健康检查与种子数据
