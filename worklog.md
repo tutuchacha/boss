@@ -882,6 +882,7 @@ Work Log:
   实测 16/16 仍全中）；后端已停、MySQL 3307 与 Redis 6379 保持运行
 - 文档：PROGRESS v1.9、step3-plan v1.4（T2b ✅）、CHANGELOG、AI-CONTINUE §6.10（注册落库 / e2e 固定手机号
   重跑风险 / TableInfo 坑）、backend/README + AGENTS 命令更新
+- 提交：`030a5b2`（feat: Step 3 T2b —— 注册）+ 紧后 docs 结算 `899d201`
 
 Stage Summary:
 - T2b 完成：注册链路可用且与 mock 语义一致（已注册 40910、验证码 40110、HR 未认证公司联动企业认证）；
