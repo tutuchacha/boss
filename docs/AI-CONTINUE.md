@@ -67,7 +67,7 @@ npm run dev          # 端口 3000
 | Step 0 架构 + 数据模型 + API 契约 | ✅ 完成 | `docs/architecture.md`、`data-model.md`、`api-contract.md`、`api-endpoints.md`、`prisma/schema.prisma`、`src/types/api.ts` |
 | Step 1 前端开发（Next.js + Mock） | ✅ 完成 | `src/components/pinliao/`、`src/api/`、`src/store/` |
 | Step 2 前端验收 | ⏳ 进行中 | 五项验收功能已完成，并新增人才筛选演示增量；e2e 63/63 通过；**用户人工验收初步通过（2026-10-16）**；待确认 §9 待决事项 |
-| Step 3 后端（Spring Boot） | 🔄 进行中 | `backend/`（Spring Boot 3.5.16）：T0 骨架 ✅、T2a 鉴权 ✅（2026-10-17）、T1 全量表 + 演示种子 ✅、T2b 注册 ✅、T3a 职位公开读 + 分类字典 ✅（2026-10-18）；当前 T3b HR 职位写；进度与实测以 `../PROGRESS.md` §7.2 为准 |
+| Step 3 后端（Spring Boot） | 🔄 进行中 | `backend/`（Spring Boot 3.5.16）：T0 骨架 ✅、T2a 鉴权 ✅（2026-10-17）、T1 全量表 + 演示种子 ✅、T2b 注册 ✅、T3a 职位公开读 + 分类字典 ✅、T3b HR 职位写 ✅（2026-10-18）；当前 T4 投递与面试闭环（§9/§10）；进度与实测以 `../PROGRESS.md` §7.2 为准 |
 | Step 4 联调 | ⏸ 未开始 | `USE_MOCK=false` 切真实接口 |
 
 > ⚠️ **状态快照（2026-10-16）**：五项功能（投递 / 候选人 / 面试、验证码登录 /
@@ -519,6 +519,24 @@ const { data, isPending } = useQuery({
   会打到 :3000 自身 404。T9 需加 `/api/v1/:path*` → `http://localhost:8080/api/v1/:path*` 的 rewrite
   （或改 client 支持绝对地址）；涉及联调方案，动手前与用户确认。
 
+### 6.12 职位写与配额（Step 3 T3b 起）
+
+- **租户插件对 INSERT 不会重复列**：MyBatis-Plus `TenantLineInnerInterceptor` 在 INSERT 前会检查租户列是否
+  已在列清单里（`ignoreInsert`），因此 `BaseMapper.insert` + 实体显式 `companyId` 是安全的；UPDATE / DELETE /
+  SELECT 会自动追加 `company_id` 条件。写路径仍在 service 里**显式比对 companyId**（纯 Mockito 单测没有插件，
+  也能覆盖 40310）。
+- **新职位 id = `job-new-{库内最大序号 + 1}`**：查询必须 `@InterceptorIgnore(tenantLine="true")`——id 是全局主键，
+  要跨公司取最大值；软删保留行，序号不复用；**勿改成时间戳 / 随机**（T1 起既定约束）。
+- **`publishedAt` 落库前截到毫秒**：Java 纳秒 vs MySQL `DATETIME(3)`，不截会导致「创建响应」与「更新 / 详情再读」
+  的 ISO 字符串不相等（e2e 比对会假失败）。
+- **配额缺省 50**：种子没有 `tenant_configs` 行，`max_jobs` 读为 null 时按 50；42211 在真实超限时才触发
+  （JUnit 用 mock 覆盖）。**发布限流 10 次/分钟/公司**：Redis 自然分钟键
+  `pinliao:job:create:{companyId}:{minute}`，超限 42901。
+- **40310 语义**：不存在 / 非本公司 / 已软删统一「无权操作该职位」，不泄露职位是否存在（对齐 mock `hrJobs.ts`）；
+  字段校验 42201（合并后校验：标题 2~30、薪资正数且下限 < 上限、标签 ≤ 8）。
+- **冒烟会留下 `job-new-*` 软删行**：`verify-seed.ps1` 的 `jobs_total` 已排除该前缀；不要改成硬删（破坏
+  「软删保留行」语义），也不要手动清库。
+
 ---
 
 ## 7. 数据与契约
@@ -618,3 +636,4 @@ HR 新建 → 追加。
 | v1.9 | 2026-10-18 | Step 3 T1：全量表（V3）+ 演示种子（V4~V8）+ 种子生成器与抽查脚本落地；补 §6.9（租户注入策略 / 种子生成器用法 / jsqlparser 取值差异） |
 | v1.10 | 2026-10-18 | Step 3 T2b：注册（§1.2 / 40910 / HR 自动建未认证公司）落地；补 §6.10（注册落库与演示库重置 / e2e 固定手机号重跑风险 / LambdaWrapper TableInfo 单测坑） |
 | v1.11 | 2026-10-18 | Step 3 T3a：职位公开读（列表 / 搜索 / 详情 / 相似 / 埋点）+ 分类字典（分类树 / 城市 / 字典）落地；补 §6.11（`@Select` 实体转义 / ETag 与 traceId / `nextCursor: null` / 公开接口可选鉴权与租户豁免 / **T9 需加 Next rewrites**） |
+| v1.12 | 2026-10-18 | Step 3 T3b：HR 职位写（发布 / 更新 / 关闭·重开 / 软删）落地；补 §6.12（租户 INSERT 不重复列 / `job-new-{seq}` 全局序号 / publishedAt 截毫秒 / 配额缺省 50 与限流 / 40310 语义 / 冒烟软删行与 verify-seed 排除） |
