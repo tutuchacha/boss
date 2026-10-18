@@ -31,7 +31,7 @@ $env:JAVA_HOME = 'C:\Program Files\JetBrains\IntelliJ IDEA Community Edition 202
 # 5) 另开终端跑接口冒烟（登录 / 注册 / 刷新 / 退出；需 Node 18+）
 node scripts\smoke-auth.mjs
 
-# 5b) 职位与字典冒烟（列表 / 搜索 / 详情 / 相似 / 埋点 + 分类 / 城市 / 字典）
+# 5b) 职位与字典冒烟（公开读 + HR 写：发布 / 更新 / 关闭重开 / 软删 / 越权）
 node scripts\smoke-jobs.mjs
 
 # 6) 种子行数抽查（16 项断言；需已启动过后端完成 Flyway 迁移 V1~V8）
@@ -46,6 +46,8 @@ powershell -ExecutionPolicy Bypass -File scripts\verify-seed.ps1
 - 接口文档 `http://localhost:8080/swagger-ui.html`
 - 鉴权接口 `POST /api/v1/auth/login/password`（演示账号 13800000001 / 13800000002，密码 123456；
   受保护接口需 `Authorization: Bearer <accessToken>`）
+- 职位写接口需 HR token（13800000002）：`POST /api/v1/jobs`、`PATCH /api/v1/jobs/{jobId}`、
+  `POST /api/v1/jobs/{jobId}/close|reopen`、`DELETE /api/v1/jobs/{jobId}`（40310 / 42211 / 42901）
 
 ## 本地账号（仅演示用）
 
@@ -63,7 +65,7 @@ powershell -ExecutionPolicy Bypass -File scripts\verify-seed.ps1
 | `redis-start.ps1` / `redis-stop.ps1` | 起 / 停 Redis |
 | `dev-up.ps1` / `dev-down.ps1` | 一键起 / 停两者 |
 | `smoke-auth.mjs` | 鉴权接口冒烟（Node 18+；后端启动后运行，20 项断言含注册） |
-| `smoke-jobs.mjs` | 职位与字典接口冒烟（T3a；列表 / 搜索 / 详情 / 相似 / 埋点 + 分类 / 城市 / 字典，29 项断言） |
+| `smoke-jobs.mjs` | 职位与字典接口冒烟（T3a/T3b；公开读 + HR 写 发布 / 更新 / 关闭重开 / 软删 / 越权，49 项断言） |
 | `verify-seed.ps1` | 种子行数抽查（16 项断言，对齐 step3-plan §3 数字；须先完成迁移） |
 
 另有 `scripts/seed-gen/`（开发期工具）：从仓库 `src/api/mock/*` 生成 `V4~V8` 种子迁移，

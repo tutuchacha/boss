@@ -6,6 +6,40 @@
 
 ---
 
+## [8102f0b] 2026-10-18 — Step 3 T3b：HR 职位写接口（§6.5~§6.8）
+
+> 契约 §6.5~§6.8（4 条，HR / COMPANY_ADMIN 本公司）；T3 拆分中的 **T3b**（T3a 公开读 + 字典已先行）。
+> 提交 hash：`8102f0b`（结算见紧后 docs 提交）。
+
+### Added
+
+- `POST /api/v1/jobs`（§6.5 发布）/ `PATCH /api/v1/jobs/{jobId}`（§6.6 部分更新）/
+  `POST /api/v1/jobs/{jobId}/close|reopen`（§6.7）/ `DELETE /api/v1/jobs/{jobId}`（§6.8 软删，幂等）——
+  出参对齐前端 `HrJobRecord`（JobSummary + status / 职责 / 要求 / welfare / deleted / companyId）。
+- `JobCommandService` —— 归属公司取自登录上下文（不信任请求体）；不存在 / 非本公司 / 已软删统一
+  **40310**「无权操作该职位」（对齐 mock，不泄露存在性）；配额 `tenant_configs.max_jobs`（缺省 50）→
+  **42211**；发布限流 10 次/分钟/公司（Redis 自然分钟计数）→ **42901**；PATCH 合并后校验 → 42201。
+- 新职位 id `job-new-{seq}`：库内现有最大序号 + 1（递增派生，软删保留行、序号不复用；禁时间戳 / 随机）。
+- `JobCommandServiceTest` 15 项；`smoke-jobs.mjs` 扩展写接口段 29 → **49 项**（越权 / 关闭不可见 / 软删 / 可见 38 基线）。
+
+### Changed
+
+- `JobMapper` —— `selectTenantMaxJobs`（配额）与 `nextNewJobSeq`（全局序号，显式 `@InterceptorIgnore`）。
+- `JobViews.HrRecord`、`JobRequests.Upsert`（PATCH 允许只传部分字段，null 保留原值）；`JobCodes` 增 40310 / 42211。
+- `verify-seed.ps1` —— `jobs_total` 排除冒烟产物 `job-new-%`（软删保留行导致行数增长）。
+
+### Fixed
+
+- `publishedAt` 创建时截到毫秒（MySQL `DATETIME(3)`）：避免「创建响应」与「更新 / 详情再读」的时间字符串不一致。
+
+### Docs
+
+- 实测：`mvnw test` **50/50**；`smoke-jobs.mjs` **49/49**；`smoke-auth.mjs` 20/20 无回归；`verify-seed.ps1` 16/16。
+- `docs/step3-plan.md` v1.6 — T3b ✅（`8102f0b`）+ §4 实测 + 下一步 T4；`PROGRESS.md` v1.11；`worklog.md` Task 23；
+  `docs/AI-CONTINUE.md` v1.12（§6.12 职位写与配额）；`backend/README.md`、`AGENTS.md` 同步。
+
+---
+
 ## [9f509be] 2026-10-18 — Step 3 T3a：职位公开读 + 分类字典（§6.1~§6.4/§6.9 + §7）
 
 > 契约 §6.1~§6.4 / §6.9 / §7.1~§7.3（8 条，全部公开）；T3 拆分为 **T3a**（本提交：公开读 + 字典）

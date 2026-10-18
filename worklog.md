@@ -920,3 +920,39 @@ Stage Summary:
   登录加权、ETag 缓存）已落地；T9 联调前列出的 Next rewrites 缺失问题已记录待处理
 - 下一步：T3b HR 职位写（§6.5~§6.8：发布/更新/关闭重开/软删；本公司校验 40310、配额 42211；冒烟收尾清理
   保持可见 38 基线）
+
+---
+
+Task ID: 23
+Agent: orchestrator (main)
+Task: Step 3 T3b — HR 职位写接口（§6.5~§6.8，4 条）
+
+Work Log:
+- 侦察：契约 §6.5~§6.8、mock hrJobs.ts（40310 / 40410 语义、软删 / 更新保留统计）、前端 service 与
+  JobUpsertInput 形状、ApiCodes / JobCodes、租户注入策略（INSERT 的 ignoreInsert）、登录 claims（role/companyId）、
+  HrProfileEntity、validation 与包络约定
+- 实现：
+  - `JobCommandService`：发布 / 更新 / 关闭·重开 / 软删；仅 HR / COMPANY_ADMIN 且带 companyId；
+    归属公司取自登录上下文（不信任请求体）；不存在 / 非本公司 / 已软删统一 40310（不泄露存在性，对齐 mock）；
+    配额 tenant_configs.max_jobs（缺省 50）→ 42211；发布限流 10 次/分钟/公司（Redis 自然分钟）→ 42901；
+    PATCH 部分更新（null 保留原值，合并后校验 42201）
+  - 新 id `job-new-{seq}`：库内最大序号 +1（`SUBSTRING(id, 9)`，显式 @InterceptorIgnore——id 全局唯一；
+    软删保留行、序号不复用；禁时间戳/随机）；`publishedAt` 截毫秒（DATETIME(3)）
+  - `JobController`：POST /jobs、PATCH /jobs/{id}、POST /jobs/{id}/close|reopen、DELETE /jobs/{id}；
+    `JobViews.HrRecord` 对齐 HrJobRecord；`JobRequests.Upsert`；JobCodes 40310 / 42211；JobMapper 配额与序号查询
+- 测试：`JobCommandServiceTest` 15 项（创建成功/角色/上下文/配额/限流/校验/更新保留统计/越权/软删幂等/关闭重开）；
+  `mvnw test` 35/35 → **50/50**
+- 冒烟：`smoke-jobs.mjs` 29 → **49/49**（未登录 401 / 求职者 40301 / 42201 / 发布归属云杉 + OPEN /
+  可见 39 / 更新保留发布时间统计 / 关闭后 404 且回到 38 / 重开 / 他公司 HR 与不存在 40310 / 软删 {} + 404 /
+  收尾回到 38 基线 + 兜底幂等清理）；`smoke-auth.mjs` 20/20、`verify-seed.ps1` 16/16 无回归（排除 job-new-%）
+- 踩坑记录（AI-CONTINUE §6.12）：租户插件 INSERT 的 ignoreInsert 行为；新 id 必须全局取最大；
+  publishedAt 纳秒 vs DATETIME(3)；配额缺省 50；40310 统一语义；冒烟软删行与 verify-seed 排除
+- 文档：PROGRESS v1.11、step3-plan v1.6（T3b ✅ + §4 实测 + 下一步 T4）、CHANGELOG、AI-CONTINUE §6.12、
+  backend/README、AGENTS
+- 提交：`8102f0b`（feat: Step 3 T3b）+ 紧后 docs 结算
+
+Stage Summary:
+- T3b 完成：HR 职位写 4 条接口全绿（发布 / 更新 / 关闭重开 / 软删；40310 / 42211 / 42901 语义落地）；
+  冒烟新建职位收尾软删，可见 38 基线保持；三个冒烟 / 单测基线全部无回归
+- 下一步：T4 投递与面试闭环（§9/§10，10 条；状态机 + 会话按需创建（先占位）+ 校验码
+  40911 / 40913 / 40914 / 40915）；T9 前仍需用户拍板 e2e 固定手机号对真实库的重置策略
