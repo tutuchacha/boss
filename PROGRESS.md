@@ -13,14 +13,14 @@
 
 | 项 | 值 |
 | --- | --- |
-| 上一提交（历史基线） | `d1fd8e5`（docs: Step 3 T5 结算（PROGRESS v1.13 / 计划 v1.8 / CHANGELOG / AI-CONTINUE v1.14）） |
-| 本轮提交 | `8d9513a`（feat(backend): T6 消息与 WebSocket（§8.1~§8.8 + 4 主题））+ 紧后 docs 结算提交；若 `git status` 仍有未提交文件，以工作区现状为准 |
+| 上一提交（历史基线） | `79d0db4`（docs: Step 3 T6 结算（PROGRESS v1.14 / 计划 v1.9 / CHANGELOG / AI-CONTINUE v1.15）） |
+| 本轮提交 | `c26dc44`（feat(backend): T7 求职者 / 简历 / 收藏 / 上传（§2/§3/§11/§12））+ 紧后 docs 结算提交；若 `git status` 仍有未提交文件，以工作区现状为准 |
 | dev server（前端） | 端口 3000；未运行时用 `npm run dev` 启动（本会话未复测） |
 | 后端（Step 3） | `backend/`（Spring Boot 3.5.16，:8080）；MySQL 专用实例 **3307** + Redis **6379** 运行中，**后端 :8080 本会话保持运行**（停止按端口 8080 定位 PID 精确处理，勿按名杀 java）；起停脚本 `backend/scripts/` |
 | 测试账号 | 求职者 `13800000001` / HR `13800000002`，密码均 `123456`；短信验证码固定 `123456` |
 | 环境 | Windows（`D:\boss`）+ PowerShell；Node 实测 v24 可跑；**无 bun，统一用 npm**；后端 JDK 用 IDEA 自带 **JBR 21**（跑 `mvnw` 必设 `JAVA_HOME`，见 §7.2） |
 | 远端仓库 | `origin` → GitHub `tutuchacha/boss`（SSH）；接手前先 `git pull` 与远端对齐 |
-| Step 3 计划 | [`docs/step3-plan.md`](./docs/step3-plan.md)（分块 T0~T9 + 上下文交接协议）；**T0 ✅、T2a ✅（2026-10-17 登录/退出先行）、T1 ✅（2026-10-18 全量表 + 演示种子）、T2b ✅（2026-10-18 注册 §1.2）、T3a ✅（2026-10-18 职位公开读 + 分类字典 §6.1~§6.4/§6.9 + §7）、T3b ✅（2026-10-18 HR 职位写 §6.5~§6.8）、T4 ✅（2026-10-18 投递与面试闭环 §9/§10 + §8.7）、T5 ✅（2026-10-18 公司模块 + 企业认证 §5）、T6 ✅（2026-10-18 消息 + WebSocket §8）**，当前：**T7 求职者 / 简历 / 收藏 / 上传（§2/§3/§11/§12）** |
+| Step 3 计划 | [`docs/step3-plan.md`](./docs/step3-plan.md)（分块 T0~T9 + 上下文交接协议）；**T0 ✅、T2a ✅（2026-10-17 登录/退出先行）、T1 ✅（2026-10-18 全量表 + 演示种子）、T2b ✅（2026-10-18 注册 §1.2）、T3a ✅（2026-10-18 职位公开读 + 分类字典 §6.1~§6.4/§6.9 + §7）、T3b ✅（2026-10-18 HR 职位写 §6.5~§6.8）、T4 ✅（2026-10-18 投递与面试闭环 §9/§10 + §8.7）、T5 ✅（2026-10-18 公司模块 + 企业认证 §5）、T6 ✅（2026-10-18 消息 + WebSocket §8）、T7 ✅（2026-10-18 求职者 / 简历 / 收藏 / 上传 §2/§3/§11/§12）**，当前：**T8 招聘者 / 候选人 / 人才筛选（§4）**，随后 T9 全量联调 |
 
 > 接手时先跑一次 `git status --porcelain` 与 `npx tsc --noEmit` 核对本表是否仍然成立。
 
@@ -33,7 +33,7 @@
 | Step 0 架构 + 契约 | ✅ 完成 | `docs/architecture.md`、`data-model.md`、`api-*.md`、`prisma/schema.prisma` |
 | Step 1 双端前端开发 | ✅ 完成 | `src/components/pinliao/`（求职者端 + HR 端 + 登录） |
 | Step 2 前端验收 | ⏳ 进行中 | 验收五项功能已全部完成，并新增**人才筛选（演示版）**增量；`npm run e2e` 63/63 通过（见 §2/§5）；**用户人工验收初步通过（2026-10-16）**；待确认 `docs/AI-CONTINUE.md` §9 待决事项 |
-| Step 3 后端（Spring Boot） | 🔄 进行中（T6 ✅ → T7） | `backend/` Spring Boot 3.5.16 骨架 + MySQL 专用实例 3307 / Redis 6379；**T0 ✅、T2a 鉴权 ✅（2026-10-17）、T1 数据库迁移与演示种子 ✅、T2b 注册 ✅、T3a 职位公开读 + 分类字典 ✅、T3b HR 职位写 ✅、T4 投递与面试闭环 ✅、T5 公司模块 + 企业认证 ✅、T6 消息 + WebSocket ✅（2026-10-18，实测见 §7.2）**；下一步 T7 求职者 / 简历 / 收藏 / 上传（§2/§3/§11/§12） |
+| Step 3 后端（Spring Boot） | 🔄 进行中（T7 ✅ → T8） | `backend/` Spring Boot 3.5.16 骨架 + MySQL 专用实例 3307 / Redis 6379；**T0 ✅、T2a 鉴权 ✅（2026-10-17）、T1 数据库迁移与演示种子 ✅、T2b 注册 ✅、T3a 职位公开读 + 分类字典 ✅、T3b HR 职位写 ✅、T4 投递与面试闭环 ✅、T5 公司模块 + 企业认证 ✅、T6 消息 + WebSocket ✅、T7 求职者 / 简历 / 收藏 / 上传 ✅（2026-10-18，实测见 §7.2）**；下一步 T8 招聘者 / 候选人 / 人才筛选（§4） |
 | Step 4 联调 | ⏸ 未开始 | `NEXT_PUBLIC_USE_MOCK=false` |
 
 ---
@@ -168,10 +168,17 @@
      实测 `mvnw test` **114/114**（新增消息 24）、新增 `smoke-messages.mjs` **40/40**（连续两次可重复，
      含 REST + STOMP 发送 / typing / 错误队列 / 非法 token）、`smoke-company` 26/26、`smoke-jobs` 49/49、
      `smoke-applications` 51/51、`smoke-auth` 20/20、`verify-seed` 16/16 无回归。
-   - 下一个动作：**T7 求职者 / 简历 / 收藏 / 上传**（§2/§3/§11/§12，19 条）。T6 的会话与消息已可读写，
-     T9 前仍要统一前端真实分支的列表形状 / 时间 / 枚举差异（见 `AI-CONTINUE.md` §6.15）。
-   - T9 切换 `USE_MOCK=false` 跑通前端 e2e 63/63 后进入 Step 4 联调（注意：e2e 注册用固定手机号
-     `13900004321`，对真实落库的演示库重跑会命中 40910——T9 前需定重置策略，见 §6.3 末条）。
+    - **T7 已交付**：§2.1~§2.8 画像 / 密码 / 手机号 / 偏好 / 注销（8 条）+ §3.1~§3.6 简历 CRUD /
+      默认简历（6 条）+ §11.1~§11.3 收藏（3 条）+ §12.1~§12.2 预签名 / 确认（2 条），共 19 条。
+      外观偏好存 Redis（`pinliao:user:prefs:{userId}`，默认 auto）；注销为软删 + 立即吊销当前
+      accessToken；简历仅本人可写、HR 仅可看已投递到本公司的简历（40410 不泄露存在性），
+      首份自动默认、删除默认自动顺延；收藏 `(userId, jobId)` 唯一、重复 40910、游标分页带 total；
+      上传用本地目录替代 OSS（服务端 objectKey + HMAC 预签名 PUT + `/uploads/**` 静态映射，
+      未新增上传元数据表，业务落库由后续 PATCH 完成）。实测 `mvnw test` **151/151**（新增 37）、
+      `smoke-user.mjs` **64/64**（连续两次可重复）、既有五项冒烟与 `verify-seed` 16/16 无回归。
+    - 下一个动作：**T8 招聘者 / 候选人 / 人才筛选**（§4，6 条；§4.3/§4.4 已在 T3b/T4 部分落地，
+      重点是 §4.1/§4.2 HR 画像与 §4.5/§4.6 关键词匹配）。T9 前仍要统一前端真实分支的列表形状 /
+      时间 / 枚举差异（见 `AI-CONTINUE.md` §6.15 / §6.16）。
 3. 可选增量（未被本轮涵盖）：招聘者端桌面 Web 后台、HR 上传外部简历库、人才筛选语义检索升级（接口不变）等。
 
 ---
@@ -253,6 +260,16 @@
   WebSocket 端点 `/ws`（STOMP，query `?token=` 或 `Authorization` 握手）；`/user/queue/messages`、
   `/user/queue/typing`、`/topic/conversation/{id}/typing`，错误走 `/user/queue/errors`；TEXT 自动回复默认延迟
   1200ms（`pinliao.message.auto-reply-delay-ms`）。消息冒烟只动 `conv-new-*` / `msg-new-*`，不标记种子会话已读。
+- **T7 起用户 / 简历 / 收藏 / 上传可用**：§2 需登录（§2.4 重置密码匿名）；简历仅 JOB_SEEKER 可写，
+  HR 仅能读「已投递到本公司」的简历（`applications.resume_id + company_id`），越权统一 40410；
+  首份简历自动默认，删除默认自动把最近更新的剩余简历设为默认并同步 `user_profiles.default_resume_id`。
+  收藏 `(user_id, job_id)` 唯一，重复 40910；§11.3 返回 `{list,pagination}` 且 `total` 为全部收藏数。
+  上传用本地目录替代 OSS：`POST /uploads/sign` 返回 HMAC 预签名 `PUT /api/v1/uploads/local/{objectKey}`，
+  确认后返回 `/uploads/{objectKey}`；默认目录 `backend/target/uploads`（`PINLIAO_UPLOAD_DIR` 可覆盖），
+  URL 有效期默认 10 分钟（`pinliao.upload.url-ttl`），未新增上传元数据表。
+  外观偏好按 userId 存 Redis（`pinliao:user:prefs:{userId}`，默认 auto）；注销软删并立即吊销当前 accessToken。
+  `smoke-user.mjs` 使用临时 `u-reg-*` 账号并自行清理简历 / 收藏；`verify-seed.ps1` 的 resumes 计数
+  已排除 `u-reg-*` 与软删行（T7 软删简历会保留行）。
 - localStorage 键：求职者 `pinliao.v3`、认证 `pinliao.auth.v1`、token `pinliao.accessToken` / `pinliao.refreshToken`。
 - `AGENTS.md` / `CLAUDE.md` 由 `next dev` 自动维护（只管理 `<!-- BEGIN:nextjs-agent-rules -->` 区块，
   其余内容安全保留）；提交时一并带上可保持工作区干净。
@@ -274,36 +291,38 @@ npm start              # 生产启动（node .next/standalone/server.js；可用
 
 可覆盖的环境变量：`npm run e2e` 支持 `BASE_URL` / `CHROME_PATH` / `CDP_PORT`。
 
-### 7.2 后端 `backend/`（2026-10-18 实测，Step 3 T0 + T2a + T1 + T2b + T3a + T3b + T4 + T5 + T6）
+### 7.2 后端 `backend/`（2026-10-18 实测，Step 3 T0 + T2a + T1 + T2b + T3a + T3b + T4 + T5 + T6 + T7）
 
 ```powershell
 cd backend
 $env:JAVA_HOME='C:\Program Files\JetBrains\IntelliJ IDEA Community Edition 2025.2.6.2\jbr'  # 必设（本机仅 JDK 1.8）
 .\scripts\dev-up.ps1         # 起 MySQL 专用实例 3307 + Redis 6379（首次先 .\scripts\db-init.ps1）
 .\mvnw.cmd spring-boot:run   # 后端 :8080；Ctrl+C 停止（收尾用 .\scripts\dev-down.ps1）
-.\mvnw.cmd test              # 单元测试（包络 / JWT / 种子密码 / 租户策略 / 注册 / 职位 / 职位写 / 字典 / 投递面试 / 公司 / 消息）
+.\mvnw.cmd test              # 单元测试（包络 / JWT / 种子密码 / 租户策略 / 注册 / 职位 / 职位写 / 字典 / 投递面试 / 公司 / 消息 / 用户 / 简历 / 收藏 / 上传）
 node scripts\smoke-auth.mjs  # 鉴权接口冒烟（20 项，含注册；需后端已启动）
 node scripts\smoke-jobs.mjs  # 职位与字典冒烟（49 项；需后端已启动，T3a/T3b）
 node scripts\smoke-applications.mjs  # 投递与面试冒烟（51 项；需后端已启动，T4，可重复执行）
 node scripts\smoke-company.mjs  # 公司模块冒烟（26 项；需后端已启动，T5，可重复执行）
 node scripts\smoke-messages.mjs  # 消息与 WebSocket 冒烟（40 项；需后端已启动，T6，可重复执行）
+node scripts\smoke-user.mjs  # 用户 / 简历 / 收藏 / 上传冒烟（64 项；需后端已启动，T7，可重复执行）
 .\scripts\verify-seed.ps1    # 种子行数抽查（16 项；需 Flyway 已迁移至 v8）
 .\mvnw.cmd -DskipTests package  # 打包（target/pinliao-backend-*.jar）
 ```
 
 | 检查 | 结果 |
 | --- | --- |
-| `mvnw.cmd test` | **114/114 通过**（包络 3 + JwtService 4 + 种子密码 hash 1 + 租户策略 6 + 注册 4 + 职位 13 + 职位写 15 + 公开路径 2 + 字典 3 + 投递面试写 22 + 投递面试读 5 + 公司 12 + 消息 24） |
-| `spring-boot:run` | **约 3.5s 启动**（T6 重启实测，schema 已最新无需迁移；T1 首迁为 3.3s）；Flyway 校验 **V1~V8** 通过 |
+| `mvnw.cmd test` | **151/151 通过**（包络 3 + JwtService 4 + 种子密码 hash 1 + 租户策略 6 + 注册 4 + 职位 13 + 职位写 15 + 公开路径 2 + 字典 3 + 投递面试写 22 + 投递面试读 5 + 公司 12 + 消息 24 + 用户 13 + 简历 10 + 收藏 5 + 上传 9） |
+| `spring-boot:run` | **约 3.5s 启动**（T7 重启实测，schema 已最新无需迁移；T1 首迁为 3.3s）；Flyway 校验 **V1~V8** 通过 |
 | `/actuator/health` | `{"status":"UP"}`（200） |
 | `/api/v1/_demo/*` 包络 | 与 T0 一致：`traceId`、`42201/40401` 等码位不变 |
-| 鉴权冒烟（`backend/scripts/smoke-auth.mjs`） | **20/20 全对（T6 后复跑无回归）**：登录 200（含云杉 company/member）；`40110/40101/40102/40103/42201/42901` 全码位；refresh 一次性轮换；退出后 me=40102；**注册段**：发码 200 → 坏码 40110 → HR 成功（`新注册企业-{尾4}` / ADMIN / verified=false）→ 重复 40910 → me 带新 token → 求职者无 company |
-| 职位 & 字典冒烟（`backend/scripts/smoke-jobs.mjs`） | **49/49 全对（T6 后复跑无回归）**：公开读 29 项（列表匿名默认 20 / total=38 / 游标翻页；筛选上海 12、互联网·前端 2、1-3年 11、20-40K 18；搜索云杉 7 / 前端关键词 / §6.2 独立路径；recommend 期望岗位置顶；详情 HR / 福利 4 / 相似 6、ETag→304、40410；埋点去重；分类 17 根/84 节点；城市 9/热门 5；字典与 mock 完全一致）+ **写接口 20 项**（未登录 401 / 求职者 40301 / 字段校验 42201；发布 `job-new-*` OPEN 归属云杉、hr 陈女士；发布后可见 39；更新部分字段且保留发布时间与统计；关闭后详情 404 + 可见回到 38；重开再次可见；他公司 HR 与不存在职位 40310；软删 `{}` + 404 + 回到 38 基线；兜底幂等清理） |
-| 投递与面试冒烟（`backend/scripts/smoke-applications.mjs`） | **51/51 全对（T6 后复跑无回归），连续两次执行均通过（可重复）**：§9.1 未登录 401 / HR 40301 / 简历越权 42210 / 默认简历投递 `app-new-*` SUBMITTED / 重复 40911；§9.2~§9.3 total≥4、状态筛选、游标翻页不重不漏、非法游标 40001、详情（job/resume/`conv-new-*`）、越权 40410；§9.4~§9.5 VIEWED / 非法状态 42201 / 他公司 40410；§8.7 40914 / 40915 / 非法形式 42201 / ONSITE 缺地点 42201 / 时间早于当前 42210 / 越权 40410 / 成功生成 `msg-new-*` INTERVIEW_INVITE 未读消息；§10 双端列表 / 详情 / 越权 / 接受幂等 / 拒绝 / 再次约面；收尾撤回 40913 + 撤回后重新投递复用记录并收尾 WITHDRAWN |
-| 公司模块冒烟（`backend/scripts/smoke-company.mjs`） | **26/26 全对（T6 后复跑无回归），连续两次执行均通过（可重复）**：§5.1/§5.2 匿名公司详情（云杉科技 / verified）与 40410、公司职位 7 条、限 3 游标翻两页 6 条不重不漏；§5.3 未登录 401 / HR 云杉 / 求职者 40301；§5.4/§5.5 临时 `co-reg-*` HR 注册自动 ADMIN、求职者越权 40301、名称过短 42210、改名 trim + 字段落库 + 公开详情即时同步、成员列表 user/hrProfile、发布 `job-new-*` 后公司职位显示新公司名、finally 软删回到 0；§5.6 非法资料 42210 / 求职者 40301 / 提交 PENDING→轮询约 1.2s 自动 ACTIVE / 重复 40916 / 公开详情同步 |
+| 鉴权冒烟（`backend/scripts/smoke-auth.mjs`） | **20/20 全对（T7 后复跑无回归）**：登录 200（含云杉 company/member）；`40110/40101/40102/40103/42201/42901` 全码位；refresh 一次性轮换；退出后 me=40102；**注册段**：发码 200 → 坏码 40110 → HR 成功（`新注册企业-{尾4}` / ADMIN / verified=false）→ 重复 40910 → me 带新 token → 求职者无 company |
+| 职位 & 字典冒烟（`backend/scripts/smoke-jobs.mjs`） | **49/49 全对（T7 后复跑无回归）**：公开读 29 项（列表匿名默认 20 / total=38 / 游标翻页；筛选上海 12、互联网·前端 2、1-3年 11、20-40K 18；搜索云杉 7 / 前端关键词 / §6.2 独立路径；recommend 期望岗位置顶；详情 HR / 福利 4 / 相似 6、ETag→304、40410；埋点去重；分类 17 根/84 节点；城市 9/热门 5；字典与 mock 完全一致）+ **写接口 20 项**（未登录 401 / 求职者 40301 / 字段校验 42201；发布 `job-new-*` OPEN 归属云杉、hr 陈女士；发布后可见 39；更新部分字段且保留发布时间与统计；关闭后详情 404 + 可见回到 38；重开再次可见；他公司 HR 与不存在职位 40310；软删 `{}` + 404 + 回到 38 基线；兜底幂等清理） |
+| 投递与面试冒烟（`backend/scripts/smoke-applications.mjs`） | **51/51 全对（T7 后复跑无回归），连续两次执行均通过（可重复）**：§9.1 未登录 401 / HR 40301 / 简历越权 42210 / 默认简历投递 `app-new-*` SUBMITTED / 重复 40911；§9.2~§9.3 total≥4、状态筛选、游标翻页不重不漏、非法游标 40001、详情（job/resume/`conv-new-*`）、越权 40410；§9.4~§9.5 VIEWED / 非法状态 42201 / 他公司 40410；§8.7 40914 / 40915 / 非法形式 42201 / ONSITE 缺地点 42201 / 时间早于当前 42210 / 越权 40410 / 成功生成 `msg-new-*` INTERVIEW_INVITE 未读消息；§10 双端列表 / 详情 / 越权 / 接受幂等 / 拒绝 / 再次约面；收尾撤回 40913 + 撤回后重新投递复用记录并收尾 WITHDRAWN |
+| 公司模块冒烟（`backend/scripts/smoke-company.mjs`） | **26/26 全对（T7 后复跑无回归），连续两次执行均通过（可重复）**：§5.1/§5.2 匿名公司详情（云杉科技 / verified）与 40410、公司职位 7 条、限 3 游标翻两页 6 条不重不漏；§5.3 未登录 401 / HR 云杉 / 求职者 40301；§5.4/§5.5 临时 `co-reg-*` HR 注册自动 ADMIN、求职者越权 40301、名称过短 42210、改名 trim + 字段落库 + 公开详情即时同步、成员列表 user/hrProfile、发布 `job-new-*` 后公司职位显示新公司名、finally 软删回到 0；§5.6 非法资料 42210 / 求职者 40301 / 提交 PENDING→轮询约 1.2s 自动 ACTIVE / 重复 40916 / 公开详情同步 |
 | 消息 & WebSocket 冒烟（`backend/scripts/smoke-messages.mjs`） | **40/40 全对，连续两次执行均通过（可重复）**：§8.1/§8.2 求职者 2 条 / HR 6 条种子会话与未读 2 / 4、双端列表超集、游标不重不漏、非法游标 40001、详情、历史降序、越权 40410；§8.3 复用 `conv-new-*`、重复 40912、HR 40301；§8.4~§8.6 发送字段 / HR 未读 +1 / 幂等同 id / 关键词自动回复 / 候选人自动回复 / typing 空对象 / 双端已读；§8.7 发送默认简历 `RESUME`；§8.8 求职者 40301 / HR 关闭；§10 WS token 握手、REST 发送推送 `/user/queue/messages`、typing topic、STOMP `/app/.../send|typing`、错误队列 42201、非法 / 匿名 token 拒绝 |
+| 用户 / 简历 / 收藏 / 上传冒烟（`backend/scripts/smoke-user.mjs`） | **64/64 全对，连续两次执行均通过（可重复）**：§2 未登录 / HR 角色校验、画像读改、薪资联动 42201、改密原密码错误、重置密码坏码 40110 / 成功、手机号占用 40910 / 改号后新号可登录旧号 40110、偏好默认 auto / 改 dark / 非法 theme 42201、注销后 token 40102；§3 空列表、首份自动默认、非法 content 42201、第二份非默认、更新 / 详情 / set-default 排序、HR 未投递不可见 40410、软删后 404；§11 三职位收藏 / 重复 40910 / 不存在职位 40410 / HR 40301 / limit=2 两页不重不漏 total=3 / 取消幂等 / total=0；§12 未登录 401、签名 + PUT 直传 + confirm + `/uploads/**` 静态读回、非法 MIME / 扩展名 42201、篡改签名 40301、确认他人 objectKey 40410 |
 | 注册边界（手工 4 例） | 字段校验 42201 ×3（phone / password / role）；未发码注册 40110；`co-reg-*` 落库 `verified=false` |
-| 种子抽查（`backend/scripts/verify-seed.ps1`） | **16/16 命中**（注册 `u-reg-*` / `co-reg-*`、T3b `job-new-*`、T4/T6 `app-new-*` / `int-new-*` / `conv-new-*` / `msg-new-*` 均已排除）：flyway v8；companies 16；jobs 51（可见 38 / 云杉 7）；categories 84；cities 9；users 8；resumes 7；投递 6+3；interviews 3；HR 会话 6（未读 4）；求职者会话 2；messages 16 |
+| 种子抽查（`backend/scripts/verify-seed.ps1`） | **16/16 命中**（注册 `u-reg-*` / `co-reg-*`、T3b `job-new-*`、T4/T6 `app-new-*` / `int-new-*` / `conv-new-*` / `msg-new-*` 均已排除；T7 起 resumes 另排除 `u-reg-*` 与软删行）：flyway v8；companies 16；jobs 51（可见 38 / 云杉 7）；categories 84；cities 9；users 8；resumes 7；投递 6+3；interviews 3；HR 会话 6（未读 4）；求职者会话 2；messages 16 |
 | 数据库抽查（MySQL 3307） | V4~V8 success=1；种子内容与 mock 一致（职位关闭规则 stableHash(id)%4、简历 content JSON 原文、会话 id 序列 conv-hr-1/4/8/11/14/16 等）；T2b 后新增 `u-reg-*` / `co-reg-*` 等注册记录（持久保留） |
 
 运行数据在 `.local/`（已 gitignore）；MySQL / Redis 起停详见 `backend/README.md` 与 `backend/scripts/`。
@@ -329,3 +348,4 @@ node scripts\smoke-messages.mjs  # 消息与 WebSocket 冒烟（40 项；需后�
 | v1.12 | 2026-10-18 | Step 3 T4 完成：投递与面试闭环（§9/§10 + §8.7，10 条）——投递 / 列表 / 详情 / 撤回 / HR 状态 + 双端面试列表 / 详情 / 接受 / 拒绝 + 约面试；40911/40913/40914/40915/42210 状态机语义；投递占位建会话（`conv-new-{seq}`，详情返回 conversationId）；`mvnw test` 77/77、`smoke-applications` 51/51（可重复）、`smoke-jobs` 49/49、鉴权 20/20、种子 16/16（排除 T4 四类前缀）；下一步 T5 公司模块 + 企业认证（§5） |
 | v1.13 | 2026-10-18 | Step 3 T5 完成：公司模块 + 企业认证（§5.1~§5.6，6 条）——公开公司详情 / 公司职位（游标分页）/ 我的公司 / 资料编辑（改名职位公司名实时同步）/ 成员列表 / 企业认证（PENDING → 约 1.2s 自动 ACTIVE）；管理员以 `company_members.role=ADMIN` 为准；40410 / 40916 / 42210；`mvnw test` 90/90、`smoke-company` 26/26（连续两次可重复）、职位 49/49、投递 51/51、鉴权 20/20、种子 16/16；下一步 T6 消息 + WebSocket（§8） |
 | v1.14 | 2026-10-18 | Step 3 T6 完成：消息 + WebSocket（§8.1~§8.8 + 4 主题）——会话列表 / 详情 / 历史 / 发起 / 发送 / 已读 / typing / 发送简历 / 关闭；DB 未读事实源 + Redis 限流 / 幂等；双端超集 + 扩展详情；双向自动回复；40912 / 40410 / 42201 / 42901；`mvnw test` 114/114、`smoke-messages` 40/40（可重复）、其余冒烟与种子 16/16 无回归；下一步 T7 求职者 / 简历 / 收藏 / 上传 |
+| v1.15 | 2026-10-18 | Step 3 T7 完成：§2 用户画像 / 密码 / 手机号 / 偏好 / 注销（8 条）+ §3 简历 CRUD / 默认简历（6 条）+ §11 收藏（3 条）+ §12 预签名上传（2 条）；Redis 偏好、软删注销、HR 简历可见性、收藏唯一 / 游标、本地目录 + HMAC 上传；`mvnw test` 151/151、`smoke-user` 64/64（连续两次可重复）、其余冒烟与种子 16/16 无回归；修复 `smoke-messages` 迟到自动回复导致的可重复性抖动；下一步 T8 招聘者 / 候选人 / 人才筛选（§4） |

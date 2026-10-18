@@ -8,7 +8,7 @@
 > （2026-10-16 起另有交接四件套：`PROJECT.md` / `ARCHITECTURE.md` / `PROGRESS.md` / `CHANGELOG.md`）。
 > 开工顺序：先 `PROGRESS.md`，再本文件；需要细节时再按下文索引深入 `docs/` 的专项文档。
 >
-> 最后更新：2026-10-18 · 对应本轮提交（Step 3 T6 消息 + WebSocket，后端 `mvnw test` 114/114、`smoke-messages` 40/40；前端 e2e 63/63 基线不变）
+> 最后更新：2026-10-18 · 对应本轮提交（Step 3 T7 用户 / 简历 / 收藏 / 上传，后端 `mvnw test` 151/151、`smoke-user` 64/64、`smoke-messages` 40/40；前端 e2e 63/63 基线不变）
 > 维护要求：**每次改变项目状态（新增功能、改架构、修坑）后，必须回来更新本文件**，
 > 否则它会像之前的 `HANDOFF.md` 一样过期并误导后来者。
 
@@ -30,9 +30,10 @@ npm run dev          # 端口 3000
 
 **无需数据库、无需后端**：全部数据来自前端 Mock，开箱即跑。
 
-> **当前状态一句话**：Step 3 后端 T6 已完成（消息 + WebSocket，`mvnw test` 114/114、
-> `smoke-messages` 40/40）；前端 Step 2 五项验收功能 + 人才筛选演示增量保持
-> `npm run e2e` 63/63 基线不变；当前任务与下一步先看 [`../PROGRESS.md`](../PROGRESS.md)（状态唯一定稿）。
+> **当前状态一句话**：Step 3 后端 T7 已完成（用户 / 简历 / 收藏 / 上传，`mvnw test` 151/151、
+> `smoke-user` 64/64）；前端 Step 2 五项验收功能 + 人才筛选演示增量保持
+> `npm run e2e` 63/63 基线不变；下一步 T8（§4），当前任务与下一步先看
+> [`../PROGRESS.md`](../PROGRESS.md)（状态唯一定稿）。
 
 ### 环境注意（换环境时最先检查这四条）
 
@@ -67,7 +68,7 @@ npm run dev          # 端口 3000
 | Step 0 架构 + 数据模型 + API 契约 | ✅ 完成 | `docs/architecture.md`、`data-model.md`、`api-contract.md`、`api-endpoints.md`、`prisma/schema.prisma`、`src/types/api.ts` |
 | Step 1 前端开发（Next.js + Mock） | ✅ 完成 | `src/components/pinliao/`、`src/api/`、`src/store/` |
 | Step 2 前端验收 | ⏳ 进行中 | 五项验收功能已完成，并新增人才筛选演示增量；e2e 63/63 通过；**用户人工验收初步通过（2026-10-16）**；待确认 §9 待决事项 |
-| Step 3 后端（Spring Boot） | 🔄 进行中 | `backend/`（Spring Boot 3.5.16）：T0 骨架 ✅、T2a 鉴权 ✅（2026-10-17）、T1 全量表 + 演示种子 ✅、T2b 注册 ✅、T3a 职位公开读 + 分类字典 ✅、T3b HR 职位写 ✅、T4 投递与面试闭环 ✅、T5 公司模块 + 企业认证 ✅、T6 消息 + WebSocket ✅（2026-10-18）；当前 T7 求职者 / 简历 / 收藏 / 上传；进度与实测以 `../PROGRESS.md` §7.2 为准 |
+| Step 3 后端（Spring Boot） | 🔄 进行中 | `backend/`（Spring Boot 3.5.16）：T0 骨架 ✅、T2a 鉴权 ✅（2026-10-17）、T1 全量表 + 演示种子 ✅、T2b 注册 ✅、T3a 职位公开读 + 分类字典 ✅、T3b HR 职位写 ✅、T4 投递与面试闭环 ✅、T5 公司模块 + 企业认证 ✅、T6 消息 + WebSocket ✅、T7 用户 / 简历 / 收藏 / 上传 ✅（2026-10-18）；下一步 T8 招聘者 / 候选人 / 人才筛选（§4）；进度与实测以 `../PROGRESS.md` §7.2 为准 |
 | Step 4 联调 | ⏸ 未开始 | `USE_MOCK=false` 切真实接口 |
 
 > ⚠️ **状态快照（2026-10-16）**：五项功能（投递 / 候选人 / 面试、验证码登录 /
@@ -101,7 +102,7 @@ npm run dev          # 端口 3000
 | 功能 | 备注 |
 |---|---|
 | 招聘者端桌面 Web 后台 | 当前仅移动端布局 |
-| 真实后端（其余模块） | Step 3 进行中：T0~T6（鉴权 / 注册 / 职位 / 投递面试 / 公司 / 消息 WebSocket）已落地；其余模块按 `docs/step3-plan.md` 任务板推进 |
+| 真实后端（其余模块） | Step 3 进行中：T0~T7（鉴权 / 注册 / 职位 / 投递面试 / 公司 / 消息 WebSocket / 用户简历收藏上传）已落地；T8 招聘者与人才筛选、T9 联调按 `docs/step3-plan.md` 任务板推进 |
 
 ---
 
@@ -611,6 +612,37 @@ const { data, isPending } = useQuery({
   （ISO UTC 带 Z）、消息 `content` 结构化类型（后端返回 JSON 字符串，mock 可能是对象）、
   §8.7 邀请接口返回 `Message` 而前端类型声明为 `Interview`、`GET /hr/applications` 属 T8。
 
+### 6.16 用户 / 简历 / 收藏 / 上传（Step 3 T7 起）
+
+- **鉴权白名单只多两条**：`POST /api/v1/user/password/reset`（忘记密码）与
+  `PUT /api/v1/uploads/local/**`（预签名直传）；其余 §2/§3/§11/§12 均需登录。
+  `/uploads/**` 是静态资源，不在 `/api/v1/**` 下，不走 `AuthInterceptor`。
+- **验证码场景**：重置密码用 `RESET`；改手机号用 `LOGIN`（新号可能尚未注册）。两者都先做业务冲突 /
+  原密码校验，再消耗验证码；`smoke-user.mjs` 通过 RESP 直连 Redis 删除 60s 冷却键，保证可连续跑。
+- **外观偏好不落库**：Redis key `pinliao:user:prefs:{userId}`，默认 `auto`；仅接受
+  `auto|light|dark`。T9 前端仍可用 localStorage，接口是多端同步预留。
+- **注销是软删**：`users.status=DELETED` + `deleted_at`，同时吊销当前 accessToken（再用返回 40102）；
+  当前没有恢复接口，30 天恢复需运维 / 后续增量补。注销账号仍以 `u-reg-*` 留在库中，`verify-seed`
+  的 users 计数已按前缀排除。
+- **简历权限**：求职者只读写本人；HR 必须存在 `applications.resume_id` 指向该简历且
+  `company_id` 为当前公司，否则统一 40410。列表按「默认优先、更新时间倒序」。
+  首份自动默认；删除默认简历时自动把最近更新的剩余简历设为默认；全部删完清空
+  `user_profiles.default_resume_id`。简历软删行保留，`verify-seed` 的 resumes 已排除
+  `u-reg-*` 与 `deleted_at`，不要按全表行数断言。
+- **收藏**：id 为 `fav-{userId}-{jobId}`，`(user_id, job_id)` 唯一，重复收藏 40910；
+  取消幂等。列表返回 `{ list, pagination }`，`pagination.total` 是该用户全部收藏数，
+  游标按 `createdAt DESC, id ASC`；职位摘要可能为 null（职位后续下线）。
+- **上传是本地替代实现**：`POST /uploads/sign` 由服务端生成 objectKey 与 HMAC 签名，返回相对
+  `uploadUrl`；客户端直接 `PUT` 到该 URL（无登录态），完成后 `POST /uploads/confirm` 返回
+  `/uploads/{objectKey}`。确认**不会**写业务表（契约没有目标实体 id）；头像 / 附件落库由前端随后
+  PATCH profile / resume 完成，T9 接入时注意。目录默认 `target/uploads`，URL 10 分钟过期；
+  对象 key 含 userId，只能确认本人对象。
+- **T9 前端差异**：真实 `UserProfile` 不含手机号（手机号在 `auth/me.user.phone`）；简历 / 收藏返回
+  相对 URL 与 `{list,pagination}`，前端 `request` 需拼 `API_BASE_URL` 并归一出参；
+  `GET /resumes/{id}` 的 HR 分支只有已投递关系才返回，mock 里可能更宽松。
+- **T8 未完**：§4.1/§4.2 HR 画像、§4.5/§4.6 人才筛选仍未落地；`GET /hr/applications` / HR 面试
+  等已在 T4 实现。按 `step3-plan.md` 原计划 T8 在 T9 前；若用户决定先做 T9 前端接入，需把 §4 相关页面暂留 mock，并在 T9 验收范围里明确（不要默认已全量）。
+
 ---
 
 ## 7. 数据与契约
@@ -715,3 +747,4 @@ HR 新建 → 追加。
 | v1.13 | 2026-10-18 | Step 3 T4：投递 / 面试闭环（§9/§10 + §8.7）落地；补 §6.13（投递占位建会话 / 状态机顺序 / 幂等终态 / 40410 归属隔离 / 四类新 id 前缀 / 冒烟可重复 / T9 契约差异清单）；§9 增演示库重置策略待拍板 |
 | v1.14 | 2026-10-18 | Step 3 T5：公司模块 + 企业认证（§5.1~§5.6）落地；补 §6.14（管理员以成员角色 ADMIN 为准 / 改名实时装配 / 认证无独立记录表与异步自动通过 / 公开路径白名单 / 公司职位可见口径 / smoke-company 基线） |
 | v1.15 | 2026-10-18 | Step 3 T6：消息 + WebSocket（§8.1~§8.8 + 4 主题）落地；补 §6.15（DB 未读事实源 / 双端超集 / 历史顺序 / 扩展详情 / WS 鉴权与主题 / 发送不回显 / 自动回复无线程上下文 / 幂等边界 / 种子冒烟保护 / T9 前端差异） |
+| v1.16 | 2026-10-18 | Step 3 T7：用户 / 简历 / 收藏 / 上传（§2/§3/§11/§12）落地；补 §6.16（重置与改号验证码场景 / Redis 偏好 / 软删注销 / 简历 HR 可见性与默认顺延 / 收藏唯一与游标 / 本地 HMAC 上传与业务落库边界 / T9 前端差异 / T8 未完提醒） |

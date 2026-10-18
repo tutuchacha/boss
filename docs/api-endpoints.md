@@ -1,6 +1,6 @@
 # 聘聊 · API 接口清单
 
-> 版本：v0.3.4 · 最后更新：2026-10-18
+> 版本：v0.3.5 · 最后更新：2026-10-18
 > 通用规范见 `docs/api-contract.md`。本文件列出全部业务接口。
 > 类型定义见 `src/types/api.ts`。
 >
@@ -96,7 +96,7 @@
 ### 2.2 更新求职者画像
 `PATCH /api/v1/user/profile`
 - 鉴权：JOB_SEEKER
-- 入参（部分）：`{ name?, avatarUrl?, expectCat?, expectSub?, expectCity?, expectSalaryMin?, expectSalaryMax?, seekingStatus?, workYears?, edu? }`
+- 入参（部分）：`{ name?, avatarUrl?, gender?, birthDate?, expectCat?, expectSub?, expectCity?, expectSalaryMin?, expectSalaryMax?, seekingStatus?, workYears?, edu? }`
 - 出参：`UserProfile`
 
 ### 2.3 修改密码
@@ -135,7 +135,7 @@
 - 鉴权：是
 - 入参：`{ reason?: string }`
 - 出参：`{}`
-- 行为：软删账号，30 天内可恢复
+- 行为：软删账号并立即吊销当前 accessToken；T7 演示版未提供恢复接口（30 天恢复需运维 / 后续增量）
 
 ---
 
@@ -167,6 +167,7 @@
 `DELETE /api/v1/resumes/{resumeId}`
 - 鉴权：JOB_SEEKER（本人）
 - 出参：`{}`
+- 行为：软删；若删的是默认简历，自动把最近更新的剩余简历设为默认
 
 ### 3.6 设为默认简历
 `POST /api/v1/resumes/{resumeId}/set-default`
@@ -532,6 +533,7 @@
 `DELETE /api/v1/favorites/{jobId}`
 - 鉴权：JOB_SEEKER
 - 出参：`{}`
+- 幂等：未收藏也返回成功
 
 ### 11.3 我的收藏列表
 `GET /api/v1/favorites`
@@ -554,7 +556,12 @@
 - 鉴权：是
 - 入参：`{ objectKey }`
 - 出参：`{ url, contentType, size }`
-- 行为：后端校验对象已存在，记录到对应业务表
+- 行为：后端校验对象已存在 / 归属 / 大小；业务关联由客户端用返回的 URL 调后续 PATCH（T7 本地版）
+
+> T7 演示实现（2026-10-18）：对象存储替换为本地目录，`uploadUrl` 指向
+> `PUT /api/v1/uploads/local/{objectKey}?expires=&sig=`（HMAC + 默认 10 分钟）；确认只校验对象
+> 存在 / 归属 / 大小并返回 `/uploads/{objectKey}`，不新增上传元数据表。因 confirm 入参没有业务
+> 实体 id，头像 / 简历附件等关联由客户端随后调用 `PATCH /user/profile`、`PATCH /resumes/{id}` 等完成。
 
 ---
 
@@ -592,3 +599,4 @@
 | v0.3.2 | 2026-10-16 | 新增 §4.5 候选人匹配、§4.6 技能标签词表（人才筛选演示版，关键词匹配；预留语义检索升级）；招聘者模块行 4→6；账目：正文 68→70（GET 27→28 / POST 32→33），合计 70，分模块之和 67 仍待订正 |
 | v0.3.3 | 2026-10-18 | Step 3 T5 落地补注：§5.4~§5.6 的 COMPANY_ADMIN 指 `company_members.role=ADMIN`；§5.1/§5.2 补 `40410`，§5.2 明确仅 OPEN 且出参 `JobSummary[]`；§5.4 补 42210 / 改名实时同步；§5.6 补后端 1.2s 自动通过配置项 |
 | v0.3.4 | 2026-10-18 | Step 3 T6 落地补注：§8 八条消息接口的游标 / 双端超集 / 40912 / 42901 / 幂等 / 自动回复 / 已读 / typing 双通道 / 发送简历；新增 §8.2a 契约外 `GET /conversations/{id}`（不计账）；补未读持久化口径 |
+| v0.3.5 | 2026-10-18 | Step 3 T7 落地补注：§2.2 补 `gender?` / `birthDate?`，§2.8 软删 + 吊销 token（暂无恢复接口），§3.5 删除默认自动顺延，§11.2 取消幂等；§12.2 本地预签名直传（HMAC / 10 分钟 / `/uploads/**`）、confirm 不写业务表、关联由后续 PATCH 完成 |

@@ -1083,3 +1083,49 @@ Stage Summary:
   双端超集列表与扩展详情落地；单测 114/114、消息冒烟 40/40 可重复，其余基线无回归
 - 下一步：T7 求职者 / 简历 / 收藏 / 上传（§2/§3/§11/§12，19 条）；T9 前仍需用户拍板
   e2e 固定手机号对真实库的重置策略与 67/70 接口账目口径
+
+---
+
+Task ID: 27
+Agent: orchestrator (main)
+Task: Step 3 T7 — 用户 / 简历 / 收藏 / 上传（§2/§3/§11/§12，19 条）
+
+Work Log:
+- 侦察：契约 §2/§3/§11/§12、`docs/api-contract.md` §9 上传限制、前端 mock 的
+  profile / resumes / favorites / upload 形状、T1 的 users / user_profiles / resumes / favorites 表。
+- 决策：
+  - 外观偏好不新增表：Redis `pinliao:user:prefs:{userId}` 存 JSON，默认 auto；接口保留多端同步能力。
+  - 重置密码验证码场景 RESET；改手机号场景 LOGIN（新号可能未注册）；均在业务冲突校验之后消耗验证码。
+  - 注销为软删：`users.status=DELETED` + `deleted_at`，并吊销当前 accessToken；暂不做恢复接口。
+  - 简历权限：求职者仅本人；HR 仅当 `applications.resume_id` 指向该简历且 `company_id` 为当前公司，
+    越权统一 40410。首份自动默认；删除默认时把最近更新的剩余简历设为默认并同步
+    `user_profiles.default_resume_id`。
+  - 收藏 id `fav-{userId}-{jobId}`，`(user_id, job_id)` 唯一；重复 40910，取消幂等；
+    列表 `createdAt DESC, id ASC` 游标 + 全量 total。
+  - 上传用本地目录替代 OSS：服务端生成 objectKey，HMAC 预签名 PUT，确认后 `/uploads/**` 静态访问；
+    未新增上传元数据表，confirm 只校验归属 / 存在 / 大小，业务关联由后续 PATCH 完成。
+- 实现：
+  - user/：UserController / UserService / UserRequests / UserViews / UserCodes；8 条接口。
+  - resume/：ResumeController / ResumeService / ResumeRequests / ResumeViews / ResumeCodes；6 条接口。
+  - favorite/：FavoriteController / FavoriteService / FavoriteMapper / FavoriteEntity / 视图；3 条接口。
+  - upload/：UploadController / UploadService / UploadConfig / UploadProperties；2 条接口 + 本地 PUT。
+  - WebAuthConfig 放行密码重置与本地直传；application.yml 增 `pinliao.upload.dir` / `url-ttl`。
+  - 单测 37 项：用户 13 + 简历 10 + 收藏 5 + 上传 9。
+  - 新增 `backend/scripts/smoke-user.mjs` 64 项；临时 `u-reg-*` 账号隔离，RESP 清 Redis 验证码冷却，
+    finally 清理简历 / 收藏；`verify-seed.ps1` 的 resumes 排除 `u-reg-*` 与软删行。
+- 验收（实测）：
+  - `mvnw.cmd test` **151/151**（T6 基线 114 + T7 37）
+  - `smoke-user.mjs` **64/64**，连续两次执行均通过；19 条接口、错误分支、收藏两页、真实 PUT 直传与静态读回
+  - `smoke-auth` 20/20、`smoke-jobs` 49/49、`smoke-applications` 51/51、`smoke-company` 26/26、
+    `smoke-messages` 40/40（连续两次）、`verify-seed` 16/16 无回归
+  - 修复 `smoke-messages` 上一轮 WebSocket 自动回复迟到导致的计数抖动：开头 / 结尾各等待 1.8s
+- 文档：PROGRESS v1.15、step3-plan v1.10、CHANGELOG、api-endpoints v0.3.5、api-contract v0.3.2、\n  AI-CONTINUE v1.16（§6.16）、
+  backend/README、AGENTS、README、PROJECT、worklog
+- 提交：`c26dc44`（feat: Step 3 T7）+ 紧后 docs 结算
+
+Stage Summary:
+- T7 完成：§2 用户 8 条 + §3 简历 6 条 + §11 收藏 3 条 + §12 上传 2 条全部落地；偏好 / 软删注销 /
+  HR 简历可见性 / 默认顺延 / 收藏游标 / 本地 HMAC 上传；单测 151/151、T7 冒烟 64/64 可重复，
+  其余冒烟与种子 16/16 无回归
+- 下一步：T8 招聘者 / 候选人 / 人才筛选（§4，6 条；重点 §4.1/§4.2 HR 画像 + §4.5/§4.6 关键词匹配）；
+  T9 前仍需用户拍板 e2e 固定手机号对真实库的重置策略与 67/70 接口账目口径

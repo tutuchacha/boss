@@ -1,6 +1,6 @@
 # 聘聊 · API 契约规范
 
-> 版本：v0.3.1 · 最后更新：2026-10-18
+> 版本：v0.3.2 · 最后更新：2026-10-18
 > 本文档定义所有 API 的通用规范。具体接口清单见 `docs/api-endpoints.md`。
 > 框架无关：无论前端 Next.js / Vue / uni-app、后端 Spring Boot / 其他，均按本规范实现。
 
@@ -313,6 +313,10 @@ X-RateLimit-Reset: 1695283200
 - 前端直传 MinIO/S3。
 - 上传完成后调 `POST /api/v1/uploads/confirm` 通知后端记录。
 
+> T7 本地演示实现（2026-10-18）：无对象存储时由后端把预签名 URL 指向
+> `PUT /api/v1/uploads/local/{objectKey}`（HMAC + 有效期），上传后经 `/uploads/**` 静态访问；
+> `sign` / `confirm` 的语义与限制不变，后续可无感替换为 MinIO/S3。
+
 ### 9.2 限制
 
 | 类型 | 允许 MIME | 大小 |
@@ -417,3 +421,4 @@ STOMP frame body 仍为 JSON，遵循统一包络的 `data` 字段结构。接�
 |---|---|---|
 | v0.3 | 2026-09-21 | Step 0 初版：URL、方法、包络、错误码、限流、缓存、WS、安全 |
 | v0.3.1 | 2026-10-18 | Step 3 T6 落地补注：WebSocket query token / CONNECT header、4 个推送主题 + errors 队列、STOMP 发送 body 与不回显、错误帧、演示自动回复、未读以数据库为准 |
+| v0.3.2 | 2026-10-18 | Step 3 T7 落地补注：§9.1 增加本地目录替代对象存储的演示实现（预签名 PUT + `/uploads/**`），`sign` / `confirm` 与上传限制不变 |
