@@ -485,6 +485,18 @@ const { data, isPending } = useQuery({
 - **求职者可见职位**：`status='OPEN' AND deleted_at IS NULL`（+ 公司存在），与 mock `listSeekerJobs()`
   语义一致；T3 起所有求职者侧职位查询都走这条定义（对应 AGENTS §2.10）。
 
+### 6.10 注册落库与演示库重置（Step 3 T2b 起）
+
+- **注册会真实落库且手机号唯一**：`u-reg-*` / `up-reg-*` / `co-reg-*` / `hr-reg-*` / `cm-reg-*`
+  记录持久保留（同手机号重复注册 = 40910）；`verify-seed.ps1` 的 users / companies 断言已按前缀排除。
+- **注册 id 派生自手机号**（`u-reg-{phone}` 等）：mock 用进程内递增计数（`u-reg-1`，刷新即复位），
+  落库不能照抄（重启即冲突）；前端只把 id 当不透明字符串，无需对齐 mock 的 id 形态。
+- **e2e 注册段用固定手机号 `13900004321`**：Mock 阶段刷新即可重跑；**T9 对真实后端重跑前必须定重置策略**
+  （候选：跑 e2e 前重建演示库 / e2e 改用时间派生手机号并同步期望公司名）——**待用户拍板，勿擅自改 e2e**。
+- **纯 Mockito 单测碰 MyBatis-Plus 的 LambdaWrapper 需先初始化 TableInfo**（无 Spring 上下文时报
+  `can not find lambda cache for this entity`）：见 `AuthServiceRegisterTest` 静态块的
+  `TableInfoHelper.initTableInfo`（对 UserEntity / UserProfileEntity / HrProfileEntity / CompanyMemberEntity）。
+
 ---
 
 ## 7. 数据与契约
@@ -582,3 +594,4 @@ HR 新建 → 追加。
 | v1.7 | 2026-10-17 | Step 3 T0：`backend/` Spring Boot 3.5.16 骨架（包络 / 错误码 / traceId）与本地环境定案（JBR 21 / MySQL 3307 / Redis 6379 / 免 Docker 直装）；补 §6.8 后端环境坑 |
 | v1.8 | 2026-10-17 | Step 3 T2a：鉴权（验证码 / 登录 / 刷新 / 退出 / me）落地；§2 状态行更新；§6.8 补种子 hash 双处同步与 BOOLEAN 建表坑 |
 | v1.9 | 2026-10-18 | Step 3 T1：全量表（V3）+ 演示种子（V4~V8）+ 种子生成器与抽查脚本落地；补 §6.9（租户注入策略 / 种子生成器用法 / jsqlparser 取值差异） |
+| v1.10 | 2026-10-18 | Step 3 T2b：注册（§1.2 / 40910 / HR 自动建未认证公司）落地；补 §6.10（注册落库与演示库重置 / e2e 固定手机号重跑风险 / LambdaWrapper TableInfo 单测坑） |

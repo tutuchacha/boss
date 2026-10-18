@@ -856,3 +856,35 @@ Stage Summary:
   租户注入策略已定并被测试覆盖（求职者跨租户是产品语义，勿改成按表一刀切）
 - 下一步：T2b 注册（§1.2 + 注册自动建公司「新注册企业-{手机尾4}」、40910/40110，照抄 mock `registerMockAccount` 语义）；
   随后 T3 职位与字典模块起
+
+---
+
+Task ID: 21
+Agent: orchestrator (main)
+Task: Step 3 T2b — 注册（§1.2；HR 自动建未认证公司；40910/40110）
+
+Work Log:
+- 语义侦察：mock `registerMockAccount`（用户/画像/公司/成员字段与文案）+ 前端 service 校验顺序
+  （字段校验 → 已注册 40910 → 验证码 40110，失败不消耗）+ e2e 注册段（固定手机号 13900004321）
+- 实现：
+  - `ApiCodes.PHONE_REGISTERED = 40910`；`AuthRequests.RegisterRequest`（phone 正则 / password ≥6 / role 枚举）
+  - `AuthService.register`（@Transactional）：校验顺序对齐 mock；HR 自动建「新注册企业-{尾4}」
+    （未融资 / 1-19人 / 企业服务 / verified=false）+ 招聘官{尾4} + ADMIN 成员；求职者建「求职者{尾4}」画像；
+    id 派生自手机号（u-reg-/up-reg-/co-reg-/hr-reg-/cm-reg-{phone}）——mock 递增计数刷新复位，落库需跨重启唯一
+  - `AuthController` 新增 `POST /api/v1/auth/register`（白名单已含 register，无需改拦截器）
+- 测试：`AuthServiceRegisterTest` 4 项（Mockito 假体；踩坑：无 Spring 上下文时 LambdaWrapper 报
+  `can not find lambda cache` → 静态块 `TableInfoHelper.initTableInfo` 手工注册 4 个实体）；
+  `mvnw test` 14/14 → **18/18**
+- 冒烟：`smoke-auth.mjs` 新增注册段 6 项（14 → **20 项**）全对——发码 200 / 坏码 40110 / HR 成功
+  （新注册企业-0259、ADMIN、verified=false）/ 重复 40910 / me 带新 token / 求职者无 company；
+  边界手工验证：42201 ×3（phone/password/role）+ 未发码 40110
+- `verify-seed.ps1`：users / companies 行数按前缀排除 `u-reg-*` / `co-reg-*`（冒烟注册不破坏 16 项断言，
+  实测 16/16 仍全中）；后端已停、MySQL 3307 与 Redis 6379 保持运行
+- 文档：PROGRESS v1.9、step3-plan v1.4（T2b ✅）、CHANGELOG、AI-CONTINUE §6.10（注册落库 / e2e 固定手机号
+  重跑风险 / TableInfo 坑）、backend/README + AGENTS 命令更新
+
+Stage Summary:
+- T2b 完成：注册链路可用且与 mock 语义一致（已注册 40910、验证码 40110、HR 未认证公司联动企业认证）；
+  注册记录持久保留（演示库现有 u-reg-*/co-reg-* 等测试记录）
+- 下一步：T3 职位与分类字典（§6/§7：列表/搜索/筛选/排序 + HR CRUD/概览；验收基线 = 可见职位 38 条）；
+  T9 前需定 e2e 固定手机号对真实库重跑的重置策略（AI-CONTINUE §6.10，待用户拍板）
