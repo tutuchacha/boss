@@ -159,6 +159,18 @@ public class JobQueryService {
         return new DetailResult(detail, "\"" + job.getId() + "-" + version + "\"");
     }
 
+    /** 投递 / 面试模块复用：按已加载职位映射摘要（不校验可见性，归属校验由调用方负责）。 */
+    public JobViews.Summary summaryOf(JobEntity job) {
+        CompanyEntity company = job.getCompanyId() == null ? null : companyMapper.selectById(job.getCompanyId());
+        return toSummary(job, company);
+    }
+
+    /** 投递详情复用：按已加载职位映射详情（相似职位留空，由详情页按需查询）。 */
+    public JobViews.Detail detailOf(JobEntity job) {
+        CompanyEntity company = job.getCompanyId() == null ? null : companyMapper.selectById(job.getCompanyId());
+        return toDetail(job, company, List.of());
+    }
+
     /** §6.4 相似职位（同 sub 或同 cat，排除自身；limit 默认 6）。 */
     public List<JobViews.Summary> similar(String jobId, Integer limit) {
         JobEntity job = requireVisibleJob(jobId);
