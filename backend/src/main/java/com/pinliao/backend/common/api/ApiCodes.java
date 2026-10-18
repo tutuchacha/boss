@@ -29,6 +29,8 @@ public final class ApiCodes {
     public static final int NOT_FOUND = 40401;
     /** 40901 资源已存在 */
     public static final int CONFLICT = 40901;
+    /** 40910 手机号已注册（契约 §1.2） */
+    public static final int PHONE_REGISTERED = 40910;
     /** 42201 字段校验失败（配合 errors 数组） */
     public static final int FIELD_VALIDATION = 42201;
     /** 42901 请求过于频繁（限流） */
