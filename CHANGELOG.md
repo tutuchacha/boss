@@ -6,6 +6,35 @@
 
 ---
 
+## [030a5b2] 2026-10-18 — Step 3 T2b：注册（§1.2，HR 自动建未认证公司）
+
+> 契约 §1.2；注册成功即登录（AuthResult 与登录一致，带 company / member）；校验顺序对齐 mock
+> （字段校验 42201 → 已注册 40910 → 验证码 40110，失败不消耗）。提交 hash：`030a5b2`（结算见紧后 docs 提交）。
+
+### Added
+
+- `POST /api/v1/auth/register` — `{phone, code, password, role}`；HR 自动建未认证公司
+  「新注册企业-{尾4}」（未融资 / 1-19人 / 企业服务 / `verified=false`）+ 招聘官{尾4} + ADMIN 成员；
+  求职者建「求职者{尾4}」画像；id 派生自手机号（`u-reg-/up-reg-/co-reg-/hr-reg-/cm-reg-{phone}` ——
+  mock 为进程内递增计数、刷新即复位，落库改为手机号派生保证跨重启稳定唯一）。
+- `ApiCodes.PHONE_REGISTERED = 40910`；`AuthRequests.RegisterRequest`（phone 正则 / password ≥ 6 / role 枚举）。
+- `AuthServiceRegisterTest` 4 项（校验顺序且不消耗验证码 / 坏码不落库 / 求职者画像 / HR 建公司与成员；
+  Mockito 假体，踩坑见 AI-CONTINUE §6.10）。
+
+### Changed
+
+- `backend/scripts/smoke-auth.mjs` — 新增注册段 6 项（14 → **20 项**）：发码 / 坏码 40110 /
+  HR 注册（`verified=false`）/ 重复 40910 / me 带新 token / 求职者无 company。
+- `backend/scripts/verify-seed.ps1` — users / companies 行数按前缀排除 `u-reg-*` / `co-reg-*`（16 项断言不受注册影响）。
+
+### Docs
+
+- 实测：`mvnw test` **18/18**；冒烟 **20/20**；`verify-seed` **16/16**；字段校验 42201 ×3 + 未发码 40110 手工验证。
+- `docs/step3-plan.md` v1.4 — T2b 行 ✅（`030a5b2`）、§4 补实测、下一步 T3；`PROGRESS.md` v1.9；`worklog.md` Task 21；
+  `docs/AI-CONTINUE.md` v1.10（§6.10 注册落库与演示库重置）；`backend/README.md` 冒烟数更新。
+
+---
+
 ## [8ed73f8 + 85518bf] 2026-10-18 — Step 3 T1：数据库迁移与演示种子（对齐 mock 数字）
 
 > 分两次 feat 落地：`8ed73f8`（T1a 建表 + MyBatis-Plus 配置）+ `85518bf`（T1b 种子 + 生成器/抽查脚本）。

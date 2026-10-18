@@ -28,7 +28,7 @@ $env:JAVA_HOME = 'C:\Program Files\JetBrains\IntelliJ IDEA Community Edition 202
 # 4) 启动后端（首次会下载 Maven 3.9.16 与依赖，耗时较长）
 .\mvnw.cmd spring-boot:run
 
-# 5) 另开终端跑鉴权冒烟（登录 / 刷新 / 退出全链路；需 Node 18+）
+# 5) 另开终端跑鉴权冒烟（登录 / 注册 / 刷新 / 退出全链路；需 Node 18+）
 node scripts\smoke-auth.mjs
 
 # 6) 种子行数抽查（16 项断言；需已启动过后端完成 Flyway 迁移 V1~V8）
@@ -59,7 +59,7 @@ powershell -ExecutionPolicy Bypass -File scripts\verify-seed.ps1
 | `db-start.ps1` / `db-stop.ps1` | 起 / 停 MySQL |
 | `redis-start.ps1` / `redis-stop.ps1` | 起 / 停 Redis |
 | `dev-up.ps1` / `dev-down.ps1` | 一键起 / 停两者 |
-| `smoke-auth.mjs` | 鉴权接口冒烟（Node 18+；后端启动后运行，14 项断言） |
+| `smoke-auth.mjs` | 鉴权接口冒烟（Node 18+；后端启动后运行，20 项断言含注册） |
 | `verify-seed.ps1` | 种子行数抽查（16 项断言，对齐 step3-plan §3 数字；须先完成迁移） |
 
 另有 `scripts/seed-gen/`（开发期工具）：从仓库 `src/api/mock/*` 生成 `V4~V8` 种子迁移，
@@ -83,5 +83,5 @@ backend/
 │  ├─ application.yml          通用配置
 │  ├─ application-local.yml    本地环境（MySQL 3307 / Redis 6379）
 │  └─ db/migration/            Flyway 迁移（V1 鉴权建表 / V2 演示账号 / V3 业务建表 / V4~V8 演示种子）
-└─ src/test/java/...           包络 / JWT / 种子密码 / 租户策略测试（不依赖数据库）
+└─ src/test/java/...           包络 / JWT / 种子密码 / 租户策略 / 注册测试（不依赖数据库）
 ```
