@@ -30,6 +30,9 @@ $env:JAVA_HOME = 'C:\Program Files\JetBrains\IntelliJ IDEA Community Edition 202
 
 # 5) 另开终端跑鉴权冒烟（登录 / 刷新 / 退出全链路；需 Node 18+）
 node scripts\smoke-auth.mjs
+
+# 6) 种子行数抽查（16 项断言；需已启动过后端完成 Flyway 迁移 V1~V8）
+powershell -ExecutionPolicy Bypass -File scripts\verify-seed.ps1
 ```
 
 自检地址：
@@ -57,6 +60,10 @@ node scripts\smoke-auth.mjs
 | `redis-start.ps1` / `redis-stop.ps1` | 起 / 停 Redis |
 | `dev-up.ps1` / `dev-down.ps1` | 一键起 / 停两者 |
 | `smoke-auth.mjs` | 鉴权接口冒烟（Node 18+；后端启动后运行，14 项断言） |
+| `verify-seed.ps1` | 种子行数抽查（16 项断言，对齐 step3-plan §3 数字；须先完成迁移） |
+
+另有 `scripts/seed-gen/`（开发期工具）：从仓库 `src/api/mock/*` 生成 `V4~V8` 种子迁移，
+杜绝手抄漂移；**勿手改 `V4~V8` 迁移文件**，改演示数据请改 mock 后重跑生成脚本（用法见脚本头部注释）。
 
 可用环境变量覆盖：`PINLIAO_MYSQL_HOME`（MySQL 二进制目录）、`PINLIAO_REDIS_HOME`（Redis 目录）。
 
@@ -70,11 +77,11 @@ backend/
 │  ├─ common/web/      traceId 过滤器 + 包络装配 ResponseAdvice
 │  ├─ common/exception/ 业务异常 + 全局异常处理
 │  ├─ auth/            鉴权模块（JWT / Redis 令牌 / 验证码 / 登录接口，T2a）
-│  ├─ config/          OpenAPI 等配置
+│  ├─ config/          MyBatis-Plus 分页 / 租户注入 / 时间填充 + OpenAPI 等配置（T1）
 │  └─ demo/            骨架自检样例接口（非契约，T9 后可移除）
 ├─ src/main/resources/
 │  ├─ application.yml          通用配置
 │  ├─ application-local.yml    本地环境（MySQL 3307 / Redis 6379）
-│  └─ db/migration/            Flyway 迁移（V1 鉴权建表 / V2 演示账号；T1 从 V3 起）
-└─ src/test/java/...           包络 / JWT / 种子密码回归测试（不依赖数据库）
+│  └─ db/migration/            Flyway 迁移（V1 鉴权建表 / V2 演示账号 / V3 业务建表 / V4~V8 演示种子）
+└─ src/test/java/...           包络 / JWT / 种子密码 / 租户策略测试（不依赖数据库）
 ```

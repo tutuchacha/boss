@@ -6,6 +6,37 @@
 
 ---
 
+## [8ed73f8 + 85518bf] 2026-10-18 — Step 3 T1：数据库迁移与演示种子（对齐 mock 数字）
+
+> 分两次 feat 落地：`8ed73f8`（T1a 建表 + MyBatis-Plus 配置）+ `85518bf`（T1b 种子 + 生成器/抽查脚本）。
+> 种子由 `backend/scripts/seed-gen` 直接从 `src/api/mock/*` 生成，数字与语义对齐 `docs/step3-plan.md` §3。
+
+### Added
+
+- Flyway `V3__core_schema.sql` — 12 张剩余业务表：jobs（`companyId` + 冗余 hr 展示字段）/ resumes /
+  favorites / applications / interviews / conversations / messages / resume_view_logs +
+  cities / categories（含一级职责模板）/ sys_configs / tenant_configs / usage_logs / audit_logs。
+- 种子迁移 `V4~V8` — 公司 16 / 城市 9 / 分类 84；职位 51（可见 38、云杉 7，关闭规则同 mock `stableHash(id)%4`）；
+  候选人 6 账号 + 简历 7（content JSON 原文搬自 mock）；投递 9（HR 6 覆盖全状态 + 求职者 3 均非云杉）+
+  面试 3；会话 8（HR 6 未读 4 + 求职者 2）+ 消息 16。
+- `backend/scripts/seed-gen/`（Node 原生 TS + loader hook）— 从 `src/api/mock/*` 一键生成 V4~V8，
+  迁移文件带「勿手改」头；`backend/scripts/verify-seed.ps1` — 16 项行数抽查。
+- MyBatis-Plus：分页插件（MySQL，单页 ≤200）、`PinliaoTenantLineHandler`（HR 注入 `company_id`；
+  求职者跨租户与全局表不注入）、`PinliaoMetaObjectHandler`（created/updated UTC 自动填充）。
+
+### Changed
+
+- `PinliaoTenantLineHandlerTest` — 新增 6 项（注入策略 / 大小写 / 列名 / 缺企业上下文 40301 兜底）；
+  `mvnw test` 8/8 → **14/14**。
+
+### Docs
+
+- 实测：启动自动 migrate **V1~V8 成功**（3.3s）；`verify-seed.ps1` **16/16**；鉴权冒烟 **14/14 无回归**。
+- `docs/step3-plan.md` v1.3 — T1 行 ✅、§4 补实测、下一步 T2b；`PROGRESS.md` v1.8；`worklog.md` Task 20；
+  `docs/AI-CONTINUE.md` §6.9（租户注入策略 / 种子生成器用法）；`backend/README.md` 命令更新。
+
+---
+
 ## [6f286e3] 2026-10-17 — Step 3 T2a：鉴权（验证码 / 密码·短信登录 / 刷新 / 退出 / me）
 
 > 按用户指示「先完成登入和退出」，T2a 先行于 T1（T1 剩余迁移顺延为 V3+）。

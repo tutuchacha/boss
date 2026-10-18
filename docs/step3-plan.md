@@ -2,7 +2,7 @@
 
 > 本文件回答两个问题：**Step 3 怎么分块做**、**每个新会话怎么低上下文接力**。
 > 状态唯一定稿在 `PROGRESS.md`；本文件是执行计划与任务板（勾选进度以这里为准）。
-> 最后更新：2026-10-17 · 状态：T0 ✅、**T2a ✅（登录/退出，先行于 T1）**；下一步：T1 剩余迁移（V3+）或 T2b 注册（§1.2）
+> 最后更新：2026-10-18 · 状态：T0 ✅、**T2a ✅（登录/退出，先行于 T1）**、**T1 ✅（全量表 + 演示种子，V1~V8 已迁移）**；下一步：T2b 注册（§1.2）
 
 ---
 
@@ -55,7 +55,7 @@
 | 编号 | 内容 | 接口范围 | 预估会话 | 状态 |
 |---|---|---|---|---|
 | T0 | 环境安装与工程骨架（含统一包络/异常/健康检查） | — | 1 | ✅ 2026-10-17（`dd7a948`） |
-| T1 | 数据库迁移与演示种子（对齐 mock 数字；鉴权表与演示账号已随 T2a 落地） | 剩余全部表（V3+） | 1–2 | ⬜ |
+| T1 | 数据库迁移与演示种子（对齐 mock 数字；鉴权表与演示账号已随 T2a 落地） | 剩余全部表（V3+） | 1–2 | ✅ 2026-10-18（`8ed73f8` T1a + `85518bf` T1b） |
 | T2a | 鉴权：验证码 / 登录（密码+短信）/ 刷新 / 退出 / me | §1.1、§1.3~§1.7（6 条） | 1 | ✅ 2026-10-17（`6f286e3`；经用户指示先行于 T1） |
 | T2b | 鉴权：注册（含注册自动建公司） | §1.2（1 条） | ≤1 | ⬜ |
 | T3 | 职位 + 分类字典（浏览/搜索/HR 管理） | §6 / §7（12 条） | 1 | ⬜ |
@@ -70,7 +70,7 @@
 > `docs/api-endpoints.md` 模块小计存在 67 vs 70 的既有账目差异（待用户确认），
 > 接口条数以正文为准；分块只按功能域划分，不依赖该账目。
 
-**依赖关系**：T0 → T2a ✅（鉴权基础；只依赖 V1/V2 鉴权表）→ T1（剩余表 + 全量种子）→ T2b（注册建公司）→
+**依赖关系**：T0 → T2a ✅（鉴权基础；只依赖 V1/V2 鉴权表）→ T1 ✅（剩余表 + 全量种子）→ T2b（注册建公司）→
 之后各模块可按序推进（T6 最难、T8 依赖 T1 简历种子）；T9 必须最后；每个 chunk 一次会话（或按需拆小）。
 
 ## 3. 演示语义对齐清单（后端必须复刻；T9 全绿的前提）
@@ -103,13 +103,20 @@
   - 验收（实测）：`mvnw test` **3/3**；启动 3.5s 且 `/actuator/health` UP；ping / validate（422+42201+errors）/
     error（404+40401）包络与错误码符合契约（traceId 与响应头一致）；swagger / api-docs 200；
     Flyway 已连 MySQL（0 迁移，T1 补 V1/V2）
-- **T1 数据迁移与种子**（注：`V1`/`V2` 编号已被 T2a 的鉴权子集占用——V1 鉴权建表、V2 演示账号/云杉科技；
-  T1 从 `V3__core_schema.sql` 起继续建剩余业务表，种子迁移按 `V4+` 递增）
-  - Flyway `V3+` 按 `docs/data-model.md` 建表（`companyId` 多租户列 + 必要索引）；种子迁移补齐演示数据
-  - 种子来源：`src/api/mock/`（hrJobs / candidates / applications / hrConversations / resumes /
-    companies / auth）——数字与文案对齐 §3 清单
-  - MyBatis-Plus：分页插件、租户拦截器（companyId 注入）、创建/更新时间自动填充
-  - 验收：启动自动 migrate 成功 + 抽查 SQL（各表行数 = §3 清单）
+- **T1 数据迁移与种子 ✅ 2026-10-18 实际**（`V1`/`V2` 编号已被 T2a 的鉴权子集占用——V1 鉴权建表、
+  V2 演示账号/云杉科技；T1 自 `V3__core_schema.sql` 起，种子迁移 `V4~V8`）
+  - Flyway `V3` 按 `docs/data-model.md` 建 12 张剩余业务表（jobs / resumes / favorites / applications /
+    interviews / conversations / messages / resume_view_logs + cities / categories / sys_configs /
+    tenant_configs / usage_logs / audit_logs，`companyId` 租户列 + 必要索引；hr 展示字段冗余，演示无全量 HR 账号）
+  - 种子迁移 `V4~V8` 数字对齐 §3：公司 16 / 城市 9 / 分类 84 / 职位 51（可见 38、云杉 7，关闭规则同
+    mock `stableHash(id)%4`）/ 候选人 6 + 简历 7 / 投递 9（HR 6 覆盖全状态 + 求职者 3 均非云杉）/
+    面试 3 / 会话 8（HR 6 未读 4 + 求职者 2）/ 消息 16
+  - 种子由 `backend/scripts/seed-gen/generate.mjs` 直接从 `src/api/mock/*` 生成（Node 原生 TS + loader hook），
+    迁移文件带「勿手改」头；改 mock 数据后重跑生成脚本
+  - MyBatis-Plus：分页插件（MySQL，单页 ≤200）、租户拦截器（**HR 注入 company_id；求职者跨租户不注入**，
+    见 `PinliaoTenantLineHandler`）、created/updated 自动填充（UTC）
+  - 验收（实测）：启动自动 migrate **V1~V8 成功**（3.3s）；`mvnw test` **14/14**（新增租户策略 6 项）；
+    `scripts/verify-seed.ps1` **16/16 命中**；鉴权冒烟 14/14 无回归
 - **T2a 鉴权（登录/退出）✅ 2026-10-17 实际**：§1.1、§1.3~§1.7 六条；jjwt HS256（access 2h / refresh 30d，
   一次性轮换）+ Redis（refresh 白名单、access jti 吊销名单、验证码 5min、60s 限流）；`AuthInterceptor`
   默认保护 `/api/v1/**`（白名单：`auth/sms|login|refresh|register`、`_demo`）；错误码
@@ -184,7 +191,7 @@
 | 1 | 仓库布局 | ✅ **单仓 `backend/`**（契约/文档/代码同一历史，AI 接力最省心） |
 | 2 | 数据库/中间件 | ✅ **MySQL 8 专用实例 3307 + Redis 6379**（免 Docker 直装，数据 `.local/`；原 PostgreSQL 16 方案作废） |
 | 3 | JDK | ✅ **IDEA 自带 JBR 21**（免安装；构建前设 `JAVA_HOME`；不装 Temurin） |
-| 4 | 开工时机 | ✅ 2026-10-17 T0 已开工并完成；当前 T1 |
+| 4 | 开工时机 | ✅ 2026-10-17 T0 已开工并完成；T1 ✅（2026-10-18）；当前 T2b |
 
 ## 7. 修订记录
 
@@ -193,3 +200,4 @@
 | v1.0 | 2026-10-17 | 首版：T0~T9 分块任务板、演示语义对齐清单、上下文交接协议（开工/收工/应急）、待拍板事项 |
 | v1.1 | 2026-10-17 | T0 完成：环境定案（JBR 21 / MySQL 3307 / Redis 6379 / 免 Docker 直装）与骨架落地（Boot 3.5.16、统一包络 / 异常 / traceId）；T0 行 ✅、§4 实测结果、§6 决策结项 |
 | v1.2 | 2026-10-17 | T2a 鉴权（登录/退出，§1.1/§1.3~§1.7）先行完成并经用户指示先于 T1：T2 拆为 T2a ✅ / T2b ⬜；T1 迁移编号顺延 V3+；§4 补 T2a 实测 |
+| v1.3 | 2026-10-18 | T1 完成：V3 建 12 张剩余业务表 + V4~V8 演示种子（数字对齐 §3）+ MyBatis-Plus 分页/租户拦截/时间填充；种子生成器 `backend/scripts/seed-gen` 与抽查脚本 `verify-seed.ps1` 就绪；T1 行 ✅（`8ed73f8`/`85518bf`）、§4 补实测、下一步 T2b |
