@@ -194,6 +194,28 @@ class JobQueryServiceTest {
         assertEquals(50, JobQueryService.clampLimit(50));
     }
 
+    @Test
+    void 公司职位_游标分页且公司名实时装配() {
+        when(jobMapper.selectVisibleByCompany("co-1")).thenReturn(List.of(
+                job("job-1", "互联网", "前端开发", 0),
+                job("job-2", "互联网", "后端开发", 1),
+                job("job-3", "财务", "会计", 2)));
+        when(companyMapper.selectByIds(any())).thenReturn(List.of(company()));
+
+        JobViews.Page<JobViews.Summary> p1 = service.listByCompany("co-1", null, 2);
+        assertEquals(List.of("job-1", "job-2"), ids(p1));
+        assertTrue(p1.pagination().hasMore());
+        assertEquals(3, p1.pagination().total());
+        assertEquals("云杉科技", p1.list().get(0).company().name());
+
+        JobViews.Page<JobViews.Summary> p2 =
+                service.listByCompany("co-1", p1.pagination().nextCursor(), 2);
+        assertEquals(List.of("job-3"), ids(p2));
+        assertFalse(p2.pagination().hasMore());
+        assertNull(p2.pagination().nextCursor());
+        verify(jobMapper, times(2)).selectVisibleByCompany("co-1");
+    }
+
     // ---------------------------------------------------------------
     // 详情 / 相似 / 埋点
     // ---------------------------------------------------------------

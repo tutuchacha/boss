@@ -14,6 +14,8 @@ class AuthInterceptorPublicEndpointTest {
         assertTrue(AuthInterceptor.isPublicEndpoint("GET", "/api/v1/jobs/job-1"));
         assertTrue(AuthInterceptor.isPublicEndpoint("GET", "/api/v1/jobs/job-1/similar"));
         assertTrue(AuthInterceptor.isPublicEndpoint("GET", "/api/v1/search/jobs"));
+        assertTrue(AuthInterceptor.isPublicEndpoint("GET", "/api/v1/companies/co-1"));
+        assertTrue(AuthInterceptor.isPublicEndpoint("GET", "/api/v1/companies/co-1/jobs"));
         assertTrue(AuthInterceptor.isPublicEndpoint("GET", "/api/v1/categories"));
         assertTrue(AuthInterceptor.isPublicEndpoint("GET", "/api/v1/cities"));
         assertTrue(AuthInterceptor.isPublicEndpoint("GET", "/api/v1/dict"));
@@ -28,6 +30,10 @@ class AuthInterceptorPublicEndpointTest {
         assertFalse(AuthInterceptor.isPublicEndpoint("POST", "/api/v1/jobs/job-1/close"));
         assertFalse(AuthInterceptor.isPublicEndpoint("POST", "/api/v1/jobs/job-1/reopen"));
         assertFalse(AuthInterceptor.isPublicEndpoint("GET", "/api/v1/hr/jobs"));
+        assertFalse(AuthInterceptor.isPublicEndpoint("GET", "/api/v1/company/me"));
+        assertFalse(AuthInterceptor.isPublicEndpoint("PATCH", "/api/v1/company/me"));
+        assertFalse(AuthInterceptor.isPublicEndpoint("GET", "/api/v1/company/members"));
+        assertFalse(AuthInterceptor.isPublicEndpoint("POST", "/api/v1/company/me/verify"));
         assertFalse(AuthInterceptor.isPublicEndpoint("GET", "/api/v1/jobs/job-1/apply"));
         assertFalse(AuthInterceptor.isPublicEndpoint(null, "/api/v1/jobs"));
         assertFalse(AuthInterceptor.isPublicEndpoint("GET", null));
