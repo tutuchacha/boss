@@ -6,6 +6,49 @@
 
 ---
 
+## [8d9513a] 2026-10-18 — Step 3 T6：消息与 WebSocket（§8.1~§8.8 + 4 主题）
+
+> 消息 REST 八条 + `/ws` STOMP 实时通道；未读持久化事实源 + 双向自动回复演示语义。
+> 提交 hash：`8d9513a`（结算见紧后 docs 提交）。
+
+### Added
+
+- 消息模块（`message/`）：`GET /api/v1/conversations`（§8.1，游标）、`GET .../{id}/messages`（§8.2）、
+  `POST /api/v1/conversations`（§8.3，40912）、`POST .../{id}/messages`（§8.4，30 次/分钟/用户、
+  `idempotencyKey` 24h）、`POST .../{id}/read`（§8.5）、`POST .../{id}/typing`（§8.6）、
+  `POST .../{id}/actions/send-resume`（§8.7）、`POST .../{id}/close`（§8.8）；另提供契约外
+  `GET /api/v1/conversations/{id}` 给 HR 聊天页读取顶栏（不计入 §8 条数）。
+- WebSocket：`/ws`（STOMP over WebSocket），握手支持 `Authorization: Bearer` / query `token` /
+  `access_token`，CONNECT 也接受原生 header；订阅 `/user/queue/messages`、`/user/queue/typing`、
+  `/topic/conversation/{id}/typing`，错误推 `/user/queue/errors`；发送主题
+  `/app/conversation/{id}/send|typing|read`，复用 REST 业务校验。
+- 双向自动回复：求职者 TEXT → HR 关键词回复；HR TEXT → 候选人关键词回复；先推 typing=true，
+  1.2s 后落库并推消息 + typing=false；延迟由 `pinliao.message.auto-reply-delay-ms` 覆盖。
+- 新增 `backend/scripts/smoke-messages.mjs`（40 项）：REST 全链路 + WebSocket 推送 / STOMP 发送 /
+  typing / 错误队列 / 非法 token；只读写 `conv-new-*` / `msg-new-*`，保护种子未读基线。
+
+### Changed
+
+- 会话列表返回双端超集（`conversation` + `job` + `hr` + `company` + `candidate` + `lastMessage`），
+  同一端点按角色取用；消息历史统一按 `createdAt DESC, id ASC`。
+- 未读计数以 `conversations.user_unread_count` / `hr_unread_count` 为事实源；Redis 仅用于发送限流与
+  `idempotencyKey` 去重（不承担未读持久化）。
+- T4 面试邀请写入 `INTERVIEW_INVITE` 消息后，现在同步通过实时通道推送给求职者。
+- `/api/v1/conversations/{id}` 归属隔离统一 40410；`firstMessage` 创建 SYSTEM + TEXT 两条消息。
+
+### Fixed
+
+- 会话/消息内存排序前先复制查询结果，避免 MyBatis 返回不可变列表导致排序异常。
+- 修正 T6 单测夹具的会话 userId 与 HR 发送断言不一致、跨公司详情夹具未设置 companyId 的问题。
+
+### Docs
+
+- 同步 `docs/api-endpoints.md` §8（角色视角、扩展详情、幂等、自动回复、typing 双通道）、
+  `docs/api-contract.md` §10（4 主题 + 错误队列 + 认证方式）、`backend/README.md`、`AGENTS.md`、
+  `PROGRESS.md`、`docs/step3-plan.md`、`docs/AI-CONTINUE.md`、`worklog.md`。
+
+---
+
 ## [2359625] 2026-10-18 — Step 3 T5：公司模块与企业认证（§5.1~§5.6）
 
 > 契约 §5.1~§5.6（6 条）；公开公司读 + HR 公司管理 + 企业认证异步自动通过。

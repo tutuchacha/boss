@@ -62,6 +62,13 @@ powershell -ExecutionPolicy Bypass -File scripts\verify-seed.ps1
   `GET|PATCH /api/v1/company/me`、`GET /api/v1/company/members`、`POST /api/v1/company/me/verify`
   （40410 / 40916 / 42210）；COMPANY_ADMIN 以 `company_members.role=ADMIN` 为准；
   认证自动通过延迟可用 `pinliao.company.verify-delay-ms` 覆盖（默认 1200ms）
+- 消息接口（登录 token）：`GET|POST /api/v1/conversations`、`GET /api/v1/conversations/{id}`（扩展）、
+  `GET|POST /api/v1/conversations/{id}/messages`、`POST .../read|typing|close`、
+  `POST .../actions/send-resume`（40912 / 40410 / 42201 / 42901）；TEXT 自动回复延迟可用
+  `pinliao.message.auto-reply-delay-ms` 覆盖（默认 1200ms）
+- WebSocket：`ws://localhost:8080/ws?token=<accessToken>`（STOMP）；订阅 `/user/queue/messages`、
+  `/user/queue/typing`、`/topic/conversation/{id}/typing`；发送 `/app/conversation/{id}/send|typing|read`；
+  业务错误推 `/user/queue/errors`
 
 ## 本地账号（仅演示用）
 
@@ -82,10 +89,11 @@ powershell -ExecutionPolicy Bypass -File scripts\verify-seed.ps1
 | `smoke-jobs.mjs` | 职位与字典接口冒烟（T3a/T3b；公开读 + HR 写 发布 / 更新 / 关闭重开 / 软删 / 越权，49 项断言） |
 | `smoke-applications.mjs` | 投递与面试接口冒烟（T4；状态机 / 校验码 / 约面试 / 接受拒绝 / 撤回重投，51 项断言，可重复执行） |
 | `smoke-company.mjs` | 公司模块冒烟（T5；公开详情 / 公司职位分页 / 资料编辑 / 成员 / 企业认证 PENDING→自动通过 / 40916，26 项断言，可重复执行） |
+| `smoke-messages.mjs` | 消息与 WebSocket 冒烟（T6；会话 / 消息 / 发起 / 发送 / 幂等 / 已读 / typing / 发送简历 / 关闭 + STOMP 推送 / 错误队列，40 项断言，可重复执行） |
 | `verify-seed.ps1` | 种子行数抽查（16 项断言，对齐 step3-plan §3 数字；须先完成迁移；已排除冒烟 / 注册产物前缀） |
 
-当前验收基线（2026-10-18）：`mvnw test` **90/90**；`smoke-auth` 20/20；`smoke-jobs` 49/49；
-`smoke-applications` 51/51；`smoke-company` 26/26；`verify-seed` 16/16。
+当前验收基线（2026-10-18）：`mvnw test` **114/114**；`smoke-auth` 20/20；`smoke-jobs` 49/49；
+`smoke-applications` 51/51；`smoke-company` 26/26；`smoke-messages` 40/40；`verify-seed` 16/16。
 
 另有 `scripts/seed-gen/`（开发期工具）：从仓库 `src/api/mock/*` 生成 `V4~V8` 种子迁移，
 杜绝手抄漂移；**勿手改 `V4~V8` 迁移文件**，改演示数据请改 mock 后重跑生成脚本（用法见脚本头部注释）。
@@ -105,11 +113,12 @@ backend/
 │  ├─ job/             职位公开读 + 分类字典 + HR 职位写（T3a/T3b）
 │  ├─ application/     投递 / 面试闭环 + §8.7 约面试（T4）
 │  ├─ company/         公司详情 / 职位 / 资料 / 成员 / 企业认证（T5）
+│  ├─ message/         会话 / 消息 / 自动回复 / STOMP WebSocket（T6）
 │  ├─ config/          MyBatis-Plus 分页 / 租户注入 / 时间填充 + OpenAPI 等配置（T1）
 │  └─ demo/            骨架自检样例接口（非契约，T9 后可移除）
 ├─ src/main/resources/
 │  ├─ application.yml          通用配置
 │  ├─ application-local.yml    本地环境（MySQL 3307 / Redis 6379）
 │  └─ db/migration/            Flyway 迁移（V1 鉴权建表 / V2 演示账号 / V3 业务建表 / V4~V8 演示种子）
-└─ src/test/java/...           包络 / JWT / 种子密码 / 租户策略 / 注册 / 职位 / 投递面试 / 公司测试（不依赖数据库）
+└─ src/test/java/...           包络 / JWT / 种子密码 / 租户策略 / 注册 / 职位 / 投递面试 / 公司 / 消息测试（不依赖数据库）
 ```

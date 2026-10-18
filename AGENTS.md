@@ -20,7 +20,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 聘聊 = Boss 直聘模式招聘平台原型（求职者端 + HR 端双端 H5），Next.js 16 + Tailwind 4 + Zustand +
 TanStack Query，数据全部为前端 Mock。当前处于 **Step 2 前端验收**：五项验收功能（投递 / 候选人 /
 面试、验证码登录 / 注册、公司资料 / 企业认证）已完成，并新增**人才筛选（演示版）**
-增量，`npm run e2e` **63/63** 通过；用户人工验收初步通过（2026-10-16）。Step 3 后端已开工：**T0 ✅（骨架）、T2a ✅（鉴权：验证码 / 密码·短信登录 / 刷新 / 退出 / me）、T1 ✅（V3 全量业务表 + V4~V8 演示种子）、T2b ✅（注册：§1.2，HR 自动建未认证公司，2026-10-18）、T3a ✅（职位公开读 + 分类字典：§6.1~§6.4/§6.9 + §7，2026-10-18）、T3b ✅（HR 职位写：§6.5~§6.8，2026-10-18）、T4 ✅（投递与面试闭环：§9/§10 + §8.7，2026-10-18）、T5 ✅（公司模块 + 企业认证：§5，2026-10-18）**，`backend/` + MySQL 3307 / Redis 6379 专用实例，当前 **T6 消息 + WebSocket（§8）**，计划见 `docs/step3-plan.md`。
+增量，`npm run e2e` **63/63** 通过；用户人工验收初步通过（2026-10-16）。Step 3 后端已开工：**T0 ✅（骨架）、T2a ✅（鉴权：验证码 / 密码·短信登录 / 刷新 / 退出 / me）、T1 ✅（V3 全量业务表 + V4~V8 演示种子）、T2b ✅（注册：§1.2，HR 自动建未认证公司，2026-10-18）、T3a ✅（职位公开读 + 分类字典：§6.1~§6.4/§6.9 + §7，2026-10-18）、T3b ✅（HR 职位写：§6.5~§6.8，2026-10-18）、T4 ✅（投递与面试闭环：§9/§10 + §8.7，2026-10-18）、T5 ✅（公司模块 + 企业认证：§5，2026-10-18）、T6 ✅（消息 + WebSocket：§8，2026-10-18）**，`backend/` + MySQL 3307 / Redis 6379 专用实例，当前 **T7 求职者 / 简历 / 收藏 / 上传（§2/§3/§11/§12）**，计划见 `docs/step3-plan.md`。
 演示账号：`13800000001`（求职者）/ `13800000002`（HR），密码均 `123456`；短信验证码固定 `123456`。
 
 ## 1. 运行与验收（统一用 npm，不用 bun）
@@ -40,11 +40,12 @@ cd backend
 $env:JAVA_HOME='C:\Program Files\JetBrains\IntelliJ IDEA Community Edition 2025.2.6.2\jbr'  # 必设：本机系统仅 JDK 1.8
 .\scripts\dev-up.ps1        # 起 MySQL 专用实例 3307 + Redis 6379（首次先 .\scripts\db-init.ps1）
 .\mvnw.cmd spring-boot:run  # 后端 :8080；收工用 .\scripts\dev-down.ps1
-.\mvnw.cmd test             # 单元测试（包络 / JWT / 种子密码 / 租户策略 / 注册 / 职位 / 职位写 / 字典 / 投递面试 / 公司；基线 90/90）
+.\mvnw.cmd test             # 单元测试（包络 / JWT / 种子密码 / 租户策略 / 注册 / 职位 / 职位写 / 字典 / 投递面试 / 公司 / 消息；基线 114/114）
 node scripts\smoke-auth.mjs # 鉴权接口冒烟（T2a/T2b 起；需后端已启动，20 项含注册）
 node scripts\smoke-jobs.mjs # 职位与字典冒烟（T3a/T3b 起；需后端已启动，49 项含 HR 写）
 node scripts\smoke-applications.mjs # 投递与面试冒烟（T4 起；需后端已启动，51 项，可重复执行）
 node scripts\smoke-company.mjs # 公司模块冒烟（T5 起；需后端已启动，26 项，可重复执行）
+node scripts\smoke-messages.mjs # 消息与 WebSocket 冒烟（T6 起；需后端已启动，40 项，可重复执行）
 .\scripts\verify-seed.ps1   # 种子行数抽查（T1 起；需已迁移 V1~V8，16 项）
 ```
 
