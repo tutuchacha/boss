@@ -6,6 +6,43 @@
 
 ---
 
+## [9f509be] 2026-10-18 — Step 3 T3a：职位公开读 + 分类字典（§6.1~§6.4/§6.9 + §7）
+
+> 契约 §6.1~§6.4 / §6.9 / §7.1~§7.3（8 条，全部公开）；T3 拆分为 **T3a**（本提交：公开读 + 字典）
+> 与 **T3b**（HR 写 §6.5~§6.8，下一个 chunk）。提交 hash：`9f509be`（结算见紧后 docs 提交）。
+
+### Added
+
+- `GET /api/v1/jobs`（§6.1 列表）/ `GET /api/v1/search/jobs`（§6.2 独立搜索路径）/ `GET /api/v1/jobs/{jobId}`（§6.3 详情）/
+  `GET /api/v1/jobs/{jobId}/similar`（§6.4 相似）/ `POST /api/v1/jobs/{jobId}/view`（§6.9 埋点）——
+  筛选对齐 mock `listJobs`（城市 / 分类联动 / 经验 / 薪资区间相交 / 关键词 hay = 标题·公司名·cat·sub·tags·area）；
+  recommend 按期望二级岗位 +2 / 一级分类 +1 加权（稳定排序）；游标分页（base64 JSON `{s,k,id}`，默认 20 / 上限 100）；
+  详情 40410 / 非法游标 40001 / ETag（`id-updatedAt`，If-None-Match → 304）；缓存头 30s / 60s。
+- `GET /api/v1/categories`（§7.1 分类树 17 根 / 84 节点）/ `GET /api/v1/cities`（§7.2 9 城 / 热门 5）/
+  `GET /api/v1/dict`（§7.3 枚举与 `mock/dict.ts` 完全一致）——缓存头 24h。
+- 测试：`JobQueryServiceTest` 12 + `AuthInterceptorPublicEndpointTest` 2 + `DictServiceTest` 3；
+  `backend/scripts/smoke-jobs.mjs` 29 项接口冒烟。
+
+### Changed
+
+- `AuthInterceptor` —— 公开接口「可选鉴权」：按「方法 + 路径」判定（匿名放行、UserContext 为空；
+  带 token 仍解析用于 recommend 加权）；`POST /api/v1/jobs` 等写接口不放过。
+- 公开浏览 SQL 显式 `@InterceptorIgnore(tenantLine)`（`JobMapper`）——HR 账号浏览公开职位也全平台；
+  租户注入只作用于 HR 管理端口径（§4.3 / §6.5~§6.8）。
+
+### Fixed
+
+- 开发期两坑（已修，详见 `docs/AI-CONTINUE.md` §6.11）：`@Select` 未包 `<script>` 时不解析 XML 实体
+  （`&lt;&gt;` 原样进 SQL → 语法错误）；`@JsonInclude(NON_NULL)` 吞 `nextCursor: null`（契约要求显式 null）。
+
+### Docs
+
+- 实测：`mvnw test` **35/35**；`smoke-jobs.mjs` **29/29**；`smoke-auth.mjs` 20/20 无回归；可见职位 38 / 云杉 7 / 分类 84 / 城市 9 全命中。
+- `docs/step3-plan.md` v1.5 — T3 拆分 T3a ✅（`9f509be`）/ T3b ⬜ + §4 实测；`PROGRESS.md` v1.10；`worklog.md` Task 22；
+  `docs/AI-CONTINUE.md` v1.11（§6.11 职位公开读与 T9 代理坑）；`backend/README.md`、`AGENTS.md` 同步。
+
+---
+
 ## [030a5b2] 2026-10-18 — Step 3 T2b：注册（§1.2，HR 自动建未认证公司）
 
 > 契约 §1.2；注册成功即登录（AuthResult 与登录一致，带 company / member）；校验顺序对齐 mock
