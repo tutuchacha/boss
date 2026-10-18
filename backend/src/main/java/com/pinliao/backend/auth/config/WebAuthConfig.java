@@ -30,6 +30,8 @@ public class WebAuthConfig implements WebMvcConfigurer {
                         "/api/v1/auth/login/**",
                         "/api/v1/auth/refresh",
                         "/api/v1/auth/register",
+                        "/api/v1/user/password/reset",
+                        "/api/v1/uploads/local/**",
                         "/api/v1/_demo/**");
     }
 }
