@@ -39,6 +39,12 @@ public class AuthController {
         return smsCodeService.send(req.phone().trim(), req.scene());
     }
 
+    /** §1.2 手机号注册（无鉴权；注册成功即登录，HR 自动建未认证公司）。 */
+    @PostMapping("/register")
+    public AuthResponses.AuthResult register(@Valid @RequestBody AuthRequests.RegisterRequest req) {
+        return authService.register(req);
+    }
+
     /** §1.4 密码登录（无鉴权）。 */
     @PostMapping("/login/password")
     public AuthResponses.AuthResult loginPassword(@Valid @RequestBody AuthRequests.LoginPasswordRequest req) {

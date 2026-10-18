@@ -21,17 +21,18 @@ import com.pinliao.backend.common.api.ApiCodes;
 import com.pinliao.backend.common.exception.BusinessException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 
 /**
- * 鉴权核心服务：密码 / 验证码登录、刷新、退出、当前用户（契约 §1.3~§1.7）。
+ * 鉴权核心服务：注册、密码 / 验证码登录、刷新、退出、当前用户（契约 §1.2~§1.7）。
  *
  * <p>语义对齐前端 mock（src/api/mock/auth.ts 与 src/api/auth.ts）：</p>
  * <ul>
  *   <li>登录响应 = AuthResult + company / member（HR 工作台需要公司上下文）；</li>
- *   <li>错误码：40110 账号或密码 / 验证码错误、40111 账号已禁用、40103 refreshToken 无效；</li>
+ *   <li>错误码：40910 手机号已注册、40110 账号或密码 / 验证码错误、40111 账号已禁用、40103 refreshToken 无效；</li>
  *   <li>refreshToken 一次性轮换（用过即废），退出登录吊销 accessToken（jti 名单）与 refreshToken。</li>
  * </ul>
  */
@@ -88,6 +89,75 @@ public class AuthService {
             throw new BusinessException(ApiCodes.LOGIN_FAILED, "该手机号尚未注册，请先注册");
         }
         ensureActive(user);
+        return issueSession(user);
+    }
+
+    /** §1.2 手机号注册（注册成功即登录；HR 自动创建「未认证」公司，语义对齐 mock registerMockAccount）。 */
+    @Transactional
+    public AuthResponses.AuthResult register(AuthRequests.RegisterRequest req) {
+        String phone = req.phone().trim();
+        // 校验顺序对齐 mock（src/api/auth.ts §1.2）：已注册（40910）先于验证码（40110，失败不消耗验证码）
+        if (findUserByPhone(phone) != null) {
+            throw new BusinessException(ApiCodes.PHONE_REGISTERED, "该手机号已注册，请直接登录");
+        }
+        smsCodeService.verify(phone, "REGISTER", req.code());
+
+        String suffix = phone.substring(phone.length() - 4);
+        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+
+        // id 派生自手机号：mock 用进程内递增计数（u-reg-1…，刷新即复位）；落库需跨重启稳定且唯一
+        UserEntity user = new UserEntity();
+        user.setId("u-reg-" + phone);
+        user.setPhone(phone);
+        user.setPasswordHash(passwordEncoder.encode(req.password()));
+        user.setRole(req.role());
+        user.setStatus("ACTIVE");
+        user.setLastLoginAt(now);
+        user.setCreatedAt(now);
+        user.setUpdatedAt(now);
+        userMapper.insert(user);
+
+        if ("JOB_SEEKER".equals(req.role())) {
+            UserProfileEntity profile = new UserProfileEntity();
+            profile.setId("up-reg-" + phone);
+            profile.setUserId(user.getId());
+            profile.setName("求职者" + suffix);
+            profile.setSeekingStatus("ACTIVE");
+            profile.setCreatedAt(now);
+            profile.setUpdatedAt(now);
+            userProfileMapper.insert(profile);
+        } else {
+            CompanyEntity company = new CompanyEntity();
+            company.setId("co-reg-" + phone);
+            company.setName("新注册企业-" + suffix);
+            company.setStage("未融资");
+            company.setSize("1-19人");
+            company.setIndustry("企业服务");
+            company.setVerified(false);
+            company.setStatus("ACTIVE");
+            company.setCreatedAt(now);
+            company.setUpdatedAt(now);
+            companyMapper.insert(company);
+
+            HrProfileEntity hrProfile = new HrProfileEntity();
+            hrProfile.setId("hr-reg-" + phone);
+            hrProfile.setUserId(user.getId());
+            hrProfile.setCompanyId(company.getId());
+            hrProfile.setName("招聘官" + suffix);
+            hrProfile.setTitle("招聘负责人");
+            hrProfile.setCreatedAt(now);
+            hrProfile.setUpdatedAt(now);
+            hrProfileMapper.insert(hrProfile);
+
+            CompanyMemberEntity member = new CompanyMemberEntity();
+            member.setId("cm-reg-" + phone);
+            member.setUserId(user.getId());
+            member.setCompanyId(company.getId());
+            member.setRole("ADMIN");
+            member.setJoinedAt(now);
+            companyMemberMapper.insert(member);
+        }
+
         return issueSession(user);
     }
 
