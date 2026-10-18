@@ -20,7 +20,7 @@ UNION ALL SELECT 'jobs_yunshan          ', COUNT(*), '7' FROM jobs WHERE company
 UNION ALL SELECT 'categories            ', COUNT(*), '84' FROM categories
 UNION ALL SELECT 'cities                ', COUNT(*), '9' FROM cities
 UNION ALL SELECT 'users                 ', COUNT(*), '8' FROM users WHERE id NOT LIKE 'u-reg-%'
-UNION ALL SELECT 'resumes               ', COUNT(*), '7' FROM resumes
+UNION ALL SELECT 'resumes               ', COUNT(*), '7' FROM resumes WHERE user_id NOT LIKE 'u-reg-%' AND deleted_at IS NULL
 UNION ALL SELECT 'applications_hr       ', COUNT(*), '6' FROM applications WHERE company_id = 'co-acgiw7' AND id NOT LIKE 'app-new-%'
 UNION ALL SELECT 'applications_seeker   ', COUNT(*), '3' FROM applications WHERE user_id = 'u-seeker-1' AND id NOT LIKE 'app-new-%'
 UNION ALL SELECT 'interviews            ', COUNT(*), '3' FROM interviews WHERE id NOT LIKE 'int-new-%'

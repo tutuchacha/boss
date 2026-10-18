@@ -35,6 +35,11 @@ pinliao:
   message:
     # 演示语义：聊天自动回复延迟（对齐 mock TYPING_DELAY_MS=1200ms）
     auto-reply-delay-ms: 1200
+  upload:
+    # 本地对象目录（演示替代 OSS；target/ 已被 .gitignore 忽略）
+    dir: ${PINLIAO_UPLOAD_DIR:target/uploads}
+    # 预签名上传 URL 有效期（契约未定具体值；演示 10 分钟）
+    url-ttl: 10m
 
 logging:
   pattern:

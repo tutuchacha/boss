@@ -189,6 +189,8 @@ function stompConnect(token) {
   const seekerToken = await login('13800000001');
   const hrToken = await login('13800000002');
   check('演示账号登录（求职者 / HR）', typeof seekerToken === 'string' && typeof hrToken === 'string');
+  // 先等上一轮 WebSocket 用例触发的自动回复落库，避免污染本轮消息计数（保证可连续执行）
+  await sleep(1800);
 
   let r = await GET('/api/v1/conversations');
   check('未登录会话列表 → 401 + 40101', r.status === 401 && codeOf(r) === 40101,
@@ -457,6 +459,9 @@ function stompConnect(token) {
     anonymousRejected = true;
   }
   check('未登录 STOMP CONNECT 被拒绝', anonymousRejected);
+
+  // 等最后两条 TEXT 触发的自动回复落库后再退出，避免下一轮开始时出现“迟到消息”
+  await sleep(1800);
 
   console.log(`\n结果：${passed} 通过，${failed} 失败`);
   if (failed > 0) process.exitCode = 1;
