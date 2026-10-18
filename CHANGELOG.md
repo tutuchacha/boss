@@ -6,6 +6,50 @@
 
 ---
 
+## [d4ce22c] 2026-10-18 — Step 3 T4：投递与面试闭环（§9/§10 + §8.7）
+
+> 契约 §9.1~§9.5、§10.1~§10.5（10 条）+ §8.7 约面试；状态机与错误码对齐前端 mock。
+> 提交 hash：`d4ce22c`（结算见紧后 docs 提交）。
+
+### Added
+
+- `POST /api/v1/applications`（§9.1 投递）/ `GET /api/v1/applications`（§9.2 我的投递）/
+  `GET /api/v1/applications/{applicationId}`（§9.3 详情）/ `POST .../withdraw`（§9.4 撤回）/
+  `POST .../status`（§9.5 HR 状态）——`SUBMITTED / VIEWED / INTERVIEW / OFFER / REJECTED / WITHDRAWN`
+  状态机；**40911** 重复投递、**40913** 状态冲突、**42210** 简历不完整 / 简历越权；
+  撤回后重新投递复用原记录并回到 `SUBMITTED`。
+- `GET /api/v1/interviews`（§10.1 求职者列表）/ `GET /api/v1/hr/interviews`（§10.2 HR 列表）/
+  `GET /api/v1/interviews/{interviewId}`（§10.3 详情）/ `POST .../accept`（§10.4）/
+  `POST .../decline`（§10.5）——出参 `InterviewWithJob` / `InterviewWithCandidate`；接受 / 拒绝终态幂等；
+  **40913** 非 PENDING 操作。
+- `POST /api/v1/conversations/{conversationId}/actions/invite-interview`（§8.7）——创建 PENDING 面试、
+  投递置 `INTERVIEW`、写 `INTERVIEW_INVITE` 消息（`userUnreadCount + 1`）；**40914** 已拒绝 / 已撤回不可约面、
+  **40915** 已有待确认、**42210** 时间早于当前；现场面试缺地点 / 非法形式 **42201**。
+- 投递成功（含重新激活）按 `(jobId, userId)` **幂等占位建会话** `conv-new-{seq}`；
+  投递详情额外返回 `conversationId`（契约外增量字段），供 HR 端触达 / 约面试使用，T6 复用不重建。
+- 新行 id 统一递增派生：`app-new-{seq}` / `int-new-{seq}` / `conv-new-{seq}` / `msg-new-{seq}`
+  （库内同前缀最大序号 + 1，显式 `@InterceptorIgnore`；禁时间戳 / 随机）。
+- 测试：`ApplicationCommandServiceTest` 22 项 + `ApplicationQueryServiceTest` 5 项；
+  新增 `backend/scripts/smoke-applications.mjs` **51 项**（连续两次可重复）。
+
+### Changed
+
+- `JobQueryService` 增 `summaryOf(JobEntity)` / `detailOf(JobEntity)`，供投递 / 面试模块复用职位出参映射。
+- 新增 `Roles`（JOB_SEEKER / HR·COMPANY_ADMIN 守卫）与通用 `PageViews`（游标分页）。
+- `verify-seed.ps1` 的投递 / 面试 / 会话 / 消息断言排除 T4 冒烟产物前缀。
+
+### Docs
+
+- 实测：`mvnw test` **77/77**；`smoke-applications.mjs` **51/51**；`smoke-jobs.mjs` 49/49、
+  `smoke-auth.mjs` 20/20、`verify-seed.ps1` 16/16 无回归。
+- `docs/step3-plan.md` v1.7 — T4 ✅（`d4ce22c`）+ §4 实测 + 下一步 T5；`PROGRESS.md` v1.12；`worklog.md` Task 24；
+  `docs/AI-CONTINUE.md` v1.13（§6.13 投递 / 面试与 T9 契约差异）；`backend/README.md`、`AGENTS.md` 同步。
+- T9 待处理的前端契约差异：`GET /applications` / `/interviews` 后端为分页对象、前端 service 目前按数组解包；
+  §9.3 后端返回 `ApplicationDetail`、前端 HR 详情用 `HrApplicationView`；§8.7 后端按契约返回 `Message`、
+  前端 `inviteInterview` 类型写 `Interview`（返回值未使用）；`ensureConversationForApplication` 目前仅 mock 有。
+
+---
+
 ## [8102f0b] 2026-10-18 — Step 3 T3b：HR 职位写接口（§6.5~§6.8）
 
 > 契约 §6.5~§6.8（4 条，HR / COMPANY_ADMIN 本公司）；T3 拆分中的 **T3b**（T3a 公开读 + 字典已先行）。

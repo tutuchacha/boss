@@ -34,6 +34,9 @@ node scripts\smoke-auth.mjs
 # 5b) 职位与字典冒烟（公开读 + HR 写：发布 / 更新 / 关闭重开 / 软删 / 越权）
 node scripts\smoke-jobs.mjs
 
+# 5c) 投递与面试冒烟（投递 / 状态机 / 约面试 / 接受拒绝 / 撤回重投；可重复执行）
+node scripts\smoke-applications.mjs
+
 # 6) 种子行数抽查（16 项断言；需已启动过后端完成 Flyway 迁移 V1~V8）
 powershell -ExecutionPolicy Bypass -File scripts\verify-seed.ps1
 ```
@@ -48,6 +51,10 @@ powershell -ExecutionPolicy Bypass -File scripts\verify-seed.ps1
   受保护接口需 `Authorization: Bearer <accessToken>`）
 - 职位写接口需 HR token（13800000002）：`POST /api/v1/jobs`、`PATCH /api/v1/jobs/{jobId}`、
   `POST /api/v1/jobs/{jobId}/close|reopen`、`DELETE /api/v1/jobs/{jobId}`（40310 / 42211 / 42901）
+- 投递与面试接口（求职者 / HR token）：`POST|GET /api/v1/applications`、`GET /api/v1/applications/{id}`、
+  `POST .../withdraw|status`、`GET /api/v1/interviews`、`GET /api/v1/hr/interviews`、
+  `POST .../accept|decline`、`POST /api/v1/conversations/{id}/actions/invite-interview`
+  （40911 / 40913 / 40914 / 40915 / 42210）
 
 ## 本地账号（仅演示用）
 
@@ -66,7 +73,11 @@ powershell -ExecutionPolicy Bypass -File scripts\verify-seed.ps1
 | `dev-up.ps1` / `dev-down.ps1` | 一键起 / 停两者 |
 | `smoke-auth.mjs` | 鉴权接口冒烟（Node 18+；后端启动后运行，20 项断言含注册） |
 | `smoke-jobs.mjs` | 职位与字典接口冒烟（T3a/T3b；公开读 + HR 写 发布 / 更新 / 关闭重开 / 软删 / 越权，49 项断言） |
-| `verify-seed.ps1` | 种子行数抽查（16 项断言，对齐 step3-plan §3 数字；须先完成迁移） |
+| `smoke-applications.mjs` | 投递与面试接口冒烟（T4；状态机 / 校验码 / 约面试 / 接受拒绝 / 撤回重投，51 项断言，可重复执行） |
+| `verify-seed.ps1` | 种子行数抽查（16 项断言，对齐 step3-plan §3 数字；须先完成迁移；已排除冒烟 / 注册产物前缀） |
+
+当前验收基线（2026-10-18）：`mvnw test` **77/77**；`smoke-auth` 20/20；`smoke-jobs` 49/49；
+`smoke-applications` 51/51；`verify-seed` 16/16。
 
 另有 `scripts/seed-gen/`（开发期工具）：从仓库 `src/api/mock/*` 生成 `V4~V8` 种子迁移，
 杜绝手抄漂移；**勿手改 `V4~V8` 迁移文件**，改演示数据请改 mock 后重跑生成脚本（用法见脚本头部注释）。
@@ -83,11 +94,13 @@ backend/
 │  ├─ common/web/      traceId 过滤器 + 包络装配 ResponseAdvice
 │  ├─ common/exception/ 业务异常 + 全局异常处理
 │  ├─ auth/            鉴权模块（JWT / Redis 令牌 / 验证码 / 登录接口，T2a）
+│  ├─ job/             职位公开读 + 分类字典 + HR 职位写（T3a/T3b）
+│  ├─ application/     投递 / 面试闭环 + §8.7 约面试（T4）
 │  ├─ config/          MyBatis-Plus 分页 / 租户注入 / 时间填充 + OpenAPI 等配置（T1）
 │  └─ demo/            骨架自检样例接口（非契约，T9 后可移除）
 ├─ src/main/resources/
 │  ├─ application.yml          通用配置
 │  ├─ application-local.yml    本地环境（MySQL 3307 / Redis 6379）
 │  └─ db/migration/            Flyway 迁移（V1 鉴权建表 / V2 演示账号 / V3 业务建表 / V4~V8 演示种子）
-└─ src/test/java/...           包络 / JWT / 种子密码 / 租户策略 / 注册测试（不依赖数据库）
+└─ src/test/java/...           包络 / JWT / 种子密码 / 租户策略 / 注册 / 职位 / 投递面试测试（不依赖数据库）
 ```

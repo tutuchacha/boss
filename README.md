@@ -3,8 +3,8 @@
 参考 Boss 直聘模式的招聘平台原型：**C 端求职者 + 多 B 端企业客户共存**。
 求职者跨企业共享（同一份简历可投多家），每个注册企业即一个「租户」（Tenant）。
 
-> **当前阶段**：Step 2 前端验收版（e2e 63/63）· Step 3 后端进行中（**T0 骨架 ✅、T2a 鉴权 ✅ 2026-10-17**，
-> 任务板见 `docs/step3-plan.md`）。前端仍走本地 Mock，无需后端即可运行；T9 再切 `USE_MOCK=false` 联调。
+> **当前阶段**：Step 2 前端验收版（e2e 63/63）· Step 3 后端进行中（**T0 ✅、T1 ✅、T2a ✅、T2b ✅、T3a ✅、T3b ✅、T4 ✅**，
+> 2026-10-18；任务板见 `docs/step3-plan.md`）。前端仍走本地 Mock，无需后端即可运行；T9 再切 `USE_MOCK=false` 联调。
 
 ---
 
@@ -45,7 +45,7 @@ npm run dev
 | 状态 | Zustand（含 persist） | 客户端状态 |
 | 数据 | TanStack Query | 服务端状态（两端新模块均走 Query，旧模块部分同步 Mock） |
 | ORM | Prisma | **当前未接入业务**，见下文 |
-| 后端 | Spring Boot 3.5 + MySQL 8 + Redis（`backend/`） | Step 3 进行中：T0 骨架 ✅、T2a 鉴权 ✅（JWT + Redis 令牌）；计划见 `docs/step3-plan.md` |
+| 后端 | Spring Boot 3.5 + MySQL 8 + Redis（`backend/`） | Step 3 进行中：T0~T4 ✅（鉴权 / 职位 / 投递 / 面试；`mvnw test` 77/77）；计划见 `docs/step3-plan.md` |
 
 > `zod`、`react-hook-form` 等已随模板装好但**当前代码尚未使用**，故不列入上表。
 
@@ -89,7 +89,7 @@ npm run dev
 | 功能 | 状态 |
 |---|---|
 | 招聘者端桌面 Web 后台 | 未实现（当前仅移动端布局） |
-| 真实后端（其余模块） | Step 3 进行中：鉴权（验证码 / 登录 / 刷新 / 退出 / me，§1）已落地；其余按 `docs/step3-plan.md` 任务板推进（接口契约见 `docs/api-endpoints.md`） |
+| 真实后端（其余模块） | Step 3 进行中：鉴权（§1）/ 职位（§6/§7）/ 投递与面试（§9/§10）已落地；其余按 `docs/step3-plan.md` 任务板推进（接口契约见 `docs/api-endpoints.md`） |
 
 ---
 
@@ -231,7 +231,7 @@ node scripts\smoke-auth.mjs  # 鉴权接口冒烟（T2a 起，14 项）
 | Step 0 | 框架无关的架构、数据模型、API 契约 | ✅ |
 | Step 1 | 前端开发（Next.js + Mock） | ✅ |
 | Step 2 | 前端验收（五项验收功能 + 人才筛选演示增量已完成，`npm run e2e` 63/63） | ⏳ 进行中 |
-| Step 3 | 后端开发（Spring Boot 3.5 + MySQL/Redis；分块计划 `docs/step3-plan.md`） | 🔄 进行中（T0 ✅ 骨架 / T2a ✅ 鉴权登录与退出，2026-10-17） |
+| Step 3 | 后端开发（Spring Boot 3.5 + MySQL/Redis；分块计划 `docs/step3-plan.md`） | 🔄 进行中（T0 ✅ / T1 ✅ / T2a ✅ / T2b ✅ / T3a ✅ / T3b ✅ / T4 ✅，2026-10-18；下一步 T5） |
 | Step 4 | 联调（`USE_MOCK=false`，Mock → 真实接口） | ⏸ 待开始 |
 | 未来 | App / 小程序（若决定多端，复用 API 契约） | — |
 

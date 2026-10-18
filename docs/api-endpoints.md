@@ -400,6 +400,7 @@
 - 入参（邀请面试）：`{ scheduledAt, format, location?, onlineUrl?, note? }`
 - 出参：`Message`
 - 行为：发送对应类型的消息，并触发后续业务（创建 Interview 记录）
+- 错误（邀请面试）：40914 投递已拒绝 / 已撤回；40915 已有待确认邀请；42201 形式 / 地点非法；42210 时间早于当前
 
 ### 8.8 关闭会话（HR 可关闭）
 `POST /api/v1/conversations/{conversationId}/close`
@@ -417,6 +418,8 @@
 - 出参：`Application`
 - 错误：40911 已投递；42210 简历不完整
 - 幂等：`(userId, jobId)` 唯一
+- 实现备注（T4）：撤回后重新投递复用原记录并回到 `SUBMITTED`；投递成功即按 `(jobId, userId)`
+  幂等占位创建会话（`conv-new-*`），供 §8 消息 / §8.7 约面试使用
 
 ### 9.2 我的投递列表
 `GET /api/v1/applications`
@@ -428,17 +431,21 @@
 `GET /api/v1/applications/{applicationId}`
 - 鉴权：JOB_SEEKER（本人） / HR（本公司）
 - 出参：`ApplicationDetail`
+- 实现备注（T4）：详情额外返回 `conversationId`（投递时占位创建的会话 id，契约外增量字段），
+  用于 HR 触达 / 约面试；不存在 / 非本人 / 非本公司统一 40410
 
 ### 9.4 撤回投递
 `POST /api/v1/applications/{applicationId}/withdraw`
 - 鉴权：JOB_SEEKER（本人）
 - 出参：`Application`
+- 错误：40913 当前状态不可撤回（仅 SUBMITTED / VIEWED / INTERVIEW 可撤回）
 
 ### 9.5 更新投递状态（HR 操作）
 `POST /api/v1/applications/{applicationId}/status`
 - 鉴权：HR / COMPANY_ADMIN（本公司）
 - 入参：`{ status: "VIEWED" | "INTERVIEW" | "OFFER" | "REJECTED", note?: string }`
 - 出参：`Application`
+- 错误：42201 状态非法；40913 候选已撤回；40410 不存在 / 非本公司
 
 ---
 
@@ -465,12 +472,14 @@
 `POST /api/v1/interviews/{interviewId}/accept`
 - 鉴权：JOB_SEEKER
 - 出参：`Interview`
+- 错误：40913 非 PENDING（已接受幂等返回）；40410 不存在 / 非本人
 
 ### 10.5 拒绝面试
 `POST /api/v1/interviews/{interviewId}/decline`
 - 鉴权：JOB_SEEKER
 - 入参：`{ reason?: string }`
 - 出参：`Interview`
+- 错误：40913 非 PENDING（已拒绝幂等返回）；40410 不存在 / 非本人
 
 ---
 

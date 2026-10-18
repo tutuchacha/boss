@@ -13,14 +13,14 @@
 
 | 项 | 值 |
 | --- | --- |
-| 上一提交（历史基线） | `6295ee1`（docs: 结算 T3a 提交 hash（9f509be）并同步任务板与快照） |
-| 本轮提交 | `8102f0b`（feat(backend): Step 3 T3b —— HR 职位写接口（§6.5~§6.8））+ 紧后 docs 结算提交；若 `git status` 仍有未提交文件，以工作区现状为准 |
+| 上一提交（历史基线） | `cb36fd8`（docs: Step 3 T3b 结算（PROGRESS v1.11 / 计划 v1.6 / CHANGELOG / AI-CONTINUE v1.12）） |
+| 本轮提交 | `d4ce22c`（feat(backend): T4 投递与面试闭环（§9/§10 + §8.7 约面试））+ 紧后 docs 结算提交；若 `git status` 仍有未提交文件，以工作区现状为准 |
 | dev server（前端） | 端口 3000；未运行时用 `npm run dev` 启动（本会话未复测） |
 | 后端（Step 3） | `backend/`（Spring Boot 3.5.16，:8080）；MySQL 专用实例 **3307** + Redis **6379** 运行中，**后端 :8080 本会话保持运行**（停止按端口 8080 定位 PID 精确处理，勿按名杀 java）；起停脚本 `backend/scripts/` |
 | 测试账号 | 求职者 `13800000001` / HR `13800000002`，密码均 `123456`；短信验证码固定 `123456` |
 | 环境 | Windows（`D:\boss`）+ PowerShell；Node 实测 v24 可跑；**无 bun，统一用 npm**；后端 JDK 用 IDEA 自带 **JBR 21**（跑 `mvnw` 必设 `JAVA_HOME`，见 §7.2） |
 | 远端仓库 | `origin` → GitHub `tutuchacha/boss`（SSH）；接手前先 `git pull` 与远端对齐 |
-| Step 3 计划 | [`docs/step3-plan.md`](./docs/step3-plan.md)（分块 T0~T9 + 上下文交接协议）；**T0 ✅、T2a ✅（2026-10-17 登录/退出先行）、T1 ✅（2026-10-18 全量表 + 演示种子）、T2b ✅（2026-10-18 注册 §1.2）、T3a ✅（2026-10-18 职位公开读 + 分类字典 §6.1~§6.4/§6.9 + §7）、T3b ✅（2026-10-18 HR 职位写 §6.5~§6.8）**，当前：**T4 投递与面试闭环（§9/§10）** |
+| Step 3 计划 | [`docs/step3-plan.md`](./docs/step3-plan.md)（分块 T0~T9 + 上下文交接协议）；**T0 ✅、T2a ✅（2026-10-17 登录/退出先行）、T1 ✅（2026-10-18 全量表 + 演示种子）、T2b ✅（2026-10-18 注册 §1.2）、T3a ✅（2026-10-18 职位公开读 + 分类字典 §6.1~§6.4/§6.9 + §7）、T3b ✅（2026-10-18 HR 职位写 §6.5~§6.8）、T4 ✅（2026-10-18 投递与面试闭环 §9/§10 + §8.7）**，当前：**T5 公司模块 + 企业认证（§5）** |
 
 > 接手时先跑一次 `git status --porcelain` 与 `npx tsc --noEmit` 核对本表是否仍然成立。
 
@@ -33,7 +33,7 @@
 | Step 0 架构 + 契约 | ✅ 完成 | `docs/architecture.md`、`data-model.md`、`api-*.md`、`prisma/schema.prisma` |
 | Step 1 双端前端开发 | ✅ 完成 | `src/components/pinliao/`（求职者端 + HR 端 + 登录） |
 | Step 2 前端验收 | ⏳ 进行中 | 验收五项功能已全部完成，并新增**人才筛选（演示版）**增量；`npm run e2e` 63/63 通过（见 §2/§5）；**用户人工验收初步通过（2026-10-16）**；待确认 `docs/AI-CONTINUE.md` §9 待决事项 |
-| Step 3 后端（Spring Boot） | 🔄 进行中（T3b ✅ → T4） | `backend/` Spring Boot 3.5.16 骨架 + MySQL 专用实例 3307 / Redis 6379；**T0 ✅、T2a 鉴权 ✅（2026-10-17）、T1 数据库迁移与演示种子 ✅、T2b 注册 ✅、T3a 职位公开读 + 分类字典 ✅、T3b HR 职位写 ✅（2026-10-18，实测见 §7.2）**；下一步 T4 投递与面试闭环（§9/§10） |
+| Step 3 后端（Spring Boot） | 🔄 进行中（T4 ✅ → T5） | `backend/` Spring Boot 3.5.16 骨架 + MySQL 专用实例 3307 / Redis 6379；**T0 ✅、T2a 鉴权 ✅（2026-10-17）、T1 数据库迁移与演示种子 ✅、T2b 注册 ✅、T3a 职位公开读 + 分类字典 ✅、T3b HR 职位写 ✅、T4 投递与面试闭环 ✅（2026-10-18，实测见 §7.2）**；下一步 T5 公司模块 + 企业认证（§5） |
 | Step 4 联调 | ⏸ 未开始 | `NEXT_PUBLIC_USE_MOCK=false` |
 
 ---
@@ -124,7 +124,7 @@
    （前端最终框架、接口账目口径等），并按用户后续反馈补齐。
 2. **Step 3 后端（Spring Boot）**：按 [`docs/step3-plan.md`](./docs/step3-plan.md) 分块推进
    （T0 → T9，契约正文 70 条；每会话一块，按计划内「收工 checklist」交接）。
-   **T0 ✅、T2a ✅（2026-10-17）、T1 ✅、T2b ✅、T3a ✅、T3b ✅（2026-10-18）**：
+   **T0 ✅、T2a ✅（2026-10-17）、T1 ✅、T2b ✅、T3a ✅、T3b ✅、T4 ✅（2026-10-18）**：
    - **T2a 已交付**：§1.1 验证码 / §1.3 短信登录 / §1.4 密码登录 / §1.5 刷新 / §1.6 退出 / §1.7 me；
      JWT（access 2h，HS256）+ Redis（refresh 30d 白名单一次性轮换、退出吊销 jti、验证码 60s 限流）；
      鉴权拦截器默认保护 `/api/v1/**`（白名单：`auth/sms|login|refresh|register`、`_demo`）；
@@ -147,8 +147,14 @@
      （`tenant_configs.max_jobs`，缺省 50）、发布限流 42901（10 次/分钟/公司）；新 id `job-new-{seq}`
      递增派生（软删保留行、序号不复用）；PATCH 部分更新（null 保留原值，合并后校验 42201）。
      实测 `mvnw test` **50/50**、`smoke-jobs.mjs` **49/49**（写接口 20 项）、鉴权冒烟 20/20、种子抽查 16/16。
-   - 下一个动作：**T4 投递与面试闭环**（§9/§10，10 条；状态机 + 会话按需创建（先占位）+
-     校验码 40911 / 40913 / 40914 / 40915）；验收：JUnit + 冒烟。
+   - **T4 已交付**：§9.1~§9.5 投递 / 我的投递 / 详情 / 撤回 / HR 状态机 + §10.1~§10.5 面试双端列表 /
+     详情 / 接受 / 拒绝 + §8.7 约面试（创建 Interview、投递置 INTERVIEW、写 INTERVIEW_INVITE 消息）；
+     状态机对齐 mock：40911 重复投递、40913 状态冲突、40914 不可约面、40915 已有待确认、42210 简历 / 时间前置；
+     投递即幂等占位建会话（`conv-new-{seq}`，T6 复用）；新 id 统一 `app-new-` / `int-new-` / `conv-new-` /
+     `msg-new-{seq}` 递增派生。实测 `mvnw test` **77/77**（新增 22 + 5）、`smoke-applications.mjs` **51/51**
+     （连续两次可重复）、`smoke-jobs` 49/49、`smoke-auth` 20/20、`verify-seed` 16/16 无回归。
+   - 下一个动作：**T5 公司模块 + 企业认证**（§5，6 条；资料编辑改名同步职位公司名 + 认证提交 /
+     1.2s 自动通过 / 轮询）；验收：JUnit（含异步等待）+ 冒烟。
    - T9 切换 `USE_MOCK=false` 跑通前端 e2e 63/63 后进入 Step 4 联调（注意：e2e 注册用固定手机号
      `13900004321`，对真实落库的演示库重跑会命中 40910——T9 前需定重置策略，见 §6.3 末条）。
 3. 可选增量（未被本轮涵盖）：招聘者端桌面 Web 后台、HR 上传外部简历库、人才筛选语义检索升级（接口不变）等。
@@ -215,6 +221,11 @@
   已软删）、42211 配额（`tenant_configs.max_jobs`，缺省 50）、42901 发布限流（10 次/分钟/公司）；
   新职位 id `job-new-{seq}` 递增派生；软删只置 `deleted_at`（行保留），冒烟新建职位收尾软删以保持「可见 38」基线；
   `verify-seed.ps1` 的 jobs_total 已排除冒烟产物 `job-new-%`。
+- **T4 起投递 / 面试可用**：§9 + §10（10 条）+ §8.7 约面试；求职者本人 / 本公司 HR 归属隔离，不存在 / 非本人 /
+  非本公司统一 40410；40911 重复投递、40913 状态冲突、40914 不可约面、40915 已有待确认、42210 简历 / 时间前置。
+  投递成功即按 `(jobId, userId)` 幂等占位建会话（`conv-new-{seq}`），HR 端「沟通 / 约面试」可直接使用
+  `ApplicationDetail.conversationId`（契约外增量字段），T6 会话模块复用不重建。冒烟产物
+  `app-new-%` / `int-new-%` / `conv-new-%` / `msg-new-%` 已从 `verify-seed.ps1` 的对应断言中排除。
 - localStorage 键：求职者 `pinliao.v3`、认证 `pinliao.auth.v1`、token `pinliao.accessToken` / `pinliao.refreshToken`。
 - `AGENTS.md` / `CLAUDE.md` 由 `next dev` 自动维护（只管理 `<!-- BEGIN:nextjs-agent-rules -->` 区块，
   其余内容安全保留）；提交时一并带上可保持工作区干净。
@@ -236,30 +247,32 @@ npm start              # 生产启动（node .next/standalone/server.js；可用
 
 可覆盖的环境变量：`npm run e2e` 支持 `BASE_URL` / `CHROME_PATH` / `CDP_PORT`。
 
-### 7.2 后端 `backend/`（2026-10-18 实测，Step 3 T0 + T2a + T1 + T2b + T3a + T3b）
+### 7.2 后端 `backend/`（2026-10-18 实测，Step 3 T0 + T2a + T1 + T2b + T3a + T3b + T4）
 
 ```powershell
 cd backend
 $env:JAVA_HOME='C:\Program Files\JetBrains\IntelliJ IDEA Community Edition 2025.2.6.2\jbr'  # 必设（本机仅 JDK 1.8）
 .\scripts\dev-up.ps1         # 起 MySQL 专用实例 3307 + Redis 6379（首次先 .\scripts\db-init.ps1）
 .\mvnw.cmd spring-boot:run   # 后端 :8080；Ctrl+C 停止（收尾用 .\scripts\dev-down.ps1）
-.\mvnw.cmd test              # 单元测试（包络 / JWT / 种子密码 / 租户策略 / 注册 / 职位 / 字典）
+.\mvnw.cmd test              # 单元测试（包络 / JWT / 种子密码 / 租户策略 / 注册 / 职位 / 职位写 / 字典 / 投递面试）
 node scripts\smoke-auth.mjs  # 鉴权接口冒烟（20 项，含注册；需后端已启动）
 node scripts\smoke-jobs.mjs  # 职位与字典冒烟（49 项；需后端已启动，T3a/T3b）
+node scripts\smoke-applications.mjs  # 投递与面试冒烟（51 项；需后端已启动，T4，可重复执行）
 .\scripts\verify-seed.ps1    # 种子行数抽查（16 项；需 Flyway 已迁移至 v8）
 .\mvnw.cmd -DskipTests package  # 打包（target/pinliao-backend-*.jar）
 ```
 
 | 检查 | 结果 |
 | --- | --- |
-| `mvnw.cmd test` | **50/50 通过**（包络 3 + JwtService 4 + 种子密码 hash 1 + 租户策略 6 + 注册 4 + 职位 12 + 职位写 15 + 公开路径 2 + 字典 3） |
+| `mvnw.cmd test` | **77/77 通过**（包络 3 + JwtService 4 + 种子密码 hash 1 + 租户策略 6 + 注册 4 + 职位 12 + 职位写 15 + 公开路径 2 + 字典 3 + 投递面试写 22 + 投递面试读 5） |
 | `spring-boot:run` | **3.5s 启动**（T2b 后，schema 已最新无需迁移；T1 首迁为 3.3s）；Flyway 校验 **V1~V8** 通过 |
 | `/actuator/health` | `{"status":"UP"}`（200） |
 | `/api/v1/_demo/*` 包络 | 与 T0 一致：`traceId`、`42201/40401` 等码位不变 |
 | 鉴权冒烟（`backend/scripts/smoke-auth.mjs`） | **20/20 全对（T3a 后复跑无回归）**：登录 200（含云杉 company/member）；`40110/40101/40102/40103/42201/42901` 全码位；refresh 一次性轮换；退出后 me=40102；**注册段**：发码 200 → 坏码 40110 → HR 成功（`新注册企业-{尾4}` / ADMIN / verified=false）→ 重复 40910 → me 带新 token → 求职者无 company |
-| 职位 & 字典冒烟（`backend/scripts/smoke-jobs.mjs`） | **49/49 全对**：公开读 29 项（列表匿名默认 20 / total=38 / 游标翻页；筛选上海 12、互联网·前端 2、1-3年 11、20-40K 18；搜索云杉 7 / 前端关键词 / §6.2 独立路径；recommend 期望岗位置顶；详情 HR / 福利 4 / 相似 6、ETag→304、40410；埋点去重；分类 17 根/84 节点；城市 9/热门 5；字典与 mock 完全一致）+ **写接口 20 项**（未登录 401 / 求职者 40301 / 字段校验 42201；发布 `job-new-*` OPEN 归属云杉、hr 陈女士；发布后可见 39；更新部分字段且保留发布时间与统计；关闭后详情 404 + 可见回到 38；重开再次可见；他公司 HR 与不存在职位 40310；软删 `{}` + 404 + 回到 38 基线；兜底幂等清理） |
+| 职位 & 字典冒烟（`backend/scripts/smoke-jobs.mjs`） | **49/49 全对（T4 后复跑无回归）**：公开读 29 项（列表匿名默认 20 / total=38 / 游标翻页；筛选上海 12、互联网·前端 2、1-3年 11、20-40K 18；搜索云杉 7 / 前端关键词 / §6.2 独立路径；recommend 期望岗位置顶；详情 HR / 福利 4 / 相似 6、ETag→304、40410；埋点去重；分类 17 根/84 节点；城市 9/热门 5；字典与 mock 完全一致）+ **写接口 20 项**（未登录 401 / 求职者 40301 / 字段校验 42201；发布 `job-new-*` OPEN 归属云杉、hr 陈女士；发布后可见 39；更新部分字段且保留发布时间与统计；关闭后详情 404 + 可见回到 38；重开再次可见；他公司 HR 与不存在职位 40310；软删 `{}` + 404 + 回到 38 基线；兜底幂等清理） |
+| 投递与面试冒烟（`backend/scripts/smoke-applications.mjs`） | **51/51 全对，连续两次执行均通过（可重复）**：§9.1 未登录 401 / HR 40301 / 简历越权 42210 / 默认简历投递 `app-new-*` SUBMITTED / 重复 40911；§9.2~§9.3 total≥4、状态筛选、游标翻页不重不漏、非法游标 40001、详情（job/resume/`conv-new-*`）、越权 40410；§9.4~§9.5 VIEWED / 非法状态 42201 / 他公司 40410；§8.7 40914 / 40915 / 非法形式 42201 / ONSITE 缺地点 42201 / 时间早于当前 42210 / 越权 40410 / 成功生成 `msg-new-*` INTERVIEW_INVITE 未读消息；§10 双端列表 / 详情 / 越权 / 接受幂等 / 拒绝 / 再次约面；收尾撤回 40913 + 撤回后重新投递复用记录并收尾 WITHDRAWN |
 | 注册边界（手工 4 例） | 字段校验 42201 ×3（phone / password / role）；未发码注册 40110；`co-reg-*` 落库 `verified=false` |
-| 种子抽查（`backend/scripts/verify-seed.ps1`） | **16/16 命中**（注册产生的 `u-reg-*` / `co-reg-*` 与 T3b 冒烟产生的 `job-new-*` 已排除）：flyway v8；companies 16；jobs 51（可见 38 / 云杉 7）；categories 84；cities 9；users 8；resumes 7；投递 6+3；interviews 3；HR 会话 6（未读 4）；求职者会话 2；messages 16 |
+| 种子抽查（`backend/scripts/verify-seed.ps1`） | **16/16 命中**（注册 `u-reg-*` / `co-reg-*`、T3b `job-new-*`、T4 `app-new-*` / `int-new-*` / `conv-new-*` / `msg-new-*` 均已排除）：flyway v8；companies 16；jobs 51（可见 38 / 云杉 7）；categories 84；cities 9；users 8；resumes 7；投递 6+3；interviews 3；HR 会话 6（未读 4）；求职者会话 2；messages 16 |
 | 数据库抽查（MySQL 3307） | V4~V8 success=1；种子内容与 mock 一致（职位关闭规则 stableHash(id)%4、简历 content JSON 原文、会话 id 序列 conv-hr-1/4/8/11/14/16 等）；T2b 后新增 `u-reg-*` / `co-reg-*` 等注册记录（持久保留） |
 
 运行数据在 `.local/`（已 gitignore）；MySQL / Redis 起停详见 `backend/README.md` 与 `backend/scripts/`。
@@ -282,3 +295,4 @@ node scripts\smoke-jobs.mjs  # 职位与字典冒烟（49 项；需后端已启�
 | v1.9 | 2026-10-18 | Step 3 T2b 完成：§1.2 注册（校验顺序对齐 mock；HR 自动建未认证公司 `新注册企业-{尾4}` + ADMIN 成员；40910 / 40110；id 派生自手机号）；`mvnw test` 18/18（新增注册 4 项）、冒烟 20/20（注册段 6 项）、`verify-seed` 16/16（排除注册记录）；下一步 T3 职位与分类字典 |
 | v1.10 | 2026-10-18 | Step 3 T3a 完成（T3 按「公开读 / HR 写」拆分）：职位公开读（列表 / 搜索 / 详情 / 相似 / 埋点）+ 分类字典（§6.1~§6.4/§6.9 + §7，8 条）；公开接口可选鉴权、游标分页、详情 ETag；`mvnw test` 35/35、`smoke-jobs` 29/29、鉴权冒烟 20/20 无回归；下一步 T3b HR 职位写（§6.5~§6.8） |
 | v1.11 | 2026-10-18 | Step 3 T3b 完成：HR 职位写（§6.5~§6.8，4 条）——发布 / 更新 / 关闭·重开 / 软删；40310 无权（不存在 / 非本公司 / 已软删）、42211 配额、42901 限流；`job-new-{seq}` 递增 id；`mvnw test` 50/50、`smoke-jobs` 49/49（写接口 20 项）、鉴权 20/20、种子 16/16（排除 `job-new-%`）；下一步 T4 投递与面试（§9/§10） |
+| v1.12 | 2026-10-18 | Step 3 T4 完成：投递与面试闭环（§9/§10 + §8.7，10 条）——投递 / 列表 / 详情 / 撤回 / HR 状态 + 双端面试列表 / 详情 / 接受 / 拒绝 + 约面试；40911/40913/40914/40915/42210 状态机语义；投递占位建会话（`conv-new-{seq}`，详情返回 conversationId）；`mvnw test` 77/77、`smoke-applications` 51/51（可重复）、`smoke-jobs` 49/49、鉴权 20/20、种子 16/16（排除 T4 四类前缀）；下一步 T5 公司模块 + 企业认证（§5） |
