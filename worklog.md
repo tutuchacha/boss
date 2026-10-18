@@ -996,3 +996,46 @@ Stage Summary:
   冒烟 51/51 可重复，其余基线无回归
 - 下一步：T5 公司模块 + 企业认证（§5，6 条；资料编辑改名同步职位公司名 + 认证提交 / 1.2s 自动通过 / 轮询）；
   T9 前仍需用户拍板 e2e 固定手机号对真实库的重置策略
+
+---
+
+Task ID: 25
+Agent: orchestrator (main)
+Task: Step 3 T5 — 公司模块 + 企业认证（§5.1~§5.6，6 条）
+
+Work Log:
+- 侦察：契约 §5 六条、前端 company service / mock companyOps / 认证页轮询、CompanyEntity / CompanyMemberEntity、
+  V1 companies / company_members 表、V2 演示 HR 成员、V4 公司种子、JobMapper / JobQueryService 装配、
+  AuthInterceptor 公开路径与 Roles 守卫
+- 决策：
+  - §5.4~§5.6 的 COMPANY_ADMIN 以 `company_members.role=ADMIN` 为准；演示 HR user.role=HR、成员角色 ADMIN，
+    不能直接判 token role。§5.3 仍允许 HR / COMPANY_ADMIN。
+  - 认证提交只更新 companies.verified/status，不新增提交记录表（契约不暴露、数据模型无表）；四项资料仅校验。
+  - 认证自动通过用 daemon ScheduledExecutorService（默认 1200ms，`pinliao.company.verify-delay-ms` 可覆盖）；
+    后台再次确认 PENDING，避免覆盖人工禁用。
+  - 公司改名不刷 jobs 行：职位公司名从 companies 表实时装配，§5.1/§5.2/§6.x 自动同步。
+  - 公司职位仅 OPEN 且未软删；公司不存在统一 40410；游标沿用 §6.1 格式（score 固定 0）。
+- 实现：
+  - company/：CompanyCodes（40410 / 40916 / 42210）、CompanyRequests（Patch / Verify）、CompanyService
+    （§5.1 详情、§5.2 职位、§5.3 我的公司、§5.4 部分更新、§5.5 成员 + user/hrProfile、§5.6 认证提交 /
+    自动通过）、CompanyController
+  - JobMapper.selectVisibleByCompany + JobQueryService.listByCompany（公司职位游标分页）
+  - AuthInterceptor 公开路径新增 GET /companies/*、GET /companies/*/jobs；单测补充匿名放行 / 受保护断言
+  - 单测：CompanyServiceTest 12 项（公开读 / 404 / 权限 / trim / 校验 / 成员 / PENDING→异步 ACTIVE / 40916）+
+    JobQueryServiceTest 公司职位分页 1 项；异步用例延迟 30ms + Mockito timeout 2s
+  - 新增 `backend/scripts/smoke-company.mjs` 26 项：公开详情 / 分页 / 40410、我的公司 / 40301、
+    临时 co-reg-* HR 注册 ADMIN、名称校验 / 改名 / 公开详情同步、成员 user+hrProfile、
+    临时 job-new-* 验证职位公司名同步（finally 软删）、认证 42210 / PENDING→轮询 ACTIVE / 40916
+- 验收（实测）：
+  - `mvnw.cmd test` **90/90**（T4 基线 77 + 公司 12 + 公司职位分页 1）
+  - `smoke-company.mjs` **26/26**，连续两次执行均通过
+  - `smoke-jobs` 49/49、`smoke-applications` 51/51、`smoke-auth` 20/20、`verify-seed` 16/16 无回归
+- 文档：PROGRESS v1.13、step3-plan v1.8（T5 ✅ + §4 实测 + 下一步 T6）、CHANGELOG、
+  api-endpoints v0.3.3（§5 权限 / 40410 / OPEN 口径）、AI-CONTINUE v1.14（§6.14）、backend/README、AGENTS
+- 提交：`2359625`（feat: Step 3 T5）+ 紧后 docs 结算
+
+Stage Summary:
+- T5 完成：公司模块 6 条全绿；公开读 / 资料编辑 / 成员 / 企业认证异步自动通过落地；
+  管理员语义按成员角色 ADMIN；单测 90/90、公司冒烟 26/26 可重复，其余基线无回归
+- 下一步：T6 消息 + WebSocket（§8，8 条 + 4 主题；复用 T4 的 conv-new-* 占位会话）；
+  T9 前仍需用户拍板 e2e 固定手机号对真实库的重置策略
