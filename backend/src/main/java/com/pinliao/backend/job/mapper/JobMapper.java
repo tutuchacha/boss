@@ -106,6 +106,16 @@ public interface JobMapper extends BaseMapper<JobEntity> {
                                   @Param("cat") String cat,
                                   @Param("limit") int limit);
 
+    /** §5.2 公司发布的可见职位（OPEN 且未软删；公开浏览口径）。 */
+    @InterceptorIgnore(tenantLine = "true")
+    @Select("""
+            SELECT j.* FROM jobs j
+            WHERE j.company_id = #{companyId} AND j.status = 'OPEN' AND j.deleted_at IS NULL
+            ORDER BY j.published_at DESC, j.id ASC
+            """)
+    @ResultMap("jobResult")
+    List<JobEntity> selectVisibleByCompany(@Param("companyId") String companyId);
+
     /** §6.9 浏览数 +1（防重复窗口在 service 层用 Redis 控制）。 */
     @InterceptorIgnore(tenantLine = "true")
     @Update("UPDATE jobs SET view_count = view_count + 1 WHERE id = #{jobId} AND deleted_at IS NULL")

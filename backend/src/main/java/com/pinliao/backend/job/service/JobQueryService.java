@@ -33,7 +33,7 @@ import java.util.Objects;
 import java.util.stream.Stream;
 
 /**
- * 职位公开查询（契约 §6.1~§6.4 浏览/搜索/详情/相似 + §6.9 浏览埋点）。
+ * 职位公开查询（契约 §5.2 公司职位、§6.1~§6.4 浏览/搜索/详情/相似 + §6.9 浏览埋点）。
  *
  * <p><b>排序语义</b>（对齐 mock {@code src/api/mock/jobs.ts} 的 listJobs）：</p>
  * <ul>
@@ -146,6 +146,33 @@ public class JobQueryService {
         }
         return new JobViews.Page<>(toSummaries(page),
                 new JobViews.Pagination(nextCursor, hasMore, sorted.size()));
+    }
+
+    /**
+     * §5.2 公司发布的职位（公开；仅 OPEN 且未删除）。
+     *
+     * <p>公司存在性由 {@code CompanyService} 先校验；这里沿用职位列表的游标格式
+     * （score 固定 0 + 发布时间毫秒 + id），保证与 §6.1 的翻页语义一致。</p>
+     */
+    public JobViews.Page<JobViews.Summary> listByCompany(String companyId, String cursor, Integer limit) {
+        int size = clampLimit(limit);
+        List<JobEntity> rows = jobMapper.selectVisibleByCompany(companyId);
+
+        int start = 0;
+        String rawCursor = trimToNull(cursor);
+        if (rawCursor != null) {
+            start = firstIndexAfter(rows, decodeCursor(rawCursor), null, null);
+        }
+        int end = Math.min(start + size, rows.size());
+        List<JobEntity> page = rows.subList(start, end);
+
+        boolean hasMore = end < rows.size();
+        String nextCursor = null;
+        if (hasMore && !page.isEmpty()) {
+            nextCursor = encodeCursor(page.get(page.size() - 1), 0);
+        }
+        return new JobViews.Page<>(toSummaries(page),
+                new JobViews.Pagination(nextCursor, hasMore, rows.size()));
     }
 
     /** §6.3 详情（含公司 / HR / 相似职位；不可见职位抛 40410）。 */

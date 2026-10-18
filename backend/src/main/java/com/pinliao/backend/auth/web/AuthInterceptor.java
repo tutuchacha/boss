@@ -16,7 +16,7 @@ import org.springframework.web.servlet.HandlerInterceptor;
  *
  * <p>错误码：缺少 / 非法 token → 40101；已过期 → 40102；已退出（jti 吊销名单）→ 40102。</p>
  *
- * <p><b>公开接口</b>（契约 §6.1~§6.4、§6.9、§7）：未携带 token 时放行（UserContext 保持空）；
+ * <p><b>公开接口</b>（契约 §5.1~§5.2、§6.1~§6.4、§6.9、§7）：未携带 token 时放行（UserContext 保持空）；
  * 携带 token 时按正常流程解析——求职者浏览职位时 recommend 排序要用期望岗位加权。
  * 白名单按「HTTP 方法 + 路径」精确到接口，例如 POST {@code /api/v1/jobs}（发布职位）仍需鉴权。</p>
  */
@@ -66,6 +66,8 @@ public class AuthInterceptor implements HandlerInterceptor {
                     "/api/v1/jobs/*",
                     "/api/v1/jobs/*/similar",
                     "/api/v1/search/jobs",
+                    "/api/v1/companies/*",
+                    "/api/v1/companies/*/jobs",
                     "/api/v1/categories",
                     "/api/v1/cities",
                     "/api/v1/dict");
