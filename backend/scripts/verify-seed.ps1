@@ -3,7 +3,8 @@
 # 期望值：companies 16 · jobs 51（可见 38 / 云杉 7）· categories 84 · cities 9 · users 8
 #         resumes 7 · HR 投递 6 · 求职者投递 3 · interviews 3 · HR 会话 6（未读合计 4）
 #         求职者会话 2 · messages 16 · flyway 最新版本 8
-# 注：冒烟注册（T2b）产生的 u-reg-* / co-reg-* / hr-reg-* / cm-reg-* 记录不计入 users / companies 行数。
+# 注：冒烟产生的记录不计入 seed 行数：注册（T2b）u-reg-* / co-reg-* / hr-reg-* / cm-reg-*（users / companies），
+#     职位写（T3b）job-new-%（jobs；软删只置 deleted_at，行保留）。
 . "$PSScriptRoot\_env.ps1"
 
 $mysql = Join-Path $MySqlHome 'bin\mysql.exe'
@@ -13,7 +14,7 @@ if (-not (Test-TcpPort '127.0.0.1' $MySqlPort)) { throw "MySQL 未启动（127.0
 $sql = @'
 SELECT 'flyway_version        ' AS item, MAX(version) AS actual, '8' AS expected FROM flyway_schema_history
 UNION ALL SELECT 'companies             ', COUNT(*), '16' FROM companies WHERE id NOT LIKE 'co-reg-%'
-UNION ALL SELECT 'jobs_total            ', COUNT(*), '51' FROM jobs
+UNION ALL SELECT 'jobs_total            ', COUNT(*), '51' FROM jobs WHERE id NOT LIKE 'job-new-%'
 UNION ALL SELECT 'jobs_visible(OPEN)    ', COUNT(*), '38' FROM jobs WHERE status = 'OPEN' AND deleted_at IS NULL
 UNION ALL SELECT 'jobs_yunshan          ', COUNT(*), '7' FROM jobs WHERE company_id = 'co-acgiw7' AND deleted_at IS NULL
 UNION ALL SELECT 'categories            ', COUNT(*), '84' FROM categories
