@@ -21,13 +21,13 @@ UNION ALL SELECT 'categories            ', COUNT(*), '84' FROM categories
 UNION ALL SELECT 'cities                ', COUNT(*), '9' FROM cities
 UNION ALL SELECT 'users                 ', COUNT(*), '8' FROM users WHERE id NOT LIKE 'u-reg-%'
 UNION ALL SELECT 'resumes               ', COUNT(*), '7' FROM resumes
-UNION ALL SELECT 'applications_hr       ', COUNT(*), '6' FROM applications WHERE company_id = 'co-acgiw7'
-UNION ALL SELECT 'applications_seeker   ', COUNT(*), '3' FROM applications WHERE user_id = 'u-seeker-1'
-UNION ALL SELECT 'interviews            ', COUNT(*), '3' FROM interviews
-UNION ALL SELECT 'conversations_hr      ', COUNT(*), '6' FROM conversations WHERE company_id = 'co-acgiw7'
-UNION ALL SELECT 'conversations_seeker  ', COUNT(*), '2' FROM conversations WHERE user_id = 'u-seeker-1'
-UNION ALL SELECT 'hr_unread_total       ', COALESCE(SUM(hr_unread_count), 0), '4' FROM conversations WHERE company_id = 'co-acgiw7'
-UNION ALL SELECT 'messages              ', COUNT(*), '16' FROM messages;
+UNION ALL SELECT 'applications_hr       ', COUNT(*), '6' FROM applications WHERE company_id = 'co-acgiw7' AND id NOT LIKE 'app-new-%'
+UNION ALL SELECT 'applications_seeker   ', COUNT(*), '3' FROM applications WHERE user_id = 'u-seeker-1' AND id NOT LIKE 'app-new-%'
+UNION ALL SELECT 'interviews            ', COUNT(*), '3' FROM interviews WHERE id NOT LIKE 'int-new-%'
+UNION ALL SELECT 'conversations_hr      ', COUNT(*), '6' FROM conversations WHERE company_id = 'co-acgiw7' AND id NOT LIKE 'conv-new-%'
+UNION ALL SELECT 'conversations_seeker  ', COUNT(*), '2' FROM conversations WHERE user_id = 'u-seeker-1' AND id NOT LIKE 'conv-new-%'
+UNION ALL SELECT 'hr_unread_total       ', COALESCE(SUM(hr_unread_count), 0), '4' FROM conversations WHERE company_id = 'co-acgiw7' AND id NOT LIKE 'conv-new-%'
+UNION ALL SELECT 'messages              ', COUNT(*), '16' FROM messages WHERE id NOT LIKE 'msg-new-%';
 '@
 
 & $mysql -h 127.0.0.1 -P $MySqlPort -u root "-p$MySqlRootPwd" --default-character-set=utf8mb4 -t pinliao -e $sql
