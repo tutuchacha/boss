@@ -889,3 +889,34 @@ Stage Summary:
   注册记录持久保留（演示库现有 u-reg-*/co-reg-* 等测试记录）
 - 下一步：T3 职位与分类字典（§6/§7：列表/搜索/筛选/排序 + HR CRUD/概览；验收基线 = 可见职位 38 条）；
   T9 前需定 e2e 固定手机号对真实库重跑的重置策略（AI-CONTINUE §6.10，待用户拍板）
+
+---
+
+Task ID: 22
+Agent: orchestrator (main)
+Task: Step 3 T3a — 职位公开读与分类字典（§6.1~§6.4/§6.9 + §7，8 条）
+
+Work Log:
+- 侦察：契约 §6/§7、api-contract 分页规范、mock 语义（jobs.ts / hrJobs.ts / filter.ts / seekerJobs.ts /
+  categories.ts / dict.ts）、前端 service 与类型形状、V3 表结构、V4/V5 种子数字
+- 实现（T3 拆 T3a 公开读 / T3b HR 写；本块 T3a）：
+  - `job/`：JobEntity（tags/welfare JSON → JacksonTypeHandler + autoResultMap）、JobMapper（公开浏览 SQL
+    显式 @InterceptorIgnore(tenantLine="true")——HR 浏览也全平台；关键词 hay 对齐 mock）、JobQueryService
+    （筛选/相似/埋点对齐 mock；recommend 期望二级岗 +2 / 一级类 +1 稳定排序；游标 base64 JSON {s,k,id}；
+    详情 40410；ETag=id+updatedAt）、JobController / JobSearchController（§6.2 独立路径）
+  - `dict/`：DictController + DictService（分类树 17 根/84 节点、城市 9、字典常量对齐 mock dict.ts）
+  - `AuthInterceptor`：公开接口「可选鉴权」（方法 + Ant 路径判定；匿名放行、带 token 解析、写接口不放行）
+- 测试：`mvnw test` 18/18 → **35/35**（职位 12 / 公开路径 2 / 字典 3）
+- 冒烟：新增 `smoke-jobs.mjs` **29/29**（列表/筛选/搜索/游标翻页/加权排序/详情/相似/ETag 304/埋点去重/分类/城市/字典）；
+  `smoke-auth.mjs` 20/20 无回归
+- 开发期两坑（已记入 AI-CONTINUE §6.11）：@Select 非 <script> 不解析 `&lt;&gt;` 实体（改用 `!=`）；
+  Pagination 的 @JsonInclude(NON_NULL) 吞 nextCursor:null
+- 文档：PROGRESS v1.10、step3-plan v1.5（T3a ✅ + T3b 行）、CHANGELOG、AI-CONTINUE §6.11（含 T9 需加 Next rewrites 坑）、
+  backend/README、AGENTS
+- 提交：`9f509be`（feat: Step 3 T3a）+ 紧后 docs 结算
+
+Stage Summary:
+- T3a 完成：职位公开读 8 条接口全绿（可见 38 / 云杉 7 / 分类 84 与 mock 基线一致）；公开接口契约语义（匿名可读、
+  登录加权、ETag 缓存）已落地；T9 联调前列出的 Next rewrites 缺失问题已记录待处理
+- 下一步：T3b HR 职位写（§6.5~§6.8：发布/更新/关闭重开/软删；本公司校验 40310、配额 42211；冒烟收尾清理
+  保持可见 38 基线）

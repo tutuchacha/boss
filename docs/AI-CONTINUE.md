@@ -67,7 +67,7 @@ npm run dev          # 端口 3000
 | Step 0 架构 + 数据模型 + API 契约 | ✅ 完成 | `docs/architecture.md`、`data-model.md`、`api-contract.md`、`api-endpoints.md`、`prisma/schema.prisma`、`src/types/api.ts` |
 | Step 1 前端开发（Next.js + Mock） | ✅ 完成 | `src/components/pinliao/`、`src/api/`、`src/store/` |
 | Step 2 前端验收 | ⏳ 进行中 | 五项验收功能已完成，并新增人才筛选演示增量；e2e 63/63 通过；**用户人工验收初步通过（2026-10-16）**；待确认 §9 待决事项 |
-| Step 3 后端（Spring Boot） | 🔄 进行中 | `backend/`（Spring Boot 3.5.16）：T0 骨架 ✅、T2a 鉴权（登录 / 退出等 6 接口）✅ 2026-10-17；进度与实测以 `../PROGRESS.md` §7.2 为准 |
+| Step 3 后端（Spring Boot） | 🔄 进行中 | `backend/`（Spring Boot 3.5.16）：T0 骨架 ✅、T2a 鉴权 ✅（2026-10-17）、T1 全量表 + 演示种子 ✅、T2b 注册 ✅、T3a 职位公开读 + 分类字典 ✅（2026-10-18）；当前 T3b HR 职位写；进度与实测以 `../PROGRESS.md` §7.2 为准 |
 | Step 4 联调 | ⏸ 未开始 | `USE_MOCK=false` 切真实接口 |
 
 > ⚠️ **状态快照（2026-10-16）**：五项功能（投递 / 候选人 / 面试、验证码登录 /
@@ -497,6 +497,28 @@ const { data, isPending } = useQuery({
   `can not find lambda cache for this entity`）：见 `AuthServiceRegisterTest` 静态块的
   `TableInfoHelper.initTableInfo`（对 UserEntity / UserProfileEntity / HrProfileEntity / CompanyMemberEntity）。
 
+### 6.11 职位公开读与 T9 代理坑（Step 3 T3a 起）
+
+- **`@Select` 字符串不解析 XML 实体（没包 `<script>` 时）**：`j.id &lt;&gt; #{jobId}` 会把 `&lt;&gt;` 原样
+  发进 MySQL（报 `SQLSyntaxErrorException near '&gt;'`）；要么包 `<script>`（则 `<` 需转义），要么直接写
+  `!=`（T3a 已踩，`JobMapper.selectSimilar`）。
+- **统一包络的 traceId 逐请求变化 → 不能按响应体算 ETag**：职位详情 ETag 用「`jobId` + `updatedAt` 秒级
+  版本号」手动比对 `If-None-Match` 返回 304（`JobQueryService.detail` + `JobController.detail`）；若日后想用
+  `ShallowEtagHeaderFilter`，需先把 traceId 排除出响应体。
+- **`@JsonInclude(NON_NULL)` 会把 `nextCursor: null` 吞掉**：游标分页响应（`JobViews.Pagination`）不能加
+  NON_NULL——前端类型是 `nextCursor: string | null`，缺字段与显式 null 不等价。
+- **公开接口的「可选鉴权」在 `AuthInterceptor` 内判定**（方法 + Ant 路径，包级可见便于单测），不要加进
+  `WebAuthConfig` 的 exclude（exclude 后带 token 也不解析，且会把 `POST /api/v1/jobs` 一并放过）。
+- **公开浏览不受租户注入**：`JobMapper` 的公开查询显式 `@InterceptorIgnore(tenantLine="true")`——HR 账号
+  打开求职者端职位页也是全平台可见职位（契约「公开浏览」）；HR 管理端口径（§4.3 / §6.5~§6.8）才用租户注入。
+- **游标格式**：`base64(JSON {"s":得分,"k":发布时间毫秒,"id":"job-1"})`——排序键三元组（得分 DESC / 时间
+  DESC / id ASC），匿名与登录同格式；非法游标 40001；演示规模全量取回后内存切片，上量后把条件推 SQL
+  （游标格式不变）。
+- **⚠️ T9 联调前必须先在 `next.config.ts` 加 rewrites**（T3a 侦察发现）：`src/api/client.ts` 的 `buildUrl`
+  **只返回相对路径**（避免跨域），而 `next.config.ts` 目前没有 `/api/v1` 代理 → `USE_MOCK=false` 后前端请求
+  会打到 :3000 自身 404。T9 需加 `/api/v1/:path*` → `http://localhost:8080/api/v1/:path*` 的 rewrite
+  （或改 client 支持绝对地址）；涉及联调方案，动手前与用户确认。
+
 ---
 
 ## 7. 数据与契约
@@ -595,3 +617,4 @@ HR 新建 → 追加。
 | v1.8 | 2026-10-17 | Step 3 T2a：鉴权（验证码 / 登录 / 刷新 / 退出 / me）落地；§2 状态行更新；§6.8 补种子 hash 双处同步与 BOOLEAN 建表坑 |
 | v1.9 | 2026-10-18 | Step 3 T1：全量表（V3）+ 演示种子（V4~V8）+ 种子生成器与抽查脚本落地；补 §6.9（租户注入策略 / 种子生成器用法 / jsqlparser 取值差异） |
 | v1.10 | 2026-10-18 | Step 3 T2b：注册（§1.2 / 40910 / HR 自动建未认证公司）落地；补 §6.10（注册落库与演示库重置 / e2e 固定手机号重跑风险 / LambdaWrapper TableInfo 单测坑） |
+| v1.11 | 2026-10-18 | Step 3 T3a：职位公开读（列表 / 搜索 / 详情 / 相似 / 埋点）+ 分类字典（分类树 / 城市 / 字典）落地；补 §6.11（`@Select` 实体转义 / ETag 与 traceId / `nextCursor: null` / 公开接口可选鉴权与租户豁免 / **T9 需加 Next rewrites**） |
