@@ -466,6 +466,25 @@ const { data, isPending } = useQuery({
   `BOOLEAN` 落库等价 `tinyint(1)` 且无告警（T2a 已踩）。
 - 后端进程结束按**端口 8080 定位 PID** 精确处理；勿按名杀 `java`（同机 IDEA 常驻）。
 
+### 6.9 多租户注入与种子生成（Step 3 T1 起）
+
+- **租户注入不是「按表一刀切」**：`PinliaoTenantLineHandler` 仅在「当前登录者带 companyId（HR / COMPANY_ADMIN）」
+  且「表属租户私有集合（jobs / conversations / messages / applications / interviews / resume_view_logs /
+  tenant_configs / usage_logs）」时注入 `company_id`；求职者是**跨租户**视角（浏览所有公司职位、查自己的
+  投递 / 会话），一律不注入，service 层必须显式按 `user_id` / 可见职位过滤。改这段逻辑前先读
+  `docs/step3-plan.md` §3（求职者跨租户是产品语义）。
+- **`mvnw test` 的 WebMvcTest 切片**不加载 `MybatisPlusConfig`（`EnvelopeSmokeTest` 已排除鉴权拦零）；
+  为业务写切片测试时注意：无登录上下文时租户表查询不会被注入条件（handler `ignoreTable` 直接放行），
+  断言别依赖「自动注入」；`PinliaoTenantLineHandlerTest` 单测覆盖策略本身。
+- **种子迁移不要手改**：`V4~V8` 由 `backend/scripts/seed-gen/generate.mjs` 从 `src/api/mock/*` 生成
+  （文件头有「勿手改」警示）；改演示数据 → 改 mock 源文件 → 重跑生成脚本（Node ≥ 22.7；
+  `--import` 参数必须传 `file:///` 绝对 URL；脚本用 Node 原生 `--experimental-transform-types`，零额外依赖）。
+- **行数抽查**：`backend/scripts/verify-seed.ps1`（16 项断言，期望值写死在脚本）；改动种子数字时同步改脚本。
+- **jsqlparser 版本差异**：本仓（MyBatis-Plus 3.5.17）`StringValue` 取值方法是 `getValue()`，
+  不是 `getStringValue()`（写租户单测时已踩）。
+- **求职者可见职位**：`status='OPEN' AND deleted_at IS NULL`（+ 公司存在），与 mock `listSeekerJobs()`
+  语义一致；T3 起所有求职者侧职位查询都走这条定义（对应 AGENTS §2.10）。
+
 ---
 
 ## 7. 数据与契约
@@ -562,3 +581,4 @@ HR 新建 → 追加。
 | v1.6 | 2026-10-16 | 人才筛选（演示版）增量：关键词匹配引擎 / 简历种子 / §4.5-§4.6 / 页面接入；e2e 扩展至 63/63；补覆盖层断言取数坑（§6.7） |
 | v1.7 | 2026-10-17 | Step 3 T0：`backend/` Spring Boot 3.5.16 骨架（包络 / 错误码 / traceId）与本地环境定案（JBR 21 / MySQL 3307 / Redis 6379 / 免 Docker 直装）；补 §6.8 后端环境坑 |
 | v1.8 | 2026-10-17 | Step 3 T2a：鉴权（验证码 / 登录 / 刷新 / 退出 / me）落地；§2 状态行更新；§6.8 补种子 hash 双处同步与 BOOLEAN 建表坑 |
+| v1.9 | 2026-10-18 | Step 3 T1：全量表（V3）+ 演示种子（V4~V8）+ 种子生成器与抽查脚本落地；补 §6.9（租户注入策略 / 种子生成器用法 / jsqlparser 取值差异） |

@@ -822,3 +822,37 @@ Work Log:
 Stage Summary:
 - 根/后端 README、AGENTS 速览三处口径与 T2a 现状一致；其余文档（PROGRESS/CHANGELOG/AI-CONTINUE/step3-plan）此前已同步
 - 下一步不变（待用户拍板）：T1 剩余迁移（V3+）或 T2b 注册（§1.2 + 注册建公司）
+
+---
+
+Task ID: 20
+Agent: orchestrator (main)
+Task: Step 3 T1 — 数据库迁移与演示种子（V3 全量表 + V4~V8 种子对齐 mock + MyBatis-Plus 分页/租户/时间填充）
+
+Work Log:
+- 用户指示「继续进行（分阶段推进、完成后及时更新文档）」→ 本 chunk = T1（用户此前二选一未拍板，按计划依赖选 T1），
+  内部拆 T1a/T1b 两次 feat 提交防上下文丢失
+- 数据源侦察：自写 Node 24 ESM loader（`@/` 别名 + 无扩展名补 .ts）+ `--experimental-transform-types`
+  直接 import `src/api/mock/*`，实证关键数字：职位 51 / 初始关闭 13 / 可见 38 / 云杉 7；
+  投递 9（HR 6 + 求职者 3 非云杉）；会话 8（HR 6 未读 4 + 求职者 2）；简历 7；候选人 6
+- T1a（`8ed73f8`）：
+  - `V3__core_schema.sql`：12 张剩余业务表（jobs / resumes / favorites / applications / interviews /
+    conversations / messages / resume_view_logs + cities / categories / sys_configs / tenant_configs /
+    usage_logs / audit_logs），companyId 租户列 + 索引；hr 展示字段冗余（演示无全量 HR 账号）
+  - MyBatis-Plus：分页（MySQL，≤200/页）+ `PinliaoTenantLineHandler`（HR 注入 company_id；求职者跨租户
+    与全局表不注入；缺企业上下文访问租户表 fail-fast 40301）+ `PinliaoMetaObjectHandler`（UTC 自动填充）
+  - 测试：`PinliaoTenantLineHandlerTest` 6 项；`mvnw test` 8/8 → **14/14**
+- T1b（`85518bf`）：
+  - `backend/scripts/seed-gen/`（loader-hooks + register + generate.mjs）从 mock 生成 V4~V8（文件带「勿手改」头）：
+    公司 15 / 城市 9 / 分类 84；职位 51（可见 38、云杉 7，关闭规则同 mock stableHash%4）；候选人 6 + 简历 7；
+    投递 9 + 面试 3；会话 8（HR 6 未读 4 + 求职者 2）+ 消息 16
+  - `backend/scripts/verify-seed.ps1` — 16 项行数断言（.ps1 已加 UTF-8 BOM）
+- 验收（实测 2026-10-18）：启动自动 migrate **V1~V8 成功**（3.3s，日志无告警）；`verify-seed.ps1` **16/16 命中**；
+  `node scripts/smoke-auth.mjs` **14/14 无回归**；后端已停、MySQL 3307 与 Redis 6379 保持运行
+- 文档：PROGRESS v1.8、step3-plan v1.3（T1 ✅ + §4 实测）、CHANGELOG、AI-CONTINUE §6.9、backend/README 命令
+
+Stage Summary:
+- T1 完成：库表与演示种子就绪（对齐 step3-plan §3 全部数字），种子由 mock 一键再生成（改数据改 mock 后重跑）；
+  租户注入策略已定并被测试覆盖（求职者跨租户是产品语义，勿改成按表一刀切）
+- 下一步：T2b 注册（§1.2 + 注册自动建公司「新注册企业-{手机尾4}」、40910/40110，照抄 mock `registerMockAccount` 语义）；
+  随后 T3 职位与字典模块起
