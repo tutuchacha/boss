@@ -8,7 +8,7 @@
 > （2026-10-16 起另有交接四件套：`PROJECT.md` / `ARCHITECTURE.md` / `PROGRESS.md` / `CHANGELOG.md`）。
 > 开工顺序：先 `PROGRESS.md`，再本文件；需要细节时再按下文索引深入 `docs/` 的专项文档。
 >
-> 最后更新：2026-10-18 · 对应本轮提交（Step 3 T4 投递与面试闭环，后端 `mvnw test` 77/77；前端 e2e 63/63 基线不变）
+> 最后更新：2026-10-18 · 对应本轮提交（Step 3 T5 公司模块 + 企业认证，后端 `mvnw test` 90/90；前端 e2e 63/63 基线不变）
 > 维护要求：**每次改变项目状态（新增功能、改架构、修坑）后，必须回来更新本文件**，
 > 否则它会像之前的 `HANDOFF.md` 一样过期并误导后来者。
 
@@ -30,7 +30,7 @@ npm run dev          # 端口 3000
 
 **无需数据库、无需后端**：全部数据来自前端 Mock，开箱即跑。
 
-> **当前状态一句话**：Step 3 后端 T4 已完成（投递 / 面试闭环，`mvnw test` 77/77）；前端 Step 2
+> **当前状态一句话**：Step 3 后端 T5 已完成（公司模块 + 企业认证，`mvnw test` 90/90）；前端 Step 2
 > 五项验收功能 + 人才筛选演示增量保持 `npm run e2e` 63/63 基线不变；当前任务与下一步先看
 > [`../PROGRESS.md`](../PROGRESS.md)（状态唯一定稿）。
 
@@ -56,7 +56,7 @@ npm run dev          # 端口 3000
 - **C 端求职者 + 多 B 端企业客户共存**。求职者跨企业共享（一份简历可投多家）。
 - **每个注册企业即一个「租户」**，主键 `companyId`；求职者账号不属于任何租户。
 - **首发只做 H5/Web**（不含 App、小程序）。
-- **当前是前端验收版**：数据全为 Mock，Step 3（Spring Boot 后端）尚未开始。
+- **前端仍是 Mock 验收版**（Step 3 后端并行推进，T9 才切 `NEXT_PUBLIC_USE_MOCK=false`）。
 
 ---
 
@@ -67,7 +67,7 @@ npm run dev          # 端口 3000
 | Step 0 架构 + 数据模型 + API 契约 | ✅ 完成 | `docs/architecture.md`、`data-model.md`、`api-contract.md`、`api-endpoints.md`、`prisma/schema.prisma`、`src/types/api.ts` |
 | Step 1 前端开发（Next.js + Mock） | ✅ 完成 | `src/components/pinliao/`、`src/api/`、`src/store/` |
 | Step 2 前端验收 | ⏳ 进行中 | 五项验收功能已完成，并新增人才筛选演示增量；e2e 63/63 通过；**用户人工验收初步通过（2026-10-16）**；待确认 §9 待决事项 |
-| Step 3 后端（Spring Boot） | 🔄 进行中 | `backend/`（Spring Boot 3.5.16）：T0 骨架 ✅、T2a 鉴权 ✅（2026-10-17）、T1 全量表 + 演示种子 ✅、T2b 注册 ✅、T3a 职位公开读 + 分类字典 ✅、T3b HR 职位写 ✅、T4 投递与面试闭环 ✅（2026-10-18）；当前 T5 公司模块 + 企业认证（§5）；进度与实测以 `../PROGRESS.md` §7.2 为准 |
+| Step 3 后端（Spring Boot） | 🔄 进行中 | `backend/`（Spring Boot 3.5.16）：T0 骨架 ✅、T2a 鉴权 ✅（2026-10-17）、T1 全量表 + 演示种子 ✅、T2b 注册 ✅、T3a 职位公开读 + 分类字典 ✅、T3b HR 职位写 ✅、T4 投递与面试闭环 ✅、T5 公司模块 + 企业认证 ✅（2026-10-18）；当前 T6 消息 + WebSocket（§8）；进度与实测以 `../PROGRESS.md` §7.2 为准 |
 | Step 4 联调 | ⏸ 未开始 | `USE_MOCK=false` 切真实接口 |
 
 > ⚠️ **状态快照（2026-10-16）**：五项功能（投递 / 候选人 / 面试、验证码登录 /
@@ -101,7 +101,7 @@ npm run dev          # 端口 3000
 | 功能 | 备注 |
 |---|---|
 | 招聘者端桌面 Web 后台 | 当前仅移动端布局 |
-| 真实后端（其余模块） | Step 3 进行中：T2a 鉴权（登录 / 退出等）已落地；其余模块按 `docs/step3-plan.md` 任务板推进 |
+| 真实后端（其余模块） | Step 3 进行中：T0~T5（鉴权 / 注册 / 职位 / 投递面试 / 公司）已落地；其余模块按 `docs/step3-plan.md` 任务板推进 |
 
 ---
 
@@ -563,6 +563,25 @@ const { data, isPending } = useQuery({
      T9 改类型或统一返回即可；
   5. 前端 `listMyApplications` 真实分支把 `interview` 固定为 `null`，如需列表显示最近面试要再补。
 
+### 6.14 公司模块与企业认证（Step 3 T5 起）
+
+- **管理员口径不要看 user.role**：§5.4~§5.6 的 COMPANY_ADMIN 以 `company_members.role=ADMIN` 为准。
+  演示 HR `u-hr-1` 的 `users.role` 是 `HR`、成员角色是 `ADMIN`；若只判 token 里的 role，演示账号会 403。
+  §5.3 仍然只要求 HR / COMPANY_ADMIN，不要求 ADMIN 成员。
+- **改名无需刷职位行**：职位视图的公司信息从 `companies` 实时装配，`jobs` 不存公司名快照；
+  §5.4 更新后 §5.1/§5.2/§6.x 自动同步。不要再写「UPDATE jobs SET company_name=...」。
+- **认证没有独立记录表**：契约只暴露 `companies.verified/status`，数据模型也没有
+  `company_verifications`；提交的四项资料只做校验，不落库。状态流转 PENDING → 约 1.2s
+  后台调度 ACTIVE，延迟可用 `pinliao.company.verify-delay-ms` 覆盖（单测用 30ms）。
+- **异步线程没有 UserContext**：自动通过只更新全局表 `companies`，不能用依赖租户注入的 Mapper；
+  后台任务里 `selectById` 后必须再次确认 `status=PENDING`，避免覆盖人工禁用 / 删除。
+- **公开路径**：只放行 `GET /api/v1/companies/*` 与 `GET /api/v1/companies/*/jobs`（匿名可读）；
+  `/company/**`（单数）仍需登录。Ant 的 `*` 只匹配一段，新增子路径时要同步白名单与单测。
+- **公司职位只看可见**：§5.2 仅 `OPEN` 且 `deleted_at IS NULL`，公司不存在 → 40410；
+  游标与 §6.1 同格式（score 固定 0），不要复用带推荐加权的 cursor。
+- **冒烟保持基线**：`smoke-company.mjs` 用临时 `co-reg-*` 公司验证写链路，发布的 `job-new-*`
+  在 finally 软删；`verify-seed.ps1` 已排除这两类前缀，跑完仍应为可见 38 条。
+
 ---
 
 ## 7. 数据与契约
@@ -665,3 +684,4 @@ HR 新建 → 追加。
 | v1.11 | 2026-10-18 | Step 3 T3a：职位公开读（列表 / 搜索 / 详情 / 相似 / 埋点）+ 分类字典（分类树 / 城市 / 字典）落地；补 §6.11（`@Select` 实体转义 / ETag 与 traceId / `nextCursor: null` / 公开接口可选鉴权与租户豁免 / **T9 需加 Next rewrites**） |
 | v1.12 | 2026-10-18 | Step 3 T3b：HR 职位写（发布 / 更新 / 关闭·重开 / 软删）落地；补 §6.12（租户 INSERT 不重复列 / `job-new-{seq}` 全局序号 / publishedAt 截毫秒 / 配额缺省 50 与限流 / 40310 语义 / 冒烟软删行与 verify-seed 排除） |
 | v1.13 | 2026-10-18 | Step 3 T4：投递 / 面试闭环（§9/§10 + §8.7）落地；补 §6.13（投递占位建会话 / 状态机顺序 / 幂等终态 / 40410 归属隔离 / 四类新 id 前缀 / 冒烟可重复 / T9 契约差异清单）；§9 增演示库重置策略待拍板 |
+| v1.14 | 2026-10-18 | Step 3 T5：公司模块 + 企业认证（§5.1~§5.6）落地；补 §6.14（管理员以成员角色 ADMIN 为准 / 改名实时装配 / 认证无独立记录表与异步自动通过 / 公开路径白名单 / 公司职位可见口径 / smoke-company 基线） |

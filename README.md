@@ -45,7 +45,7 @@ npm run dev
 | 状态 | Zustand（含 persist） | 客户端状态 |
 | 数据 | TanStack Query | 服务端状态（两端新模块均走 Query，旧模块部分同步 Mock） |
 | ORM | Prisma | **当前未接入业务**，见下文 |
-| 后端 | Spring Boot 3.5 + MySQL 8 + Redis（`backend/`） | Step 3 进行中：T0~T4 ✅（鉴权 / 职位 / 投递 / 面试；`mvnw test` 77/77）；计划见 `docs/step3-plan.md` |
+| 后端 | Spring Boot 3.5 + MySQL 8 + Redis（`backend/`） | Step 3 进行中：T0~T5 ✅（鉴权 / 职位 / 投递 / 面试 / 公司；`mvnw test` 90/90）；计划见 `docs/step3-plan.md` |
 
 > `zod`、`react-hook-form` 等已随模板装好但**当前代码尚未使用**，故不列入上表。
 
@@ -163,8 +163,11 @@ cd backend
 $env:JAVA_HOME='C:\Program Files\JetBrains\IntelliJ IDEA Community Edition 2025.2.6.2\jbr'  # 必设（本机仅 JDK 1.8）
 .\scripts\dev-up.ps1         # 起 MySQL 3307 + Redis 6379
 .\mvnw.cmd spring-boot:run   # 后端服务 :8080
-.\mvnw.cmd test              # 单元冒烟（基线 8/8）
-node scripts\smoke-auth.mjs  # 鉴权接口冒烟（T2a 起，14 项）
+.\mvnw.cmd test              # 单元测试（基线 90/90）
+node scripts\smoke-auth.mjs  # 鉴权接口冒烟（T2a/T2b，20 项含注册）
+node scripts\smoke-jobs.mjs  # 职位与字典冒烟（T3a/T3b，49 项）
+node scripts\smoke-applications.mjs  # 投递与面试冒烟（T4，51 项）
+node scripts\smoke-company.mjs  # 公司模块冒烟（T5，26 项）
 ```
 
 ### 数据库说明
@@ -175,7 +178,8 @@ node scripts\smoke-auth.mjs  # 鉴权接口冒烟（T2a 起，14 项）
 - 当前无人 `import` `src/lib/db.ts`，因此 **`prisma generate` 不是启动前置条件**
 - datasource 为 SQLite，路径取自 `.env` 的 `DATABASE_URL`
 - 真实数据库为 **MySQL 8**（用户拍板，2026-10-17；专用实例 3307），由 `backend/` 的
-  Flyway 迁移维护建表（`backend/src/main/resources/db/migration/`；V1 鉴权建表 / V2 演示账号）
+  Flyway 迁移维护建表（`backend/src/main/resources/db/migration/`；V1 鉴权建表 / V2 演示账号 /
+  V3 业务建表 / V4~V8 演示种子）
 
 ---
 
@@ -231,7 +235,7 @@ node scripts\smoke-auth.mjs  # 鉴权接口冒烟（T2a 起，14 项）
 | Step 0 | 框架无关的架构、数据模型、API 契约 | ✅ |
 | Step 1 | 前端开发（Next.js + Mock） | ✅ |
 | Step 2 | 前端验收（五项验收功能 + 人才筛选演示增量已完成，`npm run e2e` 63/63） | ⏳ 进行中 |
-| Step 3 | 后端开发（Spring Boot 3.5 + MySQL/Redis；分块计划 `docs/step3-plan.md`） | 🔄 进行中（T0 ✅ / T1 ✅ / T2a ✅ / T2b ✅ / T3a ✅ / T3b ✅ / T4 ✅，2026-10-18；下一步 T5） |
+| Step 3 | 后端开发（Spring Boot 3.5 + MySQL/Redis；分块计划 `docs/step3-plan.md`） | 🔄 进行中（T0 ✅ / T1 ✅ / T2a ✅ / T2b ✅ / T3a ✅ / T3b ✅ / T4 ✅ / T5 ✅，2026-10-18；下一步 T6） |
 | Step 4 | 联调（`USE_MOCK=false`，Mock → 真实接口） | ⏸ 待开始 |
 | 未来 | App / 小程序（若决定多端，复用 API 契约） | — |
 

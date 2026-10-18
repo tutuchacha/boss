@@ -6,6 +6,42 @@
 
 ---
 
+## [2359625] 2026-10-18 — Step 3 T5：公司模块与企业认证（§5.1~§5.6）
+
+> 契约 §5.1~§5.6（6 条）；公开公司读 + HR 公司管理 + 企业认证异步自动通过。
+> 提交 hash：`2359625`（结算见紧后 docs 提交）。
+
+### Added
+
+- `GET /api/v1/companies/{companyId}`（§5.1 公开详情）/ `GET /api/v1/companies/{companyId}/jobs`（§5.2
+  公司职位，游标分页）/ `GET /api/v1/company/me`（§5.3 我的公司）/ `PATCH /api/v1/company/me`（§5.4
+  部分更新）/ `GET /api/v1/company/members`（§5.5 成员列表）/ `POST /api/v1/company/me/verify`（§5.6
+  企业认证）——公司不存在统一 **40410**；资料 / 认证校验 **42210**；已认证重复提交 **40916**。
+- `CompanyService`：§5.4~§5.6 的 COMPANY_ADMIN 以 `company_members.role=ADMIN` 为准（演示 HR 的
+  user.role 是 HR，成员角色是 ADMIN）；§5.3 仍允许 HR / COMPANY_ADMIN 读取本公司。
+- 企业认证提交置 `verified=false / status=PENDING`，后台调度器约 **1200ms** 后自动通过为
+  `verified=true / status=ACTIVE`；延迟可用 `pinliao.company.verify-delay-ms` 覆盖。
+  提交的四项资料只做校验，不单列持久化表（契约未暴露提交记录，数据模型无对应表）。
+- 公司改名后职位公司名实时装配（无 jobs 冗余快照），§5.2 / §6.x 立即同步。
+- 测试：`CompanyServiceTest` 12 项 + `JobQueryServiceTest` 公司职位分页 1 项；
+  新增 `backend/scripts/smoke-company.mjs` **26 项**（连续两次可重复）。
+
+### Changed
+
+- `AuthInterceptor` 公开路径新增 `GET /companies/*`、`GET /companies/*/jobs`（匿名放行，带 token 仍解析）。
+- `JobMapper.selectVisibleByCompany` / `JobQueryService.listByCompany`：仅 OPEN 且未软删，游标语义与 §6.1 一致。
+- 冒烟用临时 `co-reg-*` 公司 + `job-new-*` 职位验证写链路，职位 finally 软删，保持游客可见 38 条基线。
+
+### Docs
+
+- 实测：`mvnw test` **90/90**；`smoke-company.mjs` **26/26**；`smoke-jobs.mjs` 49/49、
+  `smoke-applications.mjs` 51/51、`smoke-auth.mjs` 20/20、`verify-seed.ps1` 16/16 无回归。
+- `docs/step3-plan.md` v1.8 — T5 ✅（`2359625`）+ §4 实测 + 下一步 T6；`PROGRESS.md` v1.13；`worklog.md` Task 25；
+  `docs/api-endpoints.md` v0.3.3（§5 权限 / 40410 口径）；`docs/AI-CONTINUE.md` v1.14；
+  `backend/README.md`、根 `README.md`、`ARCHITECTURE.md`（多租户口径纠正为 MySQL + 拦截器）、`AGENTS.md` 同步。
+
+---
+
 ## [d4ce22c] 2026-10-18 — Step 3 T4：投递与面试闭环（§9/§10 + §8.7）
 
 > 契约 §9.1~§9.5、§10.1~§10.5（10 条）+ §8.7 约面试；状态机与错误码对齐前端 mock。

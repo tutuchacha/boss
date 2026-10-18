@@ -219,42 +219,53 @@
 
 ## 5. 公司模块
 
+> **权限口径**：§5.4~§5.6 的 `COMPANY_ADMIN` 指 `company_members.role=ADMIN`（用户角色为 HR 的
+> 演示账号 `13800000002` 成员角色是 ADMIN，同样满足）；`companyId` 一律取自登录上下文，不信任请求体。
+> §5.1 / §5.2 为公开读（匿名可访问，带 token 仍解析身份）。
+
 ### 5.1 公司详情
 `GET /api/v1/companies/{companyId}`
 - 鉴权：无（公开）
 - 出参：`Company`
+- 错误：`40410` 公司不存在
 
 ### 5.2 公司发布的职位
 `GET /api/v1/companies/{companyId}/jobs`
 - 鉴权：无（公开）
 - 查询：`cursor, limit`
-- 出参：分页 `Job[]`
+- 出参：分页 `JobSummary[]`
+- 说明：仅返回 `OPEN` 且未软删的职位，游标语义同 §6.1
+- 错误：`40410` 公司不存在
 
 ### 5.3 我所在公司（招聘者视角）
 `GET /api/v1/company/me`
 - 鉴权：HR / COMPANY_ADMIN
 - 出参：`Company`
+- 错误：`40301` 非招聘者 / 无企业上下文；`40410` 公司不存在
 
 ### 5.4 更新公司信息
 `PATCH /api/v1/company/me`
-- 鉴权：COMPANY_ADMIN
+- 鉴权：COMPANY_ADMIN（成员角色 ADMIN）
 - 入参（部分）：`{ name?, logoUrl?, intro?, industry?, stage?, size?, website? }`
 - 出参：`Company`
+- 错误：`40301` 非公司管理员；`42210` 资料校验失败（名称 2-30 字 / 简介 ≤500 字符等）
+- 说明：职位视图的公司名从 `companies` 实时装配，改名后 §5.1 / §5.2 / §6.x 立即同步
 
 ### 5.5 公司成员列表
 `GET /api/v1/company/members`
-- 鉴权：COMPANY_ADMIN
+- 鉴权：COMPANY_ADMIN（成员角色 ADMIN）
 - 出参：`CompanyMember[]`
+- 错误：`40301` 非公司管理员
 
 ### 5.6 企业认证提交
 `POST /api/v1/company/me/verify`
-- 鉴权：COMPANY_ADMIN
+- 鉴权：COMPANY_ADMIN（成员角色 ADMIN）
 - 入参：`CompanyVerifyInput` — `{ companyName, licenseNo, contactName, contactPhone }`
 - 出参：`Company`（`status` 置为 `PENDING`、`verified=false`）
 - 错误：`42210` 资料校验失败（名称 / 18 位统一社会信用代码 / 联系人 / 联系电话）；
   `40916` 已认证，无需重复提交
-- 说明：审核进度复用 §5.3 轮询（`verified` / `status`）；Mock 阶段提交后约 1.2 秒
-  自动通过（`MOCK_VERIFY_REVIEW_DELAY_MS`）
+- 说明：审核进度复用 §5.3 轮询（`verified` / `status`）；后端提交后约 1.2 秒
+  自动通过（可配置 `pinliao.company.verify-delay-ms`；Mock 为 `MOCK_VERIFY_REVIEW_DELAY_MS`）
 
 ---
 
@@ -555,3 +566,4 @@
 | — | 2026-09-28 | 加注账目说明：总览表格合计 68 与正文实际 67 条不符，正文为准 |
 | v0.3.1 | 2026-10-16 | 新增 §5.6 企业认证提交（POST /company/me/verify；42210 / 40916）；公司模块行 5→6；账目说明更新为 2026-10 复核（正文 67→68，合计仍 68，分模块数字 65 待订正） |
 | v0.3.2 | 2026-10-16 | 新增 §4.5 候选人匹配、§4.6 技能标签词表（人才筛选演示版，关键词匹配；预留语义检索升级）；招聘者模块行 4→6；账目：正文 68→70（GET 27→28 / POST 32→33），合计 70，分模块之和 67 仍待订正 |
+| v0.3.3 | 2026-10-18 | Step 3 T5 落地补注：§5.4~§5.6 的 COMPANY_ADMIN 指 `company_members.role=ADMIN`；§5.1/§5.2 补 `40410`，§5.2 明确仅 OPEN 且出参 `JobSummary[]`；§5.4 补 42210 / 改名实时同步；§5.6 补后端 1.2s 自动通过配置项 |

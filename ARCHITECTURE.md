@@ -212,7 +212,8 @@ src/
 1. **单页 SPA，不引入路由**：一切视图切换走各自 store 的 `tab` + `pageStack`。
 2. **service 层隔离**：组件不直接 `fetch`；`USE_MOCK` 控制 Mock / 真实接口切换。
 3. **前端最终选型未定**：Next.js 当前只是验收沙箱；目标架构见 `docs/architecture.md`。
-4. **多租户**：业务表带 `companyId`；生产由 MyBatis-Plus 拦截器 + PostgreSQL RLS 落实。
+4. **多租户**：业务表带 `companyId`；生产由 MyBatis-Plus 租户拦截器落实（MySQL 8；
+   求职者跨租户查询不注入，详情见 `docs/AI-CONTINUE.md` §6.9）。
 5. **水合安全**：见 §4.6，禁止在模块初始化阶段读取浏览器私有状态。
 
 ---
