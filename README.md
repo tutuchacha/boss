@@ -3,7 +3,7 @@
 参考 Boss 直聘模式的招聘平台原型：**C 端求职者 + 多 B 端企业客户共存**。
 求职者跨企业共享（同一份简历可投多家），每个注册企业即一个「租户」（Tenant）。
 
-> **当前阶段**：Step 2 前端验收版（e2e 63/63）· Step 3 后端进行中（**T0 ✅、T1 ✅、T2a ✅、T2b ✅、T3a ✅、T3b ✅、T4 ✅、T5 ✅、T6 ✅**，
+> **当前阶段**：Step 2 前端验收版（e2e 63/63）· Step 3 后端进行中（**T0 ✅、T1 ✅、T2a ✅、T2b ✅、T3a ✅、T3b ✅、T4 ✅、T5 ✅、T6 ✅、T7 ✅**，
 > 2026-10-18；任务板见 `docs/step3-plan.md`）。前端仍走本地 Mock，无需后端即可运行；T9 再切 `USE_MOCK=false` 联调。
 
 ---
@@ -45,7 +45,7 @@ npm run dev
 | 状态 | Zustand（含 persist） | 客户端状态 |
 | 数据 | TanStack Query | 服务端状态（两端新模块均走 Query，旧模块部分同步 Mock） |
 | ORM | Prisma | **当前未接入业务**，见下文 |
-| 后端 | Spring Boot 3.5 + MySQL 8 + Redis（`backend/`） | Step 3 进行中：T0~T6 ✅（鉴权 / 职位 / 投递 / 面试 / 公司 / 消息 + WebSocket；`mvnw test` 114/114）；计划见 `docs/step3-plan.md` |
+| 后端 | Spring Boot 3.5 + MySQL 8 + Redis（`backend/`） | Step 3 进行中：T0~T7 ✅（鉴权 / 职位 / 投递 / 面试 / 公司 / 消息 + WebSocket / 用户简历收藏上传；`mvnw test` 151/151）；计划见 `docs/step3-plan.md` |
 
 > `zod`、`react-hook-form` 等已随模板装好但**当前代码尚未使用**，故不列入上表。
 
@@ -163,12 +163,13 @@ cd backend
 $env:JAVA_HOME='C:\Program Files\JetBrains\IntelliJ IDEA Community Edition 2025.2.6.2\jbr'  # 必设（本机仅 JDK 1.8）
 .\scripts\dev-up.ps1         # 起 MySQL 3307 + Redis 6379
 .\mvnw.cmd spring-boot:run   # 后端服务 :8080
-.\mvnw.cmd test              # 单元测试（基线 114/114）
+.\mvnw.cmd test              # 单元测试（基线 151/151）
 node scripts\smoke-auth.mjs  # 鉴权接口冒烟（T2a/T2b，20 项含注册）
 node scripts\smoke-jobs.mjs  # 职位与字典冒烟（T3a/T3b，49 项）
 node scripts\smoke-applications.mjs  # 投递与面试冒烟（T4，51 项）
 node scripts\smoke-company.mjs  # 公司模块冒烟（T5，26 项）
 node scripts\smoke-messages.mjs  # 消息与 WebSocket 冒烟（T6，40 项）
+node scripts\smoke-user.mjs  # 用户 / 简历 / 收藏 / 上传冒烟（T7，64 项）
 ```
 
 ### 数据库说明
@@ -236,7 +237,7 @@ node scripts\smoke-messages.mjs  # 消息与 WebSocket 冒烟（T6，40 项）
 | Step 0 | 框架无关的架构、数据模型、API 契约 | ✅ |
 | Step 1 | 前端开发（Next.js + Mock） | ✅ |
 | Step 2 | 前端验收（五项验收功能 + 人才筛选演示增量已完成，`npm run e2e` 63/63） | ⏳ 进行中 |
-| Step 3 | 后端开发（Spring Boot 3.5 + MySQL/Redis；分块计划 `docs/step3-plan.md`） | 🔄 进行中（T0 ✅ / T1 ✅ / T2a ✅ / T2b ✅ / T3a ✅ / T3b ✅ / T4 ✅ / T5 ✅ / T6 ✅，2026-10-18；下一步 T7） |
+| Step 3 | 后端开发（Spring Boot 3.5 + MySQL/Redis；分块计划 `docs/step3-plan.md`） | 🔄 进行中（T0 ✅ / T1 ✅ / T2a ✅ / T2b ✅ / T3a ✅ / T3b ✅ / T4 ✅ / T5 ✅ / T6 ✅ / T7 ✅，2026-10-18；下一步 T8） |
 | Step 4 | 联调（`USE_MOCK=false`，Mock → 真实接口） | ⏸ 待开始 |
 | 未来 | App / 小程序（若决定多端，复用 API 契约） | — |
 

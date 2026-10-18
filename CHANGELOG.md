@@ -6,6 +6,49 @@
 
 ---
 
+## [c26dc44] 2026-10-18 — Step 3 T7：用户 / 简历 / 收藏 / 上传（§2/§3/§11/§12）
+
+> 契约 §2/§3/§11/§12 共 19 条；补齐求职者资料、简历、收藏与上传闭环。
+> 提交 hash：`c26dc44`（结算见紧后 docs 提交）。
+
+### Added
+
+- 用户模块（`user/`）：`GET|PATCH /api/v1/user/profile`（§2.1/§2.2）、`POST /password/change`（§2.3）、
+  `POST /password/reset`（§2.4，匿名 + RESET 验证码）、`POST /phone/change`（§2.5，LOGIN 验证码）、
+  `GET|PATCH /user/preferences`（§2.6/§2.7）、`POST /user/deactivate`（§2.8，软删 + 吊销当前 token）。
+- 简历模块（`resume/`）：`GET|POST /api/v1/resumes`（§3.1/§3.3）、`GET|PATCH|DELETE /resumes/{id}`
+  （§3.2/§3.4/§3.5）、`POST /resumes/{id}/set-default`（§3.6）；首份自动默认、删除默认自动顺延，
+  同步 `user_profiles.default_resume_id`；HR 仅可读「已投递到本公司」的简历，越权统一 40410。
+- 收藏模块（`favorite/`）：`POST /api/v1/favorites`（§11.1，重复 40910）、`DELETE /favorites/{jobId}`
+  （§11.2，幂等）、`GET /favorites`（§11.3，`createdAt DESC, id ASC` 游标 + `total`）。
+- 上传模块（`upload/`）：`POST /uploads/sign` / `POST /uploads/confirm`（§12.1/§12.2），本地目录替代 OSS；
+  服务端生成 objectKey，HMAC 预签名 `PUT /api/v1/uploads/local/{objectKey}`，确认后经 `/uploads/**`
+  静态映射访问；头像/Logo ≤2MB、公司图片 ≤5MB、简历附件 ≤10MB，MIME 与扩展名双向校验。
+- 新增 `backend/scripts/smoke-user.mjs` **64 项**：临时 `u-reg-*` 账号隔离，覆盖 19 条接口主链路与
+  错误分支、收藏两页、简历默认切换、真实 PUT 直传与静态读回；finally 清理简历 / 收藏。
+
+### Changed
+
+- `WebAuthConfig` 白名单新增 `/api/v1/user/password/reset` 与 `/api/v1/uploads/local/**`；
+  其余用户 / 简历 / 收藏 / 上传接口仍需登录。
+- `application.yml` 新增 `pinliao.upload.dir`（默认 `target/uploads`）与 `pinliao.upload.url-ttl`
+  （默认 10 分钟）。
+- 外观偏好按 `pinliao:user:prefs:{userId}` 存 Redis，默认 `auto`；未新增数据库表。
+
+### Fixed
+
+- `smoke-messages.mjs` 在 WebSocket 用例结束前等待自动回复落库，并在下一轮开始前吸收迟到消息，
+  修复连续执行时消息计数偶发 +2 的抖动；已复跑 **40/40 两次**。
+- `verify-seed.ps1` 的 resumes 计数排除 `u-reg-*` 与 `deleted_at` 行，避免 T7 软删冒烟数据污染种子基线。
+
+### Docs
+
+- 同步 `PROGRESS.md` v1.15、`docs/step3-plan.md` v1.10、`docs/api-endpoints.md` v0.3.5、\n  `docs/api-contract.md` v0.3.2、`docs/AI-CONTINUE.md` v1.16（§6.16）、
+  `backend/README.md`、`AGENTS.md`、`README.md`、`PROJECT.md`、`worklog.md`；T7 实测
+  `mvnw test` **151/151**（新增 37）、`smoke-user` **64/64**，其余冒烟与 `verify-seed` 16/16 无回归。
+
+---
+
 ## [8d9513a] 2026-10-18 — Step 3 T6：消息与 WebSocket（§8.1~§8.8 + 4 主题）
 
 > 消息 REST 八条 + `/ws` STOMP 实时通道；未读持久化事实源 + 双向自动回复演示语义。
