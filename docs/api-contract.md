@@ -1,6 +1,6 @@
 # 聘聊 · API 契约规范
 
-> 版本：v0.3 · 最后更新：2026-09-21
+> 版本：v0.3.1 · 最后更新：2026-10-18
 > 本文档定义所有 API 的通用规范。具体接口清单见 `docs/api-endpoints.md`。
 > 框架无关：无论前端 Next.js / Vue / uni-app、后端 Spring Boot / 其他，均按本规范实现。
 
@@ -329,32 +329,53 @@ X-RateLimit-Reset: 1695283200
 
 - 端点：`/ws?XTransformPort=<port>`（沙箱网关规则）/ 生产环境 `/ws`
 - 协议：STOMP over WebSocket
-- 鉴权：连接时携带 `Authorization: Bearer <accessToken>`（通过 header 或 query）
+- 鉴权：连接时携带 `Authorization: Bearer <accessToken>`（通过 header 或 query）；
+  query 参数支持 `token` 或 `access_token`（浏览器原生 WebSocket 不能自定义 header，query 为主路径）。
+  STOMP CONNECT 也接受原生 header `Authorization: Bearer ...` / `token`。
+- 握手无 token 时先放行 HTTP 升级，由 CONNECT 阶段拒绝；非法 / 已吊销 token 在握手阶段拒绝。
 
 ### 10.2 订阅主题
 
 | 主题 | 订阅者 | 说明 |
 |---|---|---|
 | `/user/queue/messages` | 单用户 | 接收新消息推送 |
-| `/user/queue/notifications` | 单用户 | 接收系统通知 |
-| `/topic/conversation/{conversationId}/typing` | 会话双方 | "对方正在输入" |
+| `/user/queue/notifications` | 单用户 | 接收系统通知（预留） |
+| `/user/queue/typing` | 单用户 | 接收对方"正在输入"（§8.6 用户队列） |
+| `/topic/conversation/{conversationId}/typing` | 会话双方 | "对方正在输入"（会话主题） |
+
+> 错误通道（非业务主题）：`/user/queue/errors`，返回 `{ code, message, data: null, traceId }`。
 
 ### 10.3 发送主题
 
 | 主题 | 说明 |
 |---|---|
-| `/app/conversation/{conversationId}/send` | 发送消息 |
-| `/app/conversation/{conversationId}/typing` | 通知正在输入 |
+| `/app/conversation/{conversationId}/send` | 发送消息（body 同 §8.4） |
+| `/app/conversation/{conversationId}/typing` | 通知正在输入（body 同 §8.6） |
 | `/app/conversation/{conversationId}/read` | 标记已读 |
 
 ### 10.4 消息格式
 
-STOMP frame body 仍为 JSON，遵循统一包络的 `data` 字段结构。
+STOMP frame body 仍为 JSON，遵循统一包络的 `data` 字段结构。接收帧示例：
 
-### 10.5 断线重连
+```json
+{ "code": 0, "message": "ok", "data": { "id": "msg-new-1", "conversationId": "conv-new-1" }, "traceId": "..." }
+```
+
+- 新消息：`data` 为 `Message`（§8.4）。
+- typing：`data` 为 `{ conversationId, fromType, userId?, hrId?, isTyping }`。
+- 发送成功不回显给发送方；服务端向对方用户队列推送，避免客户端收到重复消息。
+- 业务错误：`/user/queue/errors` 返回 `{ code, message, data: null, traceId }`（STOMP 帧）。
+
+### 10.5 演示自动回复
+
+- 求职者发 TEXT → 约 1.2s 后以 HR 身份自动回复；HR 发 TEXT → 约 1.2s 后以候选人身份回复。
+- 回复前先推 `isTyping=true`，落库并推消息后推 `isTyping=false`。
+- 延迟由后端 `pinliao.message.auto-reply-delay-ms` 配置；真实接入时可关闭。
+
+### 10.6 断线重连
 
 - 客户端实现指数退避重连。
-- 重连后通过 REST 拉取断线期间的未读消息。
+- 重连后通过 REST 拉取断线期间的未读消息（未读计数以数据库为准）。
 
 > 沙箱约束：前端 WebSocket 连接必须走 `/?XTransformPort=<port>`，路径恒为 `/`。
 
@@ -395,3 +416,4 @@ STOMP frame body 仍为 JSON，遵循统一包络的 `data` 字段结构。
 | 版本 | 日期 | 变更 |
 |---|---|---|
 | v0.3 | 2026-09-21 | Step 0 初版：URL、方法、包络、错误码、限流、缓存、WS、安全 |
+| v0.3.1 | 2026-10-18 | Step 3 T6 落地补注：WebSocket query token / CONNECT header、4 个推送主题 + errors 队列、STOMP 发送 body 与不回显、错误帧、演示自动回复、未读以数据库为准 |

@@ -1,6 +1,6 @@
 # 聘聊 · API 接口清单
 
-> 版本：v0.3.2 · 最后更新：2026-10-16
+> 版本：v0.3.4 · 最后更新：2026-10-18
 > 通用规范见 `docs/api-contract.md`。本文件列出全部业务接口。
 > 类型定义见 `src/types/api.ts`。
 >
@@ -9,6 +9,8 @@
 > §4.5 候选人匹配、§4.6 技能标签词表）。「接口总览」合计 70 与正文现值一致，
 > 但**表格内各模块数字之和（67）仍不等于合计**——分模块订正因涉及既有设计资产，
 > 待确认后统一更正；逐条以正文为准（另 WebSocket 为 4 个主题，非 HTTP 接口，不计入）。
+> T6 另实现契约外读取 `GET /api/v1/conversations/{conversationId}`（HR 聊天顶栏），
+> 仅作扩展、不改变 8 条消息接口的计账。
 
 ---
 
@@ -367,56 +369,78 @@
 ### 8.1 会话列表
 `GET /api/v1/conversations`
 - 鉴权：是
-- 查询：`cursor, limit`
+- 查询：`cursor, limit`（默认 20 / 上限 100）
 - 出参：分页 `ConversationWithLastMessage[]`
-- 说明：求职者看自己所有会话，招聘者看本公司所有会话（按角色返回不同视角）
+- 说明：求职者看自己所有会话，招聘者看本公司所有会话（按角色返回不同视角）。
+  列表项为双端超集，含 `conversation / job / hr / company / candidate / lastMessage`；
+  按 `lastMessageAt DESC, id ASC` 排序，未读字段区分 `userUnreadCount` / `hrUnreadCount`。
 
 ### 8.2 会话详情（消息列表）
 `GET /api/v1/conversations/{conversationId}/messages`
 - 鉴权：是（会话参与方或本公司 HR）
 - 查询：`cursor, limit`（游标按 createdAt 降序）
-- 出参：分页 `Message[]`
+- 出参：分页 `Message[]`（`{ list, pagination }`，`createdAt DESC, id ASC`）
+- 说明：`readByUser` / `readByHr` 标识双端已读；不存在 / 非参与方 / 跨公司统一 40410。
+
+### 8.2a 会话详情（扩展读取，不计入 8 条）
+`GET /api/v1/conversations/{conversationId}`
+- 鉴权：是（会话参与方或本公司 HR）
+- 出参：单个 `ConversationWithLastMessage`（与 §8.1 列表项同形）
+- 用途：HR 聊天页顶栏读取候选人 / 职位 / 公司；不存在或越权 40410。
+- 说明：契约外增量，T9 前端可选用；不属于新增 HTTP 账目。
 
 ### 8.3 发起会话（从职位详情页"立即沟通"）
 `POST /api/v1/conversations`
 - 鉴权：JOB_SEEKER
 - 入参：`{ jobId, firstMessage?: string }`
 - 出参：`Conversation`
-- 错误：40912 会话已存在（前端转跳到已有会话）
+- 错误：40912 会话已存在（前端转跳到已有会话）；40410 职位不存在或下线；42201 字段非法
 - 幂等：通过 `(jobId, userId)` 唯一约束
+- 行为：`firstMessage` 存在时写入一条 SYSTEM 提示 + 一条 USER TEXT，HR 未读 +1，并触发演示自动回复
 
 ### 8.4 发送消息
 `POST /api/v1/conversations/{conversationId}/messages`
 - 鉴权：是（会话参与方）
 - 入参：`{ type: "TEXT" | "RESUME" | "INTERVIEW_INVITE" | "JOB_CARD", content: string | object, idempotencyKey?: string }`
 - 出参：`Message`
-- 限流：30 次/分钟（按 userId）
+- 限流：30 次/分钟（按 userId），超限 42901
+- 幂等：同一用户 / 会话 / `idempotencyKey` 24h 内返回首次 `Message`；重复内容不会被二次写入
+- 校验：TEXT 内容必须为非空字符串且 ≤2000 字；结构化消息 ≤10000 字；非法类型 / 内容 42201
+- 行为：TEXT 消息由服务端演示语义延迟自动回复（默认 1.2s，见 `pinliao.message.auto-reply-delay-ms`）
 
 ### 8.5 标记会话已读
 `POST /api/v1/conversations/{conversationId}/read`
 - 鉴权：是（会话参与方）
 - 出参：`{ unreadCount: 0 }`
+- 行为：清空当前角色未读计数，并回写对方消息的 `readByUser` / `readByHr`；不存在 / 越权 40410
 
 ### 8.6 "对方正在输入"通知（可选，通过 WebSocket）
 `POST /api/v1/conversations/{conversationId}/typing`
 - 鉴权：是（会话参与方）
 - 入参：`{ isTyping: boolean }`
 - 出参：`{}`
-- 行为：服务端转发到对方的 `/user/queue/typing`
+- 行为：服务端同时转发到对方的 `/user/queue/typing` 与会话主题
+  `/topic/conversation/{conversationId}/typing`
 
 ### 8.7 快捷操作（发送简历/约面试）
 `POST /api/v1/conversations/{conversationId}/actions/send-resume`
 `POST /api/v1/conversations/{conversationId}/actions/invite-interview`
 - 鉴权：HR（邀请面试）/ JOB_SEEKER（发送简历）
+- 入参（发送简历）：`{ resumeId?: string }`（省略时使用默认简历 / 第一份可用简历）
 - 入参（邀请面试）：`{ scheduledAt, format, location?, onlineUrl?, note? }`
 - 出参：`Message`
 - 行为：发送对应类型的消息，并触发后续业务（创建 Interview 记录）
+- 错误（发送简历）：42210 无可用简历 / 简历不属于本人；40410 会话越权
 - 错误（邀请面试）：40914 投递已拒绝 / 已撤回；40915 已有待确认邀请；42201 形式 / 地点非法；42210 时间早于当前
 
 ### 8.8 关闭会话（HR 可关闭）
 `POST /api/v1/conversations/{conversationId}/close`
 - 鉴权：HR / COMPANY_ADMIN（本公司）
 - 出参：`Conversation`
+- 行为：置 `closedByHr=true`（幂等）；求职者或跨公司 HR 40301 / 40410
+
+> T6 实现说明：未读计数以 `conversations.user_unread_count` / `hr_unread_count` 为持久化事实源；
+> Redis 只用于发送限流与 `idempotencyKey` 缓存。演示种子 HR 未读 4 / 求职者未读 2 不应被冒烟改写。
 
 ---
 
@@ -567,3 +591,4 @@
 | v0.3.1 | 2026-10-16 | 新增 §5.6 企业认证提交（POST /company/me/verify；42210 / 40916）；公司模块行 5→6；账目说明更新为 2026-10 复核（正文 67→68，合计仍 68，分模块数字 65 待订正） |
 | v0.3.2 | 2026-10-16 | 新增 §4.5 候选人匹配、§4.6 技能标签词表（人才筛选演示版，关键词匹配；预留语义检索升级）；招聘者模块行 4→6；账目：正文 68→70（GET 27→28 / POST 32→33），合计 70，分模块之和 67 仍待订正 |
 | v0.3.3 | 2026-10-18 | Step 3 T5 落地补注：§5.4~§5.6 的 COMPANY_ADMIN 指 `company_members.role=ADMIN`；§5.1/§5.2 补 `40410`，§5.2 明确仅 OPEN 且出参 `JobSummary[]`；§5.4 补 42210 / 改名实时同步；§5.6 补后端 1.2s 自动通过配置项 |
+| v0.3.4 | 2026-10-18 | Step 3 T6 落地补注：§8 八条消息接口的游标 / 双端超集 / 40912 / 42901 / 幂等 / 自动回复 / 已读 / typing 双通道 / 发送简历；新增 §8.2a 契约外 `GET /conversations/{id}`（不计账）；补未读持久化口径 |

@@ -1039,3 +1039,47 @@ Stage Summary:
   管理员语义按成员角色 ADMIN；单测 90/90、公司冒烟 26/26 可重复，其余基线无回归
 - 下一步：T6 消息 + WebSocket（§8，8 条 + 4 主题；复用 T4 的 conv-new-* 占位会话）；
   T9 前仍需用户拍板 e2e 固定手机号对真实库的重置策略
+
+---
+Task ID: 26
+Agent: orchestrator (main)
+Task: Step 3 T6 — 消息 + WebSocket（§8.1~§8.8，8 条 + 4 主题）
+
+Work Log:
+- 侦察：契约 §8 / §10、前端 conversations / hrConversations mock 语义、ChatPage 取数形状、
+  ConversationEntity / MessageEntity / CompanyMember / HrProfile、T4 的 conv-new-* 占位会话
+- 决策：
+  - 未读计数以 conversations.user_unread_count / hr_unread_count 为持久化事实源；Redis 只做
+    发送限流（30 次/分钟/用户）与 idempotencyKey 24h 去重，重启不丢未读。
+  - 会话列表返回双端超集（conversation / job / hr / company / candidate / lastMessage），
+    同一端点按角色取用；补契约外 GET /conversations/{id} 给 HR 聊天顶栏（不计账）。
+  - 历史按 createdAt DESC, id ASC 游标；列表按 lastMessageAt DESC, id ASC。
+  - 发起会话 (jobId,userId) 唯一，重复 40912；职位不存在 / 下线 40410；firstMessage 写 SYSTEM + TEXT。
+  - WebSocket 用 /ws STOMP；query token 为主，兼容 Authorization / STOMP header；新消息只推对方，
+    避免发送方回显重复；typing 同时推用户队列与会话主题；错误推 /user/queue/errors。
+  - 自动回复双向：USER TEXT → HR 关键词回复；HR TEXT → 候选人关键词回复；先 typing=true，
+    默认 1.2s 后落库并推消息 + typing=false，延迟可配 pinliao.message.auto-reply-delay-ms。
+- 实现：
+  - message/：MessageCodes、MessageRequests、MessageViews、ConversationQueryService /
+    ConversationCommandService / ConversationAutoReplyService、ConversationController、
+    MessageRealtime + StompMessageRealtime、WebSocketConfig、WsHandshakeInterceptor /
+    WsAuthChannelInterceptor / WsPrincipal、MessageWebSocketController
+  - ApplicationCommandService 注入 MessageRealtime，T4 INTERVIEW_INVITE 消息同步推送求职者
+  - 单测 24 项：命令 15（发起 / 越权 / 校验 / 幂等 / 限流 / 已读 / typing / 关闭 / 简历）+
+    查询 6（双端列表 / 游标 / 历史 / 越权 / 非法游标）+ 自动回复 3（双向 / 关键词 / 默认）
+  - 新增 backend/scripts/smoke-messages.mjs 40 项：REST 全链路 + WS 推送 + STOMP 发送 /
+    typing + 错误队列 + 非法 token；只写 conv-new-* / msg-new-*，保护种子未读 4 / 2
+- 验收（实测）：
+  - `mvnw.cmd test` **114/114**（T5 基线 90 + 消息 24）
+  - `smoke-messages.mjs` **40/40**，连续两次执行均通过；含真实 STOMP 帧往返
+  - `smoke-company` 26/26、`smoke-jobs` 49/49、`smoke-applications` 51/51、`smoke-auth` 20/20、
+    `verify-seed` 16/16（HR 会话 6 / 未读 4，求职者 2，消息 16）无回归
+- 文档：PROGRESS v1.14、step3-plan v1.9、CHANGELOG、api-endpoints v0.3.4、api-contract v0.3.1、
+  AI-CONTINUE v1.15（§6.15）、backend/README、AGENTS、README、PROJECT、worklog
+- 提交：`8d9513a`（feat: Step 3 T6）+ 紧后 docs 结算
+
+Stage Summary:
+- T6 完成：§8 消息 8 条 + /ws STOMP 实时通道全绿；DB 未读事实源、双向自动回复、幂等 / 限流、
+  双端超集列表与扩展详情落地；单测 114/114、消息冒烟 40/40 可重复，其余基线无回归
+- 下一步：T7 求职者 / 简历 / 收藏 / 上传（§2/§3/§11/§12，19 条）；T9 前仍需用户拍板
+  e2e 固定手机号对真实库的重置策略与 67/70 接口账目口径
