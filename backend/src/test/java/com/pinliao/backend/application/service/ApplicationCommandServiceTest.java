@@ -17,6 +17,7 @@ import com.pinliao.backend.common.exception.BusinessException;
 import com.pinliao.backend.job.entity.JobEntity;
 import com.pinliao.backend.job.mapper.JobMapper;
 import com.pinliao.backend.job.service.JobQueryService;
+import com.pinliao.backend.message.realtime.MessageRealtime;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -69,13 +70,15 @@ class ApplicationCommandServiceTest {
     private UserProfileMapper userProfileMapper;
     @Mock
     private JobQueryService jobQueryService;
+    @Mock
+    private MessageRealtime realtime;
 
     private ApplicationCommandService service;
 
     @BeforeEach
     void setUp() {
         service = new ApplicationCommandService(applicationMapper, interviewMapper, conversationMapper,
-                messageMapper, resumeMapper, jobMapper, userProfileMapper, jobQueryService);
+                messageMapper, resumeMapper, jobMapper, userProfileMapper, jobQueryService, realtime);
         seeker();
     }
 
