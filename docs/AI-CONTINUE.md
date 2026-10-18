@@ -8,7 +8,7 @@
 > （2026-10-16 起另有交接四件套：`PROJECT.md` / `ARCHITECTURE.md` / `PROGRESS.md` / `CHANGELOG.md`）。
 > 开工顺序：先 `PROGRESS.md`，再本文件；需要细节时再按下文索引深入 `docs/` 的专项文档。
 >
-> 最后更新：2026-10-16 · 对应本轮提交（五项验收功能 + 人才筛选演示增量，e2e 63/63；提交历史见 `git log`）
+> 最后更新：2026-10-18 · 对应本轮提交（Step 3 T4 投递与面试闭环，后端 `mvnw test` 77/77；前端 e2e 63/63 基线不变）
 > 维护要求：**每次改变项目状态（新增功能、改架构、修坑）后，必须回来更新本文件**，
 > 否则它会像之前的 `HANDOFF.md` 一样过期并误导后来者。
 
@@ -30,9 +30,9 @@ npm run dev          # 端口 3000
 
 **无需数据库、无需后端**：全部数据来自前端 Mock，开箱即跑。
 
-> **当前状态一句话**：Step 2 验收中 —— 五项验收功能（投递 / 候选人 / 面试、验证码登录 /
-> 注册、公司资料 / 企业认证）已全部完成，并新增人才筛选（演示版）增量，`npm run e2e`
-> 63/63 通过；当前任务与下一步先看 [`../PROGRESS.md`](../PROGRESS.md)（状态唯一定稿）。
+> **当前状态一句话**：Step 3 后端 T4 已完成（投递 / 面试闭环，`mvnw test` 77/77）；前端 Step 2
+> 五项验收功能 + 人才筛选演示增量保持 `npm run e2e` 63/63 基线不变；当前任务与下一步先看
+> [`../PROGRESS.md`](../PROGRESS.md)（状态唯一定稿）。
 
 ### 环境注意（换环境时最先检查这四条）
 
@@ -67,7 +67,7 @@ npm run dev          # 端口 3000
 | Step 0 架构 + 数据模型 + API 契约 | ✅ 完成 | `docs/architecture.md`、`data-model.md`、`api-contract.md`、`api-endpoints.md`、`prisma/schema.prisma`、`src/types/api.ts` |
 | Step 1 前端开发（Next.js + Mock） | ✅ 完成 | `src/components/pinliao/`、`src/api/`、`src/store/` |
 | Step 2 前端验收 | ⏳ 进行中 | 五项验收功能已完成，并新增人才筛选演示增量；e2e 63/63 通过；**用户人工验收初步通过（2026-10-16）**；待确认 §9 待决事项 |
-| Step 3 后端（Spring Boot） | 🔄 进行中 | `backend/`（Spring Boot 3.5.16）：T0 骨架 ✅、T2a 鉴权 ✅（2026-10-17）、T1 全量表 + 演示种子 ✅、T2b 注册 ✅、T3a 职位公开读 + 分类字典 ✅、T3b HR 职位写 ✅（2026-10-18）；当前 T4 投递与面试闭环（§9/§10）；进度与实测以 `../PROGRESS.md` §7.2 为准 |
+| Step 3 后端（Spring Boot） | 🔄 进行中 | `backend/`（Spring Boot 3.5.16）：T0 骨架 ✅、T2a 鉴权 ✅（2026-10-17）、T1 全量表 + 演示种子 ✅、T2b 注册 ✅、T3a 职位公开读 + 分类字典 ✅、T3b HR 职位写 ✅、T4 投递与面试闭环 ✅（2026-10-18）；当前 T5 公司模块 + 企业认证（§5）；进度与实测以 `../PROGRESS.md` §7.2 为准 |
 | Step 4 联调 | ⏸ 未开始 | `USE_MOCK=false` 切真实接口 |
 
 > ⚠️ **状态快照（2026-10-16）**：五项功能（投递 / 候选人 / 面试、验证码登录 /
@@ -537,6 +537,32 @@ const { data, isPending } = useQuery({
 - **冒烟会留下 `job-new-*` 软删行**：`verify-seed.ps1` 的 `jobs_total` 已排除该前缀；不要改成硬删（破坏
   「软删保留行」语义），也不要手动清库。
 
+### 6.13 投递 / 面试与会话占位（Step 3 T4 起）
+
+- **投递即建会话**：§9.1 成功（含撤回后重新投递）后按 `(jobId, userId)` 幂等创建 `conv-new-{seq}`，
+  会话 `lastMessageAt = now`、未读 0；§9.3 详情返回 `conversationId`（契约外增量）。这样 HR 端
+  「沟通 / 约面试」不再依赖 mock 的 `ensureConversationForApplication`（真实分支目前没有独立建会话接口）。
+  T6 做会话列表 / 消息时**复用该行**，不要再按 job 建第二份。
+- **状态机顺序要对齐 mock**：约面试先判 40914（REJECTED / WITHDRAWN）→ 40915（已有 PENDING）→
+  42201（形式 / ONSITE 缺地点）→ 42210（时间早于当前）。顺序不同会让前端提示文案错位。
+- **接受 / 拒绝是幂等终态**：已 ACCEPTED 再 accept 返回原记录；已 DECLINED 再 decline 同理；
+  其余状态（如 CANCELLED / COMPLETED）→ 40913。不要改成 404（e2e 会重试）。
+- **归属隔离统一 40410**：投递不存在 / 非本人 / 非本公司、面试不存在 / 跨公司统一 `40410`（不泄露存在性）；
+  角色不符才是 40301。HR 侧租户注入 + service 显式 `companyId` 双保险。
+- **新 id 前缀**：`app-new-` / `int-new-` / `conv-new-` / `msg-new-{seq}`，序号查询都要
+  `@InterceptorIgnore(tenantLine="true")`（全局主键）；时间字段落库前截毫秒（同 T3b 的 DATETIME(3) 坑）。
+- **冒烟可重复**：`smoke-applications.mjs` 每次选「云杉下未投递或已撤回」的职位，结尾撤回为 WITHDRAWN；
+  中途失败可能留下非终态记录，重跑会换下一个职位，全部用完时需人工处理 `app-new-%`。
+- **T9 已知契约差异（先记录，联调时处理）**：
+  1. `GET /applications` / `GET /interviews` / `GET /hr/interviews` 返回分页对象 `{list,pagination}`，
+     前端 service 目前按数组解包（mock 分支），真实分支需要 `.list`；
+  2. `GET /hr/applications`（§4.4）尚未实现（T8），HR 候选人列表在 T9 前仍会 404；
+  3. §9.3 返回 `ApplicationDetail`（含 job/resume/interviews），前端 HR 详情页使用 `HrApplicationView`，
+     T9 需做字段适配；
+  4. §8.7 按契约返回 `Message`，前端 `inviteInterview` 类型声明为 `Interview`，但调用方未使用返回值，
+     T9 改类型或统一返回即可；
+  5. 前端 `listMyApplications` 真实分支把 `interview` 固定为 `null`，如需列表显示最近面试要再补。
+
 ---
 
 ## 7. 数据与契约
@@ -614,6 +640,7 @@ HR 新建 → 追加。
 | 最终上线前端框架 | Next.js / Vue / uni-app，当前 Next.js 仅沙箱验收 |
 | 招聘者端桌面 Web 后台布局 | 当前仅移动端布局 |
 | `docs/api-endpoints.md` 总览表格分模块数字（67）如何与合计（70）对齐 | 涉及既有设计资产；正文 70 条为准 |
+| T9 演示库重置策略 | e2e 注册段固定手机号 `13900004321` 对真实 MySQL 重跑会命中 40910；清库重迁 / 改随机手机号 / 加测试专用重置接口，需拍板 |
 | 是否自托管字体摆脱 Google Fonts 构建依赖 | `next/font/local` |
 | 是否清除 `next-themes` 的 script 告警 | 无害，但刷屏 |
 | 两个历史压缩包是否清理 | `files.zip`、`workspace-*.tar` |
@@ -637,3 +664,4 @@ HR 新建 → 追加。
 | v1.10 | 2026-10-18 | Step 3 T2b：注册（§1.2 / 40910 / HR 自动建未认证公司）落地；补 §6.10（注册落库与演示库重置 / e2e 固定手机号重跑风险 / LambdaWrapper TableInfo 单测坑） |
 | v1.11 | 2026-10-18 | Step 3 T3a：职位公开读（列表 / 搜索 / 详情 / 相似 / 埋点）+ 分类字典（分类树 / 城市 / 字典）落地；补 §6.11（`@Select` 实体转义 / ETag 与 traceId / `nextCursor: null` / 公开接口可选鉴权与租户豁免 / **T9 需加 Next rewrites**） |
 | v1.12 | 2026-10-18 | Step 3 T3b：HR 职位写（发布 / 更新 / 关闭·重开 / 软删）落地；补 §6.12（租户 INSERT 不重复列 / `job-new-{seq}` 全局序号 / publishedAt 截毫秒 / 配额缺省 50 与限流 / 40310 语义 / 冒烟软删行与 verify-seed 排除） |
+| v1.13 | 2026-10-18 | Step 3 T4：投递 / 面试闭环（§9/§10 + §8.7）落地；补 §6.13（投递占位建会话 / 状态机顺序 / 幂等终态 / 40410 归属隔离 / 四类新 id 前缀 / 冒烟可重复 / T9 契约差异清单）；§9 增演示库重置策略待拍板 |

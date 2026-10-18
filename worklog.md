@@ -956,3 +956,43 @@ Stage Summary:
   冒烟新建职位收尾软删，可见 38 基线保持；三个冒烟 / 单测基线全部无回归
 - 下一步：T4 投递与面试闭环（§9/§10，10 条；状态机 + 会话按需创建（先占位）+ 校验码
   40911 / 40913 / 40914 / 40915）；T9 前仍需用户拍板 e2e 固定手机号对真实库的重置策略
+
+---
+
+Task ID: 24
+Agent: orchestrator (main)
+Task: Step 3 T4 — 投递与面试闭环（§9/§10，10 条 + §8.7 约面试）
+
+Work Log:
+- 侦察：契约 §9/§10/§8.7 与 §4.4、mock applications.ts（状态机 / 409xx 语义 / ensureConversation）、
+  双端 service 出参期望、types Application*/Interview*/Resume/Message、V3 表结构、V7/V8 种子、
+  verify-seed、JobViews/JobQueryService 映射、UserContext/AuthInterceptor/租户策略
+- 决策：投递成功即幂等占位建会话（conv-new-*），ApplicationDetail 增 conversationId 供 HR 触达 / 约面；
+  新 id 统一 app-new/int-new/conv-new/msg-new 递增派生；§8.7 按契约返回 Message（前端声明 Interview 但未用返回值）
+- 实现：
+  - application/：ApplicationEntity / InterviewEntity / ConversationEntity / MessageEntity / ResumeEntity +
+    Mapper（nextNewSeq 全局取最大，显式 @InterceptorIgnore）；ApplicationViews（Application / WithJob /
+    Detail / Resume / Interview / InterviewWithJob / InterviewWithCandidate / Message）；ApplicationCodes
+  - ApplicationCommandService：§9.1 投递（默认简历 / 42210 / 40911 / 撤回重投复用）、§9.4 撤回（40913）、
+    §9.5 HR 状态（42201 / 40913）、§8.7 约面试（40914 / 40915 / 42201 / 42210 + 建面试 + INTERVIEW 状态 +
+    INTERVIEW_INVITE 消息 + 未读 +1）、§10.4/§10.5 接受拒绝（40410 归属 / 幂等终态）
+  - ApplicationQueryService：§9.2 我的投递、§9.3 详情（job/resume/interviews/conversationId）、§10.1/§10.2
+    双端列表、§10.3 详情；游标 base64 JSON {k,id}，updatedAt/createdAt DESC + id ASC；状态筛选
+  - ApplicationController（10 条 + §8.7）；Roles 角色守卫；PageViews 游标分页；JobQueryService 增
+    summaryOf/detailOf 复用职位映射
+- 测试：新增 ApplicationCommandServiceTest 22 项 + ApplicationQueryServiceTest 5 项；
+  `mvnw test` 50/50 → **77/77**
+- 冒烟：新增 smoke-applications.mjs **51/51**（投递 / 重复 40911 / 游标 / 详情 / 越权 40410 / 状态 /
+  40914 / 40915 / 42201 / 42210 / 约面消息 / 双端面试 / 接受拒绝幂等 / 撤回重投；连续两次通过）；
+  smoke-jobs 49/49、smoke-auth 20/20、verify-seed 16/16 无回归（排除 app-new/int-new/conv-new/msg-new）
+- 踩坑记录（AI-CONTINUE §6.13）：投递建会话与 T6 复用；状态机判断顺序；接受/拒绝幂等；
+  40410 归属隔离；四类 id 前缀与 DATETIME(3) 截毫秒；冒烟可重复；T9 分页/详情/§8.7 前端契约差异
+- 文档：PROGRESS v1.12、step3-plan v1.7（T4 ✅ + §4 实测 + 下一步 T5）、CHANGELOG、AI-CONTINUE v1.13、
+  backend/README、AGENTS
+- 提交：`d4ce22c`（feat: Step 3 T4）+ 紧后 docs 结算
+
+Stage Summary:
+- T4 完成：投递与面试闭环 10 条 + §8.7 全绿；状态机 / 校验码 / 归属隔离 / 会话占位落地；单测 77/77、
+  冒烟 51/51 可重复，其余基线无回归
+- 下一步：T5 公司模块 + 企业认证（§5，6 条；资料编辑改名同步职位公司名 + 认证提交 / 1.2s 自动通过 / 轮询）；
+  T9 前仍需用户拍板 e2e 固定手机号对真实库的重置策略
