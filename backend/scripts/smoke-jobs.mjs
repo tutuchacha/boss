@@ -1,4 +1,4 @@
-// 聘聊 · 职位与字典接口冒烟（Step 3 T3a；契约 docs/api-endpoints.md §6.1~§6.4、§6.9 + §7，26 项）
+// 聘聊 · 职位与字典接口冒烟（Step 3 T3a/T3b；契约 docs/api-endpoints.md §6.1~§6.9 + §7，49 项）
 // 用法：后端启动后运行 `node scripts/smoke-jobs.mjs`（可用 PINLIAO_BASE 覆盖地址）
 // 前置：Flyway V1~V8 已迁移（可见职位 38 / 云杉 7 / 分类 84（17 根）/ 城市 9）；MySQL + Redis 运行中
 // 演示账号：13800000001（求职者）/ 13800000002（HR），密码均 123456
@@ -190,6 +190,126 @@ const dataOf = (r) => (r.json && typeof r.json === 'object' ? r.json.data : unde
     && JSON.stringify(dict.edus) === JSON.stringify(['学历不限', '大专', '本科', '硕士', '博士'])
     && JSON.stringify(dict.salaryRanges) === JSON.stringify(['不限', '10K以下', '10-20K', '20-40K', '40K以上'])
     && JSON.stringify(dict.welfare) === JSON.stringify(['五险一金', '带薪年假', '年度体检', '弹性工作', '年终奖', '餐补']));
+
+  console.log('== §6.5~§6.8 HR 职位写 ==');
+
+  const upsert = {
+    title: '冒烟测试 · 前端工程师',
+    salaryMin: 18,
+    salaryMax: 30,
+    city: '上海',
+    area: '浦东新区',
+    exp: '3-5年',
+    edu: '本科',
+    cat: '互联网',
+    sub: '前端开发',
+    tags: ['React', 'TypeScript'],
+    responsibilities: '负责业务系统前端开发与迭代维护。',
+    requirements: '熟悉 React / TypeScript，有工程化经验。',
+    welfare: ['五险一金', '带薪年假'],
+  };
+
+  r = await POST('/api/v1/jobs', { body: upsert });
+  check('未登录发布职位 → 401 + 40101', r.status === 401 && r.json?.code === 40101,
+    `HTTP ${r.status} code=${r.json?.code}`);
+
+  r = await POST('/api/v1/jobs', { token: seekerToken, body: upsert });
+  check('求职者发布职位 → 403 + 40301', r.status === 403 && r.json?.code === 40301,
+    `HTTP ${r.status} code=${r.json?.code}`);
+
+  r = await POST('/api/v1/jobs', { token: hrToken, body: { title: 'A' } });
+  check('发布字段校验 → 422 + 42201', r.status === 422 && r.json?.code === 42201,
+    `HTTP ${r.status} code=${r.json?.code}`);
+
+  r = await POST('/api/v1/jobs', { token: hrToken, body: upsert });
+  const created = dataOf(r);
+  const newJobId = created.id;
+  check('发布职位 200 / OPEN / 归属本公司',
+    r.status === 200 && r.json?.code === 0 && typeof newJobId === 'string' && newJobId.startsWith('job-new-')
+    && created.status === 'OPEN' && created.companyId === 'co-acgiw7'
+    && created.company?.name === '云杉科技' && created.hr?.id === 'hr-x2270n' && created.hr?.name === '陈女士'
+    && created.viewCount === 0 && created.applyCount === 0 && created.deleted === false,
+    `id=${newJobId} hr=${created.hr?.name}`);
+
+  r = await GET('/api/v1/jobs?limit=100');
+  check('发布后游客可见 39 条', (dataOf(r).list || []).length === 39, `count=${(dataOf(r).list || []).length}`);
+
+  r = await GET('/api/v1/jobs/' + newJobId);
+  const createdDetail = dataOf(r);
+  check('新职位公开详情可读（职责 / 福利）',
+    r.status === 200 && createdDetail.title === upsert.title
+    && createdDetail.responsibilities === upsert.responsibilities
+    && Array.isArray(createdDetail.welfare) && createdDetail.welfare.length === 2,
+    `title=${createdDetail.title}`);
+
+  r = await http('PATCH', '/api/v1/jobs/' + newJobId, {
+    token: hrToken,
+    body: { title: '冒烟测试 · 高级前端工程师', salaryMin: 22, salaryMax: 38 },
+  });
+  const updated = dataOf(r);
+  check('更新职位：部分字段生效',
+    r.status === 200 && updated.title === '冒烟测试 · 高级前端工程师' && updated.salary === '22-38K'
+    && updated.city === '上海' && updated.area === '浦东新区',
+    `title=${updated.title} salary=${updated.salary}`);
+  check('更新保留发布时间与统计',
+    updated.publishedAt === created.publishedAt && updated.viewCount === created.viewCount,
+    `${created.publishedAt} → ${updated.publishedAt}`);
+
+  r = await POST('/api/v1/jobs/' + newJobId + '/close', { token: hrToken });
+  check('关闭职位 → CLOSED', r.status === 200 && dataOf(r).status === 'CLOSED',
+    `status=${dataOf(r).status}`);
+
+  r = await GET('/api/v1/jobs/' + newJobId);
+  check('关闭后求职者详情 404 + 40410', r.status === 404 && r.json?.code === 40410,
+    `HTTP ${r.status} code=${r.json?.code}`);
+
+  r = await GET('/api/v1/jobs?limit=100');
+  check('关闭后游客可见回到 38 条', (dataOf(r).list || []).length === 38, `count=${(dataOf(r).list || []).length}`);
+
+  r = await POST('/api/v1/jobs/' + newJobId + '/reopen', { token: hrToken });
+  check('重新开放 → OPEN', r.status === 200 && dataOf(r).status === 'OPEN', `status=${dataOf(r).status}`);
+
+  r = await GET('/api/v1/jobs/' + newJobId);
+  check('重开后再次可见', r.status === 200 && dataOf(r).id === newJobId, `HTTP ${r.status}`);
+
+  // 越权：注册一个临时 HR（新公司），验证 40310（与 mock 语义一致）
+  const hrPhone = '137' + String(Date.now()).slice(-8);
+  await POST('/api/v1/auth/sms/code', { body: { phone: hrPhone, scene: 'REGISTER' } });
+  const regRes = await POST('/api/v1/auth/register', {
+    body: { phone: hrPhone, code: '123456', password: '123456', role: 'HR' },
+  });
+  const otherToken = dataOf(regRes).accessToken;
+  check('临时 HR 注册成功（越权用例前置）', typeof otherToken === 'string' && otherToken.length > 20,
+    `company=${dataOf(regRes).company?.name}`);
+
+  r = await http('PATCH', '/api/v1/jobs/' + newJobId, { token: otherToken, body: { title: '越权修改' } });
+  check('他公司 HR 更新职位 → 403 + 40310', r.status === 403 && r.json?.code === 40310,
+    `HTTP ${r.status} code=${r.json?.code}`);
+
+  r = await http('DELETE', '/api/v1/jobs/' + newJobId, { token: otherToken });
+  check('他公司 HR 删除职位 → 403 + 40310', r.status === 403 && r.json?.code === 40310,
+    `HTTP ${r.status} code=${r.json?.code}`);
+
+  r = await http('PATCH', '/api/v1/jobs/not-exist-job', { token: hrToken, body: { title: '不存在的职位' } });
+  check('更新不存在职位 → 403 + 40310', r.status === 403 && r.json?.code === 40310,
+    `HTTP ${r.status} code=${r.json?.code}`);
+
+  r = await http('DELETE', '/api/v1/jobs/' + newJobId, { token: hrToken });
+  check('删除（软删）→ 200 {}', r.status === 200 && r.json?.code === 0
+    && JSON.stringify(dataOf(r)) === '{}', `HTTP ${r.status}`);
+
+  r = await GET('/api/v1/jobs/' + newJobId);
+  check('软删后求职者详情 404 + 40410', r.status === 404 && r.json?.code === 40410,
+    `HTTP ${r.status} code=${r.json?.code}`);
+
+  r = await GET('/api/v1/jobs?limit=100');
+  check('软删后游客可见回到 38 条基线', (dataOf(r).list || []).length === 38,
+    `count=${(dataOf(r).list || []).length}`);
+
+  // 兜底清理（重复删除幂等，防止中途断言失败留下可见脏职位）
+  if (newJobId) {
+    await http('DELETE', '/api/v1/jobs/' + newJobId, { token: hrToken });
+  }
 
   console.log(`\n结果：${passed}/${passed + failed} 通过${failed ? '（' + failed + ' 项失败）' : ''}`);
   if (failed) process.exit(1);

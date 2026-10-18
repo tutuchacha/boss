@@ -110,4 +110,22 @@ public interface JobMapper extends BaseMapper<JobEntity> {
     @InterceptorIgnore(tenantLine = "true")
     @Update("UPDATE jobs SET view_count = view_count + 1 WHERE id = #{jobId} AND deleted_at IS NULL")
     int incrementViewCount(@Param("jobId") String jobId);
+
+    /** §6.5 发布配额：tenant_configs.max_jobs（无配置行返回 null → service 用缺省 50）。 */
+    @InterceptorIgnore(tenantLine = "true")
+    @Select("SELECT max_jobs FROM tenant_configs WHERE company_id = #{companyId}")
+    Integer selectTenantMaxJobs(@Param("companyId") String companyId);
+
+    /**
+     * 新建职位 id 序号：{@code job-new-{seq}} 中现有最大序号 + 1（递增派生，对齐 mock；不用时间戳/随机）。
+     *
+     * <p>软删只置 deleted_at、行保留，因此序号不会复用；显式忽略租户注入——id 是全局主键，
+     * 必须跨公司取最大值，不能按当前公司过滤。</p>
+     */
+    @InterceptorIgnore(tenantLine = "true")
+    @Select("""
+            SELECT COALESCE(MAX(CAST(SUBSTRING(id, 9) AS UNSIGNED)), 0) + 1
+            FROM jobs WHERE id LIKE 'job-new-%'
+            """)
+    long nextNewJobSeq();
 }

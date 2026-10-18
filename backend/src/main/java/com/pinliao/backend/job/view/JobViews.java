@@ -80,6 +80,38 @@ public final class JobViews {
     public record HrBrief(String id, String name, String title) {
     }
 
+    /**
+     * HR 管理视图（契约 §6.5~§6.7 出参 Job；对齐前端 {@code HrJobRecord} =
+     * JobSummary + status / 详情字段 / welfare / deleted / companyId）。
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record HrRecord(
+            String id,
+            String title,
+            int salaryMin,
+            int salaryMax,
+            String salary,
+            String city,
+            String area,
+            String exp,
+            String edu,
+            String cat,
+            String sub,
+            List<String> tags,
+            CompanyBrief company,
+            HrBrief hr,
+            long days,
+            Instant publishedAt,
+            int viewCount,
+            int applyCount,
+            String status,
+            String responsibilities,
+            String requirements,
+            List<String> welfare,
+            boolean deleted,
+            String companyId) {
+    }
+
     /** 游标分页响应（契约 §4.2）。 */
     public record Page<T>(List<T> list, Pagination pagination) {
     }
