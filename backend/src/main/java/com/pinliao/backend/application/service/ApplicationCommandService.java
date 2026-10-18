@@ -26,6 +26,7 @@ import com.pinliao.backend.job.JobCodes;
 import com.pinliao.backend.job.entity.JobEntity;
 import com.pinliao.backend.job.mapper.JobMapper;
 import com.pinliao.backend.job.service.JobQueryService;
+import com.pinliao.backend.message.realtime.MessageRealtime;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -87,11 +88,13 @@ public class ApplicationCommandService {
     private final JobMapper jobMapper;
     private final UserProfileMapper userProfileMapper;
     private final JobQueryService jobQueryService;
+    private final MessageRealtime realtime;
 
     public ApplicationCommandService(ApplicationMapper applicationMapper, InterviewMapper interviewMapper,
                                      ConversationMapper conversationMapper, MessageMapper messageMapper,
                                      ResumeMapper resumeMapper, JobMapper jobMapper,
-                                     UserProfileMapper userProfileMapper, JobQueryService jobQueryService) {
+                                     UserProfileMapper userProfileMapper, JobQueryService jobQueryService,
+                                     MessageRealtime realtime) {
         this.applicationMapper = applicationMapper;
         this.interviewMapper = interviewMapper;
         this.conversationMapper = conversationMapper;
@@ -100,6 +103,7 @@ public class ApplicationCommandService {
         this.jobMapper = jobMapper;
         this.userProfileMapper = userProfileMapper;
         this.jobQueryService = jobQueryService;
+        this.realtime = realtime;
     }
 
     // ------------------------------------------------------------------
@@ -284,6 +288,7 @@ public class ApplicationCommandService {
         conversation.setLastMessageAt(now);
         conversation.setUserUnreadCount(intOf(conversation.getUserUnreadCount()) + 1);
         conversationMapper.updateById(conversation);
+        realtime.pushMessage(conversation.getUserId(), ApplicationViews.Message.from(message));
 
         return ApplicationViews.Message.from(message);
     }

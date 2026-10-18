@@ -32,6 +32,9 @@ pinliao:
       fixed-code: "123456"
       ttl: 5m
       cooldown: 60s
+  message:
+    # 演示语义：聊天自动回复延迟（对齐 mock TYPING_DELAY_MS=1200ms）
+    auto-reply-delay-ms: 1200
 
 logging:
   pattern:
