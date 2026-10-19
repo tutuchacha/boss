@@ -1119,7 +1119,8 @@ Work Log:
   - `smoke-auth` 20/20、`smoke-jobs` 49/49、`smoke-applications` 51/51、`smoke-company` 26/26、
     `smoke-messages` 40/40（连续两次）、`verify-seed` 16/16 无回归
   - 修复 `smoke-messages` 上一轮 WebSocket 自动回复迟到导致的计数抖动：开头 / 结尾各等待 1.8s
-- 文档：PROGRESS v1.15、step3-plan v1.10、CHANGELOG、api-endpoints v0.3.5、api-contract v0.3.2、\n  AI-CONTINUE v1.16（§6.16）、
+- 文档：PROGRESS v1.15、step3-plan v1.10、CHANGELOG、api-endpoints v0.3.5、api-contract v0.3.2、
+  AI-CONTINUE v1.16（§6.16）、
   backend/README、AGENTS、README、PROJECT、worklog
 - 提交：`c26dc44`（feat: Step 3 T7）+ 紧后 docs 结算
 
@@ -1129,3 +1130,26 @@ Stage Summary:
   其余冒烟与种子 16/16 无回归
 - 下一步：T8 招聘者 / 候选人 / 人才筛选（§4，6 条；重点 §4.1/§4.2 HR 画像 + §4.5/§4.6 关键词匹配）；
   T9 前仍需用户拍板 e2e 固定手机号对真实库的重置策略与 67/70 接口账目口径
+
+---
+
+Task ID: 28
+Agent: orchestrator (main)
+Task: 文档结算 — 接口账目 / T9 重置策略 / T8→T9 顺序（用户拍板）
+
+Work Log:
+- 决策（用户拍板，2026-10-18）：
+  - 接口账目以正文 70 条为准：总览表鉴权 6→7、职位 9→10（§6.7 close/reopen）、消息 8→9
+    （§8.7 send-resume / invite-interview），分模块合计 70。
+  - T9 e2e 固定手机号重置策略：每轮 e2e 前清库重迁（重建 + Flyway V1~V8），
+    `13900004321` 可反复使用；重置脚本在 T9 落地。
+  - T8/T9 顺序：**T8 先、T9 后**。`NEXT_PUBLIC_USE_MOCK` 为全局开关、无模块级粒度，
+    先补齐 §4 再整体切真实接口，避免 T9 二次返工与验收范围打折。
+- 文档：PROGRESS v1.16、step3-plan v1.11、api-endpoints v0.3.6、AI-CONTINUE v1.17/v1.18、
+  CHANGELOG（新增本次结算段）、AGENTS（待确认清单移除已决项）、worklog。
+- 顺带修复 CHANGELOG / worklog 中 T7 文档行遗留的字面 `\n` 换行错误。
+- 提交：`docs: 决策结算（接口账目 70 条 / T9 重置策略 / T8→T9 顺序）`。
+
+Stage Summary:
+- 三项待决事项全部定稿并入库，无代码变更；工作区回到干净状态（除自动维护的 AGENTS/CLAUDE 区块）。
+- 下一步：T8 开工——先核对 §4.3/§4.4 现状，再补 §4.1/§4.2 HR 画像与 §4.5/§4.6 人才筛选移植。

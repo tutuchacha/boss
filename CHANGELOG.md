@@ -6,6 +6,23 @@
 
 ---
 
+## [docs] 2026-10-18 — 文档结算：接口账目 70 条 / T9 重置策略 / T8→T9 顺序
+
+> 三项决策均由用户拍板；本次提交只改文档，无代码变更。
+
+### Docs
+
+- **接口账目定稿**：以正文 **70** 条为准；`docs/api-endpoints.md` v0.3.6 将总览表校正为
+  鉴权 7 / 职位 10 / 消息 9，分模块合计 70，消除此前的 67/70 差异。
+- **T9 重置策略**：每轮 e2e 前清库重迁（重建 + Flyway V1~V8），e2e 注册段固定手机号
+  `13900004321` 可反复使用；重置脚本在 T9 落地。
+- **T8/T9 顺序**：定为 **T8 先、T9 后**。`NEXT_PUBLIC_USE_MOCK` 是全局开关、无模块级粒度，
+  先补齐 §4 再整体切真实接口，避免 T9 二次返工与验收范围打折。
+- 同步 `PROGRESS.md` v1.16、`docs/step3-plan.md` v1.11、`docs/AI-CONTINUE.md` v1.17/v1.18、
+  `AGENTS.md`（待确认清单移除已决项）、`worklog.md`。
+
+---
+
 ## [c26dc44] 2026-10-18 — Step 3 T7：用户 / 简历 / 收藏 / 上传（§2/§3/§11/§12）
 
 > 契约 §2/§3/§11/§12 共 19 条；补齐求职者资料、简历、收藏与上传闭环。
@@ -43,7 +60,8 @@
 
 ### Docs
 
-- 同步 `PROGRESS.md` v1.15、`docs/step3-plan.md` v1.10、`docs/api-endpoints.md` v0.3.5、\n  `docs/api-contract.md` v0.3.2、`docs/AI-CONTINUE.md` v1.16（§6.16）、
+- 同步 `PROGRESS.md` v1.15、`docs/step3-plan.md` v1.10、`docs/api-endpoints.md` v0.3.5、
+  `docs/api-contract.md` v0.3.2、`docs/AI-CONTINUE.md` v1.16（§6.16）、
   `backend/README.md`、`AGENTS.md`、`README.md`、`PROJECT.md`、`worklog.md`；T7 实测
   `mvnw test` **151/151**（新增 37）、`smoke-user` **64/64**，其余冒烟与 `verify-seed` 16/16 无回归。
 
