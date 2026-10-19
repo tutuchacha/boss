@@ -35,6 +35,9 @@ class AuthInterceptorPublicEndpointTest {
         assertFalse(AuthInterceptor.isPublicEndpoint("GET", "/api/v1/company/members"));
         assertFalse(AuthInterceptor.isPublicEndpoint("POST", "/api/v1/company/me/verify"));
         assertFalse(AuthInterceptor.isPublicEndpoint("GET", "/api/v1/jobs/job-1/apply"));
+        // Step 4 T-AI0：AI 自检端点需登录（避免未授权调用产生费用）
+        assertFalse(AuthInterceptor.isPublicEndpoint("GET", "/api/v1/ai/status"));
+        assertFalse(AuthInterceptor.isPublicEndpoint("GET", "/api/v1/ai/ping"));
         assertFalse(AuthInterceptor.isPublicEndpoint(null, "/api/v1/jobs"));
         assertFalse(AuthInterceptor.isPublicEndpoint("GET", null));
     }

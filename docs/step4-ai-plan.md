@@ -3,7 +3,8 @@
 > 状态唯一定稿在 `PROGRESS.md`；本文件是 AI 增量的**方案与任务板**（进度以 §7 任务表为准）。
 > 前置：Step 3 后端 + T9 全量联调已完成（`USE_MOCK=false` 下 `npm run e2e` **63/63**）。
 > 编号说明：本增量编号为 **Step 4（AI / RAG）**；`PROGRESS.md` §1 中旧的「Step 4 联调」已并入 Step 3 T9。
-> 最后更新：2026-10-19 · 状态：**方案定稿，未开工**（决策见 §1，待确认子项见 §10）
+> 最后更新：2026-10-19 · 状态：**T-AI0 完成（依赖 + 配置 + 连通性自检已落地并实测）**，T-AI1 待开工
+> （决策见 §1，实测结论见 §6.2 / §7，待确认子项见 §10）
 
 ---
 
@@ -17,7 +18,7 @@
   1. HR 在「候选人详情」打开 AI 助手，提问（如「他做过高并发吗？几年 Java 经验？」）能得到回答；
   2. 回答**必须带引用**（可点击定位到简历对应段落），无依据时必须明说「简历中没有相关信息」；
   3. 回答只能基于**该 HR 可见范围**内的简历（跨租户零泄漏，见 §5.3）；
-  4. `pinliao.ai.enabled=false`（默认）时：接口返回 43001、前端入口隐藏，**`npm run e2e` 仍 63/63**；
+  4. `pinliao.ai.enabled=false`（默认）时：接口返回 **42220**（AI 未启用）、前端入口隐藏，**`npm run e2e` 仍 63/63**；
   5. `mvnw test` 全绿且**不依赖网络 / 付费 key**（用 §8 的假模型）。
 - **本轮不做**：模型微调、多模态（视频面试分析）、Agent 自主多步工具调用、线上部署与计费、
   PDF/DOCX 简历正文解析（属 T-AI6 之后，见 §10）。
@@ -27,12 +28,13 @@
 | 事项 | 定案 | 备注 |
 |---|---|---|
 | 模型接入 | **通义千问一站式（百炼 DashScope）** | 同一个 API Key 同时提供对话与向量；OpenAI 兼容协议 |
-| 对话模型 | `qwen3` 系列（演示默认 `qwen-plus` 档，可按效果升级） | 具体型号在 T-AI0 定稿并写入文档 |
+| 对话模型 | **`qwen3.5-122b-a10b`**（2026-10-19 实测可用；**思考模式默认关闭**） | 用户指定；若要降本/提速可切 `qwen-plus`（仅改环境变量） |
 | 向量模型 | `text-embedding-v4`，**1024 维**（可调 64~2048） | 单条 ≤ 8192 token、批量上限 **10 条/次**、约 ¥0.5/M token |
 | 向量库 | **阶段 1：Spring AI `SimpleVectorStore`（内存 + JSON 落盘）→ 阶段 2：MySQL 自建 `resume_chunks` + 暴力余弦** | 本机无 Docker、原生 Redis 无 RediSearch，故先不上独立向量库 |
 | 框架 | **Spring AI 1.1.x 为主线；LangChain4j 1.22.x 作为第二阶段对照实现** | 两者都要学，但不同时上（工作量翻倍） |
 | 第一个能力 | **单简历问答（HR 候选人详情）** | 检索层可被后续语义检索复用 |
-| 本轮范围 | **只落方案文档，不改代码** | 开工时机由用户另行指示 |
+| 密钥与开关 | **全部走用户级环境变量**（`PINLIAO_AI_API_KEY` / `_BASE_URL` / `_CHAT_MODEL` / `_EMBEDDING_MODEL` / `_EMBEDDING_DIM` / `_ENABLED`），仓库只保留 `${占位默认值}` 引用 | 见 §6.2；key 不进仓库、不进日志 |
+| 推进方式 | T-AI0 已落地（2026-10-19）；**T-AI1 起按任务板逐块推进**，每块单独验收 | 原「只落文档不改代码」限定针对方案轮，已被 T-AI0 落地取代 |
 
 **版本对齐（2026-10-19 核对）**：
 
@@ -146,80 +148,117 @@
 ### 5.4 开关、降级与成本
 
 - 总开关 `pinliao.ai.enabled`（默认 **false**）；租户级可用 `tenant_configs.features.ai` 二次控制。
-- 每小时/每日调用上限（Redis 计数，复用现有 limiter 风格），超限返回 43004。
+- 每小时/每日调用上限（Redis 计数，复用现有 limiter 风格），超限返回 **42902**。
 - 每次调用写 `usage_logs`：`AI_CHAT`（次数）、`AI_EMBEDDING`（token 估算）；
   便于以后做「AI 成本看板」，也是演示时能讲的一环。
-- 上游超时/失败 → 43002，**不得**让 AI 故障影响既有功能（问答接口独立，不参与核心链路）。
+- 上游超时/失败 → **50020**，**不得**让 AI 故障影响既有功能（问答接口独立，不参与核心链路）。
 
 ## 6. 代码结构与契约
 
 ### 6.1 后端新增包（不动既有包）
 
+`✅` = T-AI0 已落地；`⬜` = 后续增量规划。
+
 ```
 backend/src/main/java/com/pinliao/backend/ai/
-├─ config/      AiProperties（enabled / provider / chat / embedding / retrieve / store）
-│               @ConditionalOnProperty(pinliao.ai.enabled)
-├─ spi/         AiChatClient / AiEmbeddingModel / AiVectorStore  ← 业务唯一依赖（框架隔离层）
+├─ AiCodes.java        ✅ 模块错误码（42220 未启用 / 42221 索引未就绪 / 42902 超配额 / 50020 上游失败）
+├─ config/             ✅ AiProperties（record，绑定 pinliao.ai.enabled）+ AiConfig（@EnableConfigurationProperties）
+├─ spi/                ⬜ AiChatClient / AiEmbeddingModel / AiVectorStore  ← 业务唯一依赖（框架隔离层）
 ├─ provider/
-│   ├─ springai/        Spring AI adapter（阶段 1）
-│   └─ langchain4j/     LangChain4j adapter（阶段 2，对照）
-│   └─ fake/            FakeChatModel / FakeEmbeddingModel（测试与离线演示）
-├─ chunk/       ResumeChunker、ChunkHash、ResumeTextExtractor
-├─ index/       ResumeIndexService（增量索引 / 全量重建 / 状态查询）
-├─ rag/         RetrievalService（过滤 + topK + rerank）、PromptBuilder、CitationAssembler
-├─ qa/          HrResumeQaService（会话记忆 + 流式输出）
-├─ search/      SemanticTalentSearchService（阶段 T-AI4，与 TalentMatchService 并行）
-├─ usage/       AiUsageRecorder → usage_logs
-└─ web/         AiController / HrAiController
+│   ├─ springai/       ✅（直接用 starter 自动装配的 ChatModel / EmbeddingModel；T-AI1 起加 SPI adapter）
+│   ├─ langchain4j/    ⬜ LangChain4j adapter（阶段 2，对照）
+│   └─ fake/           ⬜ FakeChatModel / FakeEmbeddingModel（离线演示与集成测试）
+├─ chunk/              ⬜ ResumeChunker、ChunkHash、ResumeTextExtractor
+├─ index/              ⬜ ResumeIndexService（增量索引 / 全量重建 / 状态查询）
+├─ rag/                ⬜ RetrievalService（过滤 + topK + rerank）、PromptBuilder、CitationAssembler
+├─ qa/                 ⬜ HrResumeQaService（会话记忆 + 流式输出）
+├─ search/             ⬜ SemanticTalentSearchService（阶段 T-AI4，与 TalentMatchService 并行）
+├─ usage/              ⬜ AiUsageRecorder → usage_logs
+├─ service/            ✅ AiConnectivityService（自检：chat + embedding）
+└─ web/                ✅ AiController（/api/v1/ai/status、/api/v1/ai/ping，契约外自检）
 ```
 
-### 6.2 配置（草案，key 不进仓库）
+### 6.2 配置（**已落地**：key 只进环境变量，不进仓库）
+
+**依赖（`backend/pom.xml`，已加）**：`spring-ai-bom:1.1.8`（import） + `spring-ai-starter-model-openai`。
+1.1.x 对应 Boot 3.5.x；Spring AI 2.0.x 需 Boot 4 + Jackson 3，**勿混用**。
+
+**环境变量（用户级，持久化；`环境变量` 对话框 → 用户变量）**：
+
+| 变量 | 值（演示） | 说明 |
+|---|---|---|
+| `PINLIAO_AI_API_KEY` | `sk-…`（**只在环境变量里**） | 百炼 API Key；仓库只见 `${PINLIAO_AI_API_KEY:占位}` |
+| `PINLIAO_AI_BASE_URL` | `https://dashscope.aliyuncs.com/compatible-mode` | Spring AI 默认再拼 `/v1/chat/completions`、`/v1/embeddings` |
+| `PINLIAO_AI_CHAT_MODEL` | `qwen3.5-122b-a10b` | 思考型模型，代码里显式 `enable_thinking=false` |
+| `PINLIAO_AI_EMBEDDING_MODEL` | `text-embedding-v4` | 1024 维 |
+| `PINLIAO_AI_EMBEDDING_DIM` | `1024` | 与 `text-embedding-v4` 默认一致 |
+| `PINLIAO_AI_ENABLED` | `true` | 总开关；**默认 false**（无 key 的机器 / CI 不受影响） |
+
+`application.yml` 实际写法（provider 参数交给 Spring AI 原生前缀，不再自造一套）：
 
 ```yaml
+spring:
+  ai:
+    openai:
+      api-key: ${PINLIAO_AI_API_KEY:pinliao-ai-disabled-placeholder}   # 占位：无 key 也能启动，功能由总开关关掉
+      base-url: ${PINLIAO_AI_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode}
+      chat:
+        options:
+          model: ${PINLIAO_AI_CHAT_MODEL:qwen3.5-122b-a10b}
+          temperature: 0.3
+      embedding:
+        options:
+          model: ${PINLIAO_AI_EMBEDDING_MODEL:text-embedding-v4}
+          dimensions: ${PINLIAO_AI_EMBEDDING_DIM:1024}
 pinliao:
   ai:
-    enabled: false                 # 默认关闭；演示时用环境变量打开
-    provider: springai             # springai | langchain4j | fake
-    chat:
-      base-url: https://dashscope.aliyuncs.com/compatible-mode
-      api-key: ${PINLIAO_AI_API_KEY:}
-      model: qwen-plus
-      timeout: 60s
-    embedding:
-      base-url: https://dashscope.aliyuncs.com/compatible-mode
-      api-key: ${PINLIAO_AI_API_KEY:}
-      model: text-embedding-v4
-      dimensions: 1024
-      batch-size: 10               # DashScope 单次上限
-      cache: true                  # content_hash → 向量本地缓存
-    store:
-      type: memory                 # memory | mysql
-      file: .local/ai/vector-store.json
-    retrieve:
-      top-k: 6
-      min-score: 0.35
+    enabled: ${PINLIAO_AI_ENABLED:false}
 ```
 
-- `PINLIAO_AI_API_KEY` 通过**系统环境变量**注入（`.env*` 与 `.local/` 均已 gitignore；
-  后端不读 `.env`，起服务前在 PowerShell 里设一次即可，写入 `backend/README.md` 的联调步骤）。
-- 客户端依赖坐标（T-AI0 落地时确认）：
-  `org.springframework.ai:spring-ai-bom:1.1.x`（import）+ `spring-ai-starter-model-openai`
-  （OpenAI 兼容 → DashScope）。**踩坑预警**：DashScope 的 `base-url` 与 `chat/embeddings` 路径
-  与 OpenAI 默认拼接规则不同，T-AI0 先用 curl 验证两个 path 再写配置。
+设置与自检（PowerShell，见 `backend/README.md`「AI 配置」）：
+
+```powershell
+[Environment]::SetEnvironmentVariable('PINLIAO_AI_API_KEY','sk-…','User')   # 其余变量同理
+# 重启终端 / IDE 后（环境变量在进程启动时读取）：
+$tk = (Invoke-RestMethod http://localhost:8080/api/v1/auth/login/password -Method Post `
+  -ContentType 'application/json' -Body '{"account":"13800000002","password":"123456"}').data.accessToken
+Invoke-RestMethod http://localhost:8080/api/v1/ai/status -Headers @{ Authorization = "Bearer $tk" }
+Invoke-RestMethod http://localhost:8080/api/v1/ai/ping   -Headers @{ Authorization = "Bearer $tk" }
+```
+
+**实测结论（2026-10-19，curl/Invoke-RestMethod 实跑）**：
+
+- `sk-ws-` 前缀的 key **可以**用于普通应用：标准「按量计费」兼容模式端点
+  （`dashscope.aliyuncs.com/compatible-mode`）chat 与 embeddings **均 200**；
+  `coding.dashscope.aliyuncs.com`（Coding Plan 专属，只服务编码类工具）**401** —— 故走兼容模式端点。
+- `qwen3.5-122b-a10b` 是**思考型**模型：请求体加 `enable_thinking=false` 后 **~1.0s** 返回、无
+  `reasoning_content`；不加则延迟 >10s 且多计 token（代码里已用 `extraBody` 固定关闭）。
+- embedding `text-embedding-v4` 返回 **1024 维**，~0.5s。
+- `/api/v1/ai/ping` 实测：chat 1005ms / 44 tokens、embedding 538ms / dim 1024、端到端 1.56s。
+
+> 安全：key 只存于**用户级环境变量**；`git grep 'sk-ws-'`、未跟踪文件、全部历史提交均为空命中
+> （接入时已核查）。`.env*` 与 `.local/` 已 gitignore。
 
 ### 6.3 接口草案（契约新增 §AI，账目并入 `docs/api-endpoints.md`）
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
+| GET | `/api/v1/ai/status` | **已落地**（契约外自检）：回显 enabled / provider / 模型名，不调用上游 |
+| GET | `/api/v1/ai/ping` | **已落地**（契约外自检）：真实调用一次 chat + embedding，返回耗时 / token / 向量维度 |
 | POST | `/api/v1/hr/applications/{applicationId}/ai/qa` | 简历问答（v1 非流式 JSON；v2 SSE `text/event-stream`：`delta` / `citation` / `done` / `error`） |
 | GET | `/api/v1/hr/applications/{applicationId}/ai/index-status` | 该候选人简历索引状态（是否已索引、chunk 数、模型版本） |
 | POST | `/api/v1/ai/index/rebuild` | 全量重建索引（演示/运维用，需鉴权） |
 | POST | `/api/v1/hr/talent/semantic-search` | 阶段 T-AI4：语义人才检索 |
 
+- 两个自检端点同样受 `WebAuthConfig` 拦截器保护（`/api/v1/**` 默认需登录），避免未授权调用产生费用
+  （单测 `AuthInterceptorPublicEndpointTest` 已断言非公开）。
 - 流式方案：**优先 SSE**；若 Next `rewrites` 代理对 SSE 有阻断（T-AI3 实测），退回既有 STOMP
   主题（`/topic/hr/ai/{sessionId}`），复用现成的握手与鉴权拦截器。
-- 错误码（43xxx 段，属新增）：`43001` AI 未启用 / `43002` 上游调用失败或超时 /
-  `43003` 索引未就绪 / `43004` 超出调用配额。
+- 错误码：**`42220` AI 未启用 / `42221` 索引未就绪 / `42902` 超出调用配额 / `50020` 上游调用失败或超时**
+  （定义在 `ai/AiCodes.java`）。
+  注意：原方案的 `43xxx` 段**不可用**——契约 §5 规定「5 位数字，前 3 位对应 HTTP 状态码」，
+  而 `ApiCodes.httpStatus()` 只识别 400/401/403/404/409/422/429/500 前缀，`430xx` 会落到 500。故改用
+  上表四个（`42220/42221` 属 422 业务规则族、`42902` 属 429 限流族、`50020` 属 500 上游故障族）。
 
 ### 6.4 数据表（V9 起）
 
@@ -242,7 +281,7 @@ ai_chat_messages(id, session_id, role, content, citations_json, tokens, latency_
 
 | 编号 | 内容 | 产出与验收 | 预估 | 需要真实 key | 状态 |
 |---|---|---|---|---|---|
-| T-AI0 | 依赖与连通性：BOM + starter + `AiProperties` + `/ai/ping` | curl 打通 chat 与 embedding；记录 token 与耗时；写 `backend/README.md` 的 key 设置步骤 | 0.5 天 | 是 | ⬜ |
+| T-AI0 | 依赖与连通性：BOM + starter + `AiProperties` + `/ai/ping` | ✅ **完成（2026-10-19）**：`spring-ai-bom:1.1.8` + `spring-ai-starter-model-openai`；`AiCodes` / `AiProperties` / `AiConnectivityService` / `AiController`；`/api/v1/ai/status` + `/ping` 实测通过（chat 1005ms / 44 tokens、embedding 538ms / dim 1024）；`mvnw test` **176/176**；key 走用户级环境变量且已核查仓库零泄漏；`backend/README.md` 已加「AI 配置」 | 0.5 天 | 是 | ✅ |
 | T-AI1 | 索引入库：`ResumeChunker` + `AiEmbeddingModel` + `resume_chunks`(V9) + 重建接口 | 单测（FakeEmbedding）断言分块规则；`smoke-ai.mjs`：12 份简历 → N 个 chunk；重复执行幂等 | 1~2 天 | 否 | ⬜ |
 | T-AI2 | **单简历问答 MVP**（非流式）+ 引用 + HR 候选人详情「AI 助手」抽屉 | §0 的 5 条 DoD 全过；前端走 mock 分支；e2e 仅新增「入口存在 / 开关关闭时隐藏」断言 | 1~2 天 | 是（人工验收时） | ⬜ |
 | T-AI3 | 流式输出（SSE 或 STOMP）+ 打字机 + 引用点击定位 | 首字延迟、中断、错误态；e2e 不依赖流式内容 | 1 天 | 是 | ⬜ |
@@ -254,7 +293,9 @@ ai_chat_messages(id, session_id, role, content, citations_json, tokens, latency_
 ## 8. 测试策略（保证不破坏现有基线）
 
 - **假模型优先**：`FakeEmbeddingModel`（确定性哈希 → 归一化向量，保证同文本同向量）+
-  `FakeChatModel`（模板回复）。单测/集成测试**不联网、不花钱、可重复**，与现有 173 项测试风格一致。
+  `FakeChatModel`（模板回复）。单测/集成测试**不联网、不花钱、可重复**，与现有 176 项测试风格一致。
+  （T-AI0 已先行示范：`AiConnectivityServiceTest` 用 Mockito 假模型覆盖「关闭 → 42220 不调上游」与
+  「开启 → 关闭思考模式 + token 上限」两条不变量。）
 - **`smoke-ai.mjs`** 走 `provider=fake`（或本地 Ollama 向量），断言分块数、幂等、过滤边界
   （他人公司的简历检索不到）；`node scripts/smoke-ai.mjs` 纳入 `backend/README.md` 冒烟清单。
 - **e2e 只加不变量断言**：入口显隐、开关关闭时不可见、无控制台错误；**不**断言模型具体输出。
@@ -283,7 +324,9 @@ ai_chat_messages(id, session_id, role, content, citations_json, tokens, latency_
 
 | 风险 | 应对 |
 |---|---|
-| DashScope 兼容协议的 path / 维度 / 批量（10 条）与 OpenAI 默认不同 | T-AI0 先 curl 验证；`dimensions` 显式配置；批量切分封装在 adapter 内 |
+| DashScope 兼容协议的 path / 维度 / 批量（10 条）与 OpenAI 默认不同 | ✅ **已实测**（T-AI0）：`base-url` 用 `.../compatible-mode`，Spring AI 默认拼 `/v1/chat/completions`、`/v1/embeddings`，与 DashScope 路径一致；维度显式配 1024；批量切分封装留给 T-AI1 |
+| DashScope「思考型」模型默认开启思考 → 延迟与费用不可控 | ✅ **已处理**（T-AI0）：请求体 `extraBody(enable_thinking=false)`（实测 10s+ → 1.0s）；单测断言该参数 |
+| key 泄露（用户最担心「额度被用光」） | ✅ **已核查**（T-AI0）：key 仅存用户级环境变量；`git grep` / 未跟踪文件 / 全部历史提交均零命中；`.env*`、`.local/` 已 gitignore |
 | 跨租户简历泄漏（最严重） | §5.3 过滤前置；`smoke-ai.mjs` 增加「A 公司查不到 B 公司简历」断言 |
 | 简历文本被当作指令（Prompt 注入） | 「资料」与「指令」分区，并在系统提示里声明资料为纯数据 |
 | e2e「零控制台错误」门禁 | AI 相关请求失败必须走统一包络处理，不在前端产生未捕获错误 |
@@ -293,8 +336,9 @@ ai_chat_messages(id, session_id, role, content, citations_json, tokens, latency_
 
 **待确认（需用户后续拍板，不替用户决定）**：
 
-1. 对话模型的最终档位（`qwen-plus` vs `qwen-max`：效果 / 成本权衡）。
-2. 向量维度定 1024 还是 1536（精度 / 存储权衡）。
+1. ~~对话模型最终档位~~ → **用户已指定 `qwen3.5-122b-a10b`**（T-AI0 实测可用）；若后续在意成本可切
+   `qwen-plus`（只改 `PINLIAO_AI_CHAT_MODEL`）。
+2. 向量维度定 1024 还是 1536（精度 / 存储权衡）——**暂按 1024**（与 DashScope 默认一致）。
 3. 是否同时接 Ollama 做「零成本模式」作为演示兜底（需装 Ollama，向量可，对话不建议）。
 4. 配额策略（每 HR 每日问答次数上限、embedding 重建是否限流）。
 5. 是否把求职者侧 AI 能力（简历体检 / 投递建议）纳入 Step 4 范围。
@@ -305,3 +349,4 @@ ai_chat_messages(id, session_id, role, content, citations_json, tokens, latency_
 | 版本 | 日期 | 变更 |
 |---|---|---|
 | v1.0 | 2026-10-19 | 首版。基于当前仓库实况（Boot 3.5.16 / MySQL 3307 / 无 Docker / 原生 Redis / 结构化简历 JSON / 多租户红线 / e2e 门禁）制定 Step 4 AI / RAG 增量方案；用户拍板：通义千问一站式、先内存后 MySQL、Spring AI 主线 + 事后补 LangChain4j、问答先行、**先落文档不动代码** |
+| v1.1 | 2026-10-19 | **T-AI0 落地并实测**：新增 `spring-ai-bom:1.1.8` + `spring-ai-starter-model-openai`；`ai/` 包（`AiCodes` 42220/42221/42902/50020、`AiProperties`、`AiConnectivityService`、`AiController` 的 `/ai/status` 与 `/ai/ping`）；配置改为「Spring AI 原生前缀 `spring.ai.openai.*` + 总开关 `pinliao.ai.enabled`」，key 走 6 个用户级环境变量并以占位默认值保证无 key 也能启动。**修正原方案两处**：① 错误码 `43xxx` 不可用（契约规定前 3 位=HTTP 状态），改为 `42220/42221/42902/50020`；② 对话模型按用户指定定为 `qwen3.5-122b-a10b`（思考型，`enable_thinking=false`）。实测：chat 1005ms/44 tokens、embedding 1024 维/538ms；`mvnw test` 176/176；e2e 63/63 无回归 |

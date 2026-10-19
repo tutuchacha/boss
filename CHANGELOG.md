@@ -6,6 +6,70 @@
 
 ---
 
+## [Step 4 · T-AI0] 2026-10-19 — AI 接入：Spring AI + 百炼 DashScope 连通性打通（密钥走环境变量）
+
+> 用户要求：API Key 配在本机**环境变量**里（方便统一修改），配置文件用引用方式读取，
+> **绝不能进 git**（怕被人拿去用光额度）。
+
+### Added
+
+- `backend/pom.xml`：`spring-ai-bom:1.1.8`（`import`）+ `spring-ai-starter-model-openai`
+  （OpenAI 兼容协议 → 阿里云百炼 DashScope）。1.1.x 对齐 Boot 3.5；2.0.x 需 Boot 4 + Jackson 3，勿混用。
+- `backend/src/main/java/com/pinliao/backend/ai/`（新增包，不动既有包）：
+  - `AiCodes.java`：AI 模块错误码 `42220`（未启用）/ `42221`（索引未就绪）/ `42902`（超配额）/
+    `50020`（上游失败或超时）。**不能用原方案草案的 `43xxx`**——契约 §5 规定「前 3 位 = HTTP 状态」，
+    `ApiCodes.httpStatus()` 只识别 400/401/403/404/409/422/429/500。
+  - `config/AiProperties.java`（record，绑定 `pinliao.ai.enabled`）+ `config/AiConfig.java`。
+  - `service/AiConnectivityService.java`：自检 = 一次 chat + 一次 embedding；chat 固定
+    `extraBody(enable_thinking=false)`、`maxTokens=128`；未启用时直接抛 `42220`（不触碰上游）。
+  - `web/AiController.java`：`GET /api/v1/ai/status`（只回显配置）、`GET /api/v1/ai/ping`
+    （真实调用，返回模型 / 耗时 / token / 向量维度）。两者**受鉴权拦截器保护**，避免未授权调用扣费。
+- `backend/src/test/java/.../ai/service/AiConnectivityServiceTest.java`：3 项不联网单测
+  （关闭→42220 且不调上游 / 开启→回显模型与维度 / 开启→关思考模式 + token 上限）。
+
+### Changed
+
+- `backend/src/main/resources/application.yml`：新增 `spring.ai.openai.*`（`api-key` / `base-url` /
+  `chat.options.model` / `embedding.options.model|dimensions`）与 `pinliao.ai.enabled`，
+  **全部由环境变量注入**，`api-key` 给占位默认值 —— 未配密钥的机器 / CI 仍能正常启动。
+  环境变量：`PINLIAO_AI_API_KEY` / `_BASE_URL` / `_CHAT_MODEL` / `_EMBEDDING_MODEL` /
+  `_EMBEDDING_DIM` / `_ENABLED`。
+- `backend/README.md`：新增「AI 配置（Step 4 T-AI0）」一节（设置命令 + 自检命令 + 已知要点）；
+  基线更新为 `mvnw test` 176/176；目录结构补 `ai/`。
+
+### Fixed
+
+- `backend/scripts/db-reset.ps1`：`Get-JavaMajor` 在 **Windows PowerShell 5.1** 下会因
+  `$ErrorActionPreference='Stop'`（`_env.ps1` 设置）把 `java -version`（走 stderr）抛出的
+  `NativeCommandError` 当终止错误吞掉，导致版本解析恒为 0，脚本误报「未找到 JDK 17+」
+  （PowerShell 7 不复现）。改为探测函数内局部降级为 `Continue`；5.1 与 7 均实跑通过。
+
+### Docs
+
+- `docs/step4-ai-plan.md` v1.1：T-AI0 标记完成并补实测结论；配置章节改写为「已落地」实际写法；
+  错误码 `43xxx` → `42220/42221/42902/50020`；对话模型定为 `qwen3.5-122b-a10b`。
+- `PROGRESS.md` v1.21、`docs/AI-CONTINUE.md` v1.23（新增 §6.19 AI 接入 10 条坑）、`worklog.md` Task 33。
+
+### Why / Key findings（实测，影响后续所有 AI 工作）
+
+- `sk-ws-` 前缀的 key **可以**用于普通应用：标准「按量计费」兼容模式端点
+  （`dashscope.aliyuncs.com/compatible-mode`）chat 与 embeddings 均 200；
+  `coding.dashscope.aliyuncs.com`（Coding Plan 专属、只服务编码类工具）401 —— 不要按前缀误配。
+- `qwen3.5-122b-a10b` 是**思考型**模型：不加 `enable_thinking=false` 时 >10s 且多计 token，
+  加上后 ~1.0s。
+- `base-url` 只写到 `.../compatible-mode`（Spring AI 自拼 `/v1/chat/completions`、`/v1/embeddings`，
+  与 DashScope 路径一致）。
+
+### Verification
+
+- `GET /api/v1/ai/status` → `enabled=true / openai-compatible / qwen3.5-122b-a10b / text-embedding-v4`。
+- `GET /api/v1/ai/ping` → chat **1005ms / 44 tokens**、embedding **538ms / dim 1024**，端到端 1.56s。
+- `mvnw test` **176/176**（+3）；真实后端 `db-reset.ps1` 后 `npm run e2e` **63/63**；
+  `verify-seed.ps1` **16/16**；`/actuator/health` UP。
+- 密钥泄露核查三连均为空命中：`git grep 'sk-ws-'`、未跟踪文件扫描、`git log -p --all -S 'sk-ws-'`。
+
+---
+
 ## [T9 追加] 2026-10-19 — 求职者职位列表切真实（HR 发布 / 关闭对求职者生效）
 
 > 用户选方案 A：只切「职位读路径」，分类字典与消息会话留 T10。

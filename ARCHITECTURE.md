@@ -285,6 +285,7 @@ company/     §5 公司公开信息 / 我的公司 / 资料编辑 / 成员 / 企
 message/     §8 会话 / 消息 / 未读 + WebSocket（STOMP）+ 自动回复
 recruiter/   §4.1/§4.2 HR 画像 + §4.4 我收到的投递 + §4.5/§4.6 人才筛选（关键词引擎）
 favorite/    §11 收藏；upload/ §12 预签名上传
+ai/          Step 4 AI：连通性自检 / 配置（T-AI0；后续 chunk / index / rag / qa / search 增量）
 common/      api（包络 / 错误码 / 分页）/ 租户 / 安全 / 异常
 config/      拦截器 / MyBatis-Plus / Redis / WebSocket / 上传目录等装配
 demo/        `_demo` 调试接口（保留）
@@ -329,7 +330,7 @@ demo/        `_demo` 调试接口（保留）
 - 开关在 `.env.local`（gitignore）：`NEXT_PUBLIC_USE_MOCK=false` + `NEXT_PUBLIC_API_BASE_URL=/api/v1`；
   改后必须重启 dev server（`NEXT_PUBLIC_*` 构建期内联）。
 - 列表统一 `{list, pagination:{nextCursor, hasMore, total}}`；时间统一 ISO-8601 UTC；枚举用枚举名字符串。
-- 验收：`mvnw.cmd test` **173/173**；冒烟 `smoke-auth` 20 / `smoke-jobs` 49 / `smoke-applications` 51 /
+- 验收：`mvnw.cmd test` **176/176**（含 Step 4 T-AI0 的 AI 自检 3 项）；冒烟 `smoke-auth` 20 / `smoke-jobs` 49 / `smoke-applications` 51 /
   `smoke-company` 26 / `smoke-messages` 40 / `smoke-user` 64 / `smoke-recruiter` 50；`verify-seed` 16/16；
   前端 `npm run e2e` **63/63**。
 - 仍是 mock 驱动的前端路径（求职者分类字典 / 消息会话）：见 `PROGRESS.md` §6.3。

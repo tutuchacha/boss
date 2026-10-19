@@ -118,6 +118,11 @@ if ($NoRestart) {
 
 # 本机系统 PATH 上的 JAVA_HOME 是 1.8，必须显式挑一个 ≥17 的 JDK（否则 maven-shade-plugin 会炸）
 function Get-JavaMajor([string]$JavaExe) {
+    # Windows PowerShell 5.1 注意：`java -version` 输出走 stderr，在 $ErrorActionPreference='Stop'
+    # （由 _env.ps1 设置）下 `2>&1` 会抛终止性 NativeCommandError 并被下面的 catch 吞掉 → 恒返回 0，
+    # 导致脚本误报「未找到 JDK 17+」（PS 7 不触发）。此处局部降级为 Continue。
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
     try {
         $out = & $JavaExe -version 2>&1 | Out-String
         if ($out -match 'version "(\d+)(\.(\d+))?') {
@@ -125,7 +130,7 @@ function Get-JavaMajor([string]$JavaExe) {
             if ($major -eq 1 -and $Matches[3]) { return [int]$Matches[3] }   # 1.8 -> 8
             return $major
         }
-    } catch { }
+    } catch { } finally { $ErrorActionPreference = $prevEap }
     return 0
 }
 

@@ -1334,3 +1334,72 @@ Work Log:
 Stage Summary:
 - Step 4 AI / RAG 方案定稿：路线（通义一站式 + 先内存后 MySQL + Spring AI 主线 + 问答先行）与
   T-AI0~T-AI7 任务板、测试策略、租户红线均已书面化；**未开工**，等用户选 T-AI0 或先确认 §10 六项。
+
+---
+
+Task ID: 33
+Agent: orchestrator (main)
+Task: Step 4 T-AI0 —— 接入 Spring AI + 百炼 DashScope；密钥改走环境变量并打通连通性自检
+
+背景/需求：用户给出 API Key（`sk-ws-…`）与模型名（`qwen3.5-122b-a10b`），要求：
+① key 配在**本机系统环境变量**里（一处修改全局生效）；② 配置文件用**引用**方式读取；
+③ 明确担心「上传 git 被人发现 key 把我额度用完」。
+
+Work Log:
+- 先探明 key 归属与可用性（不猜、实测）：
+  - `sk-ws-` 前缀属百炼套餐类 key；查官方文档知 Coding Plan 专属域名为
+    `coding.dashscope.aliyuncs.com`。
+  - 用 key 实打三组请求：标准兼容模式端点 `dashscope.aliyuncs.com/compatible-mode` 上
+    `qwen3.5-122b-a10b` **200**、`qwen-plus` **200**、`text-embedding-v4`（1024 维）**200**；
+    `coding.dashscope.aliyuncs.com` **401**（`/compatible-mode` 变体 404）。
+  - 结论：**按量计费兼容模式端点即正确入口**，chat 与 embedding 都能用；不要被 `sk-ws-` 前缀
+    误导去配 coding 专属域名。
+  - 另测思考模式：`qwen3.5-122b-a10b` 带 `reasoning_content`（思考型），加
+    `enable_thinking=false` 后 1s 返回、无 reasoning 输出 → 演示默认关思考。
+- 密钥落地方式（安全第一）：
+  - 6 个变量写入**用户级**环境变量（`[Environment]::SetEnvironmentVariable(k, v, 'User')`）：
+    `PINLIAO_AI_API_KEY` / `_BASE_URL` / `_CHAT_MODEL` / `_EMBEDDING_MODEL` / `_EMBEDDING_DIM`（1024）
+    / `_ENABLED`（true）；当前会话同步注入以便立即验证。
+  - 仓库侧只写引用：`application.yml` 用 `${PINLIAO_AI_API_KEY:pinliao-ai-disabled-placeholder}`
+    等占位默认值（**空 api-key 会导致 Spring AI 启动失败**，故必须给占位）。
+  - 泄露核查三连（全为空命中）：`git grep -I -l 'sk-ws-'`、`git ls-files --others --exclude-standard`
+    + `Select-String`、`git log -p --all -S 'sk-ws-'`；并确认 `.gitignore` 覆盖 `.env*`。
+- 代码（新增 `ai/` 包，不动既有包；风格对齐 `dict/` 与 `auth/config/`）：
+  - `pom.xml`：`spring-ai-bom:1.1.8`（import）+ `spring-ai-starter-model-openai`（先 HEAD 校验
+    Maven Central 有坐标再改，避免解析失败）。
+  - `AiCodes`（42220 未启用 / 42221 索引未就绪 / 42902 超配额 / 50020 上游失败）——**修正原方案
+    的 `43xxx`**：契约 §5 规定前 3 位=HTTP 状态，`ApiCodes.httpStatus()` 不认 43x，会落 500。
+    选号前先 grep 确认 42220/42221/42902/50020 未被占用。
+  - `AiProperties`（record, `pinliao.ai.enabled`）+ `AiConfig`（`@EnableConfigurationProperties`）。
+  - `AiConnectivityService`（chat + embedding 自检；`extraBody(enable_thinking=false)`、`maxTokens=128`；
+    未启用抛 42220 不碰上游）+ `AiController`（`/api/v1/ai/status|ping`，受拦截器保护）。
+  - `application.yml`：`spring.ai.openai.*` + `pinliao.ai.enabled`，全部 `${ENV:默认}`。
+- 验证：
+  - `mvnw -B test-compile` 通过（Spring AI 依赖解析正常）；`mvnw test` **176/176**
+    （新增 `AiConnectivityServiceTest` 3 项；`AuthInterceptorPublicEndpointTest` 加 2 条断言确认
+    AI 端点非公开）。首跑 1 项失败：Mockito 假响应的 usage 是 0 而非 null → 修断言后全绿。
+  - 重启后端（环境变量在进程启动时读取）→ HR 登录取 token → `GET /api/v1/ai/status` 返回
+    `enabled=true / qwen3.5-122b-a10b / text-embedding-v4`；`GET /api/v1/ai/ping` 返回
+    chat **1005ms / 44 tokens**、embedding **538ms / dim 1024**（端到端 1.56s）。
+  - 回归门禁：`db-reset.ps1`（清库重迁）→ `verify-seed.ps1` **16/16** → 真实后端 `npm run e2e`
+    **63/63**（含「零控制台错误」），AI 开启态下无回归。
+- 顺手修一个真 bug（阻塞了上面的回归门禁）：
+  - `db-reset.ps1` 在 **Windows PowerShell 5.1** 下报「未找到 JDK 17+」——`Get-JavaMajor` 里
+    `& java -version 2>&1` 因 `_env.ps1` 设了 `$ErrorActionPreference='Stop'` 而产生**终止性**
+    `NativeCommandError`，被 `catch` 吞掉 → 恒返回 0（PowerShell 7 不复现，故此前没暴露）。
+    修法：探测函数内局部把 `$ErrorActionPreference` 降为 `Continue`（保持 UTF-8 BOM）。
+    用文档原命令（`powershell -ExecutionPolicy Bypass -File`）复跑成功：`major=21`、exit=0、
+    基线 `flyway=8 / companies=16 / jobs=51 / applications=9`。
+- 文档：`docs/step4-ai-plan.md` v1.1（T-AI0 完成 + 实测结论 + 配置改为落地写法 + 错误码修正 +
+  模型定案）、`backend/README.md`「AI 配置」一节 + 基线 176/176、`PROGRESS.md` v1.21、
+  `docs/AI-CONTINUE.md` v1.23（新增 §6.19「AI 接入」10 条坑）、`CHANGELOG.md`（T-AI0 条目）、
+  worklog 本条。
+
+Stage Summary:
+- Step 4 T-AI0 完成：Spring AI 1.1.8 + 百炼 DashScope 兼容模式打通（chat + embedding 均实测可用），
+  总开关与密钥全部走用户级环境变量；`mvnw test` 176/176、`verify-seed` 16/16、真实后端 e2e 63/63。
+- 三条会反复用到的实测结论已写入 `docs/AI-CONTINUE.md` §6.19：`sk-ws-` key 走兼容模式端点可用
+  （coding 域名 401）、思考型模型必须 `enable_thinking=false`、空 `api-key` 会导致启动失败（须给占位）。
+- 待用户拍板：`step4-ai-plan.md` §10 其余五项（向量维度 1024 vs 1536 / 是否接 Ollama / 配额策略 /
+  是否含求职者侧能力 / Boot 4 + Spring AI 2.0 迁移时机）。下一步为 **T-AI1 索引入库**
+  （`ResumeChunker` + V9 `resume_chunks` + 重建接口，用假向量模型做单测）。

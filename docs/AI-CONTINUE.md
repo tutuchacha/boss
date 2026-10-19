@@ -8,7 +8,7 @@
 > （2026-10-16 起另有交接四件套：`PROJECT.md` / `ARCHITECTURE.md` / `PROGRESS.md` / `CHANGELOG.md`）。
 > 开工顺序：先 `PROGRESS.md`，再本文件；需要细节时再按下文索引深入 `docs/` 的专项文档。
 >
-> 最后更新：2026-10-19 · 对应本轮提交（Step 3 T8 招聘者模块，后端 `mvnw test` 173/173、`smoke-recruiter` 50/50、既有六项冒烟与 `verify-seed` 16/16 无回归；前端 e2e 63/63 基线不变）；**下一步 T9 全量联调（切 `USE_MOCK=false`）**
+> 最后更新：2026-10-19 · 对应本轮提交（**Step 4 T-AI0：AI 依赖 + 环境变量配置 + `/api/v1/ai/*` 连通性自检**，`mvnw test` 176/176、`smoke-*` 与 `verify-seed` 16/16、前端 e2e 63/63 无回归）；**下一步 T-AI1 索引入库**
 > 维护要求：**每次改变项目状态（新增功能、改架构、修坑）后，必须回来更新本文件**，
 > 否则它会像之前的 `HANDOFF.md` 一样过期并误导后来者。
 
@@ -31,9 +31,10 @@ npm run dev          # 端口 3000
 **无需数据库、无需后端**：全部数据来自前端 Mock，开箱即跑。
 
 > **当前状态一句话**：Step 3 后端 **T0~T9 全部完成**（含全量联调：`USE_MOCK=false` 下 `npm run e2e`
-> 63/63 连续两轮，`mvnw test` 173/173）；前端五项验收 + 人才筛选演示增量保持 63/63 基线；遗留
-> 求职者「分类字典 / 消息会话」与 HR「发消息」入口仍读 mock；**Step 4 AI / RAG 方案已定稿未开工**
-> （[`step4-ai-plan.md`](./step4-ai-plan.md)）。当前任务与下一步先看
+> 63/63 连续两轮）；Step 4 AI / RAG 增量 **T-AI0 已完成**（Spring AI 1.1.8 + 百炼 DashScope 兼容模式
+> 打通，`/api/v1/ai/status|ping` 实测可用，密钥只进用户级环境变量；`mvnw test` 176/176）；遗留
+> 求职者「分类字典 / 消息会话」与 HR「发消息」入口仍读 mock。方案与任务板见
+> [`step4-ai-plan.md`](./step4-ai-plan.md)。当前任务与下一步先看
 > [`../PROGRESS.md`](../PROGRESS.md)（状态唯一定稿）。
 
 ### 环境注意（换环境时最先检查这四条）
@@ -73,7 +74,7 @@ npm run dev          # 端口 3000
 | Step 2 前端验收 | ⏳ 进行中 | 五项验收功能已完成，并新增人才筛选演示增量；e2e 63/63 通过；**用户人工验收初步通过（2026-10-16）**；待确认 §9 待决事项 |
 | Step 3 后端（Spring Boot） | 🔄 进行中 | `backend/`（Spring Boot 3.5.16）：T0 骨架 ✅、T2a 鉴权 ✅（2026-10-17）、T1 全量表 + 演示种子 ✅、T2b 注册 ✅、T3a 职位公开读 + 分类字典 ✅、T3b HR 职位写 ✅、T4 投递与面试闭环 ✅、T5 公司模块 + 企业认证 ✅、T6 消息 + WebSocket ✅、T7 用户 / 简历 / 收藏 / 上传 ✅（2026-10-18）、T8 招聘者 / 候选人 / 人才筛选 ✅（2026-10-19）、**T9 全量联调 ✅（2026-10-19，`USE_MOCK=false` 下 `npm run e2e` 63/63，连续两轮通过）**；进度与实测以 `../PROGRESS.md` §7.2 为准 |
 | Step 3-T9 联调 | ✅ 基本完成 | 前端已切真实后端（`.env.local`：`NEXT_PUBLIC_USE_MOCK=false`，`API_BASE_URL=/api/v1` 经 Next rewrites 代理到 :8080）；**求职者职位列表 / 详情已切真实**（`listJobs` → `GET /jobs`）；遗留：求职者端「分类字典 / 消息会话」仍读 mock，HR「发消息」入口仍为 mock 专用（详见 §6.18 末尾与 §9） |
-| Step 4 AI / RAG 增量 | ⬜ 方案定稿，未开工 | [`step4-ai-plan.md`](./step4-ai-plan.md) v1.0：HR 简历问答（带引用）→ 语义人才检索；通义千问一站式 + 先内存后 MySQL + Spring AI 主线（LangChain4j 后补）；**本轮只落文档**，开工待拍板 |
+| Step 4 AI / RAG 增量 | 🔄 进行中（T-AI0 ✅） | [`step4-ai-plan.md`](./step4-ai-plan.md)：HR 简历问答（带引用）→ 语义人才检索；**T-AI0 已落地**（`spring-ai-bom:1.1.8` + `spring-ai-starter-model-openai`、`ai/` 包、`/api/v1/ai/status|ping`、密钥走用户级环境变量、`mvnw test` 176/176）；下一步 T-AI1 索引入库（V9 `resume_chunks` + `ResumeChunker`） |
 
 > ⚠️ **状态快照（2026-10-16）**：五项功能（投递 / 候选人 / 面试、验证码登录 /
 > 注册、公司资料 / 企业认证）已全部接入 UI，并新增人才筛选（演示版）增量；自动化验收
@@ -738,6 +739,39 @@ const { data, isPending } = useQuery({
   ②③ 需要把 store 的会话模型改成 TanStack Query（未读 / 乐观发送 / 自动回复），且 e2e 对求职者消息页
   **零覆盖**——建议独立一轮（T10）并先补断言再动代码。
 
+### 6.19 AI 接入（Step 4 T-AI0 起）
+
+- **依赖坐标**：`org.springframework.ai:spring-ai-bom:1.1.8`（`import` scope） +
+  `spring-ai-starter-model-openai`。**1.1.x ↔ Boot 3.5；2.0.x 需 Boot 4 + Jackson 3**，勿混用；
+  `spring-ai-starter-model-openai` 已在 Maven Central（本地无 `settings.xml`，直连下载）。
+- **DashScope 用 OpenAI 兼容模式，`base-url` 不要带路径后缀**：
+  `https://dashscope.aliyuncs.com/compatible-mode`，Spring AI 会自己拼 `/v1/chat/completions` 与
+  `/v1/embeddings`——正好等于 DashScope 的正确路径（curl 实测两个 path 均 200）。
+- **`sk-ws-` 前缀的 key 可用于普通应用**：百炼 key 前缀有 `sk-`（按量）/`sk-sp-`（套餐）等，
+  `sk-ws-` 实测在**按量计费兼容模式端点**上 chat + embeddings 均 200；而
+  `coding.dashscope.aliyuncs.com`（Coding Plan 专属、只服务编码类工具）返回 401。
+  **不要被前缀误导去配 coding 专属域名**（否则 401/404，或按量额外计费）。
+- **思考型模型必须显式关思考**：`qwen3.5-122b-a10b` 默认返回 `reasoning_content`，实测 >10s 且多计
+  token；用 `OpenAiChatOptions.builder().extraBody(Map.of("enable_thinking", false))` 后 **~1.0s**、
+  无 reasoning 输出。`enable_thinking` 是 DashScope 扩展字段（非 OpenAI 标准），**只能走 `extraBody`**。
+- **`api-key` 要给占位默认值**：Spring AI 的 OpenAI 自动装配在 `spring.ai.openai.api-key` 为空时
+  **应用启动失败**。写法 `${PINLIAO_AI_API_KEY:pinliao-ai-disabled-placeholder}` + 自研总开关
+  `pinliao.ai.enabled`（默认 `false`）→ 无 key 的机器 / CI 照常启动，AI 接口返回 42220。
+- **错误码不能用 `43xxx`**：契约 §5 规定「5 位数字，前 3 位对应 HTTP 状态」，
+  `ApiCodes.httpStatus()` 只识别 400/401/403/404/409/422/429/500；`430xx` 会落到 500。
+  AI 用 `42220`（未启用）/ `42221`（索引未就绪）/ `42902`（超配额）/ `50020`（上游失败或超时）。
+- **AI 自检端点必须鉴权**：`/api/v1/**` 默认被 `WebAuthConfig` 拦截器保护，AI 调用会真实扣费，
+  **不要**加白名单；`AuthInterceptorPublicEndpointTest` 已断言 `/ai/status` `/ai/ping` 非公开。
+- **`java -version` 在 Windows PowerShell 5.1 + `$ErrorActionPreference='Stop'` 下是坑**：其输出走
+  stderr，`2>&1` 会产生**终止性** `NativeCommandError`，被 `catch` 吞掉 → 版本解析恒为 0
+  （`db-reset.ps1` 因此误报「未找到 JDK 17+」；PowerShell 7 不复现）。修法：探测函数内局部把
+  `$ErrorActionPreference` 降为 `Continue`。同类「脚本内跑 native 命令并解析输出」的写法都要注意。
+- **key 只放用户级环境变量**，仓库只留 `${引用}`；核查三连（都应为空命中）：
+  `git grep -I -l 'sk-ws-'`、`git ls-files --others --exclude-standard` 后逐个 `Select-String`
+  、`git log -p --all -S 'sk-ws-'`。`.env*` 与 `.local/` 已在 `.gitignore`。
+- **单测不联网**：`AiConnectivityServiceTest` 用 Mockito 假模型断言「关闭 → 42220 且不调上游」
+  「开启 → 关闭思考模式 + token 上限」「回显模型 / 向量维度」，符合 §8「假模型优先」。
+
 ---
 
 ## 7. 数据与契约
@@ -822,7 +856,8 @@ HR 新建 → 追加。
 | 是否自托管字体摆脱 Google Fonts 构建依赖 | `next/font/local` |
 | 是否清除 `next-themes` 的 script 告警 | 无害，但刷屏 |
 | 两个历史压缩包是否清理 | `files.zip`、`workspace-*.tar` |
-| Step 4 AI / RAG 方案（**已定 / 待确认子项**） | **已定**（2026-10-19 用户拍板）：通义千问一站式（`qwen-plus` + `text-embedding-v4` 1024 维）、向量库先 `SimpleVectorStore` 后 MySQL 自建表、Spring AI 1.1.x 主线 + 事后补 LangChain4j、**单简历问答先行**、本轮只落文档。**待确认**：见 [`step4-ai-plan.md`](./step4-ai-plan.md) §10 六项（模型档位 / 向量维度 / 是否接 Ollama / 配额策略 / 是否含求职者侧能力 / Boot 4 + Spring AI 2.0 迁移时机） |
+| Step 4 AI / RAG 方案（**已定 / 待确认子项**） | **已定**（2026-10-19 用户拍板）：通义千问一站式（对话 `qwen3.5-122b-a10b` + `text-embedding-v4` 1024 维）、向量库先 `SimpleVectorStore` 后 MySQL 自建表、Spring AI 1.1.x 主线 + 事后补 LangChain4j、**单简历问答先行**；**T-AI0 已落地**（依赖 / 环境变量配置 / `/api/v1/ai/*` 自检）。**待确认**：见 [`step4-ai-plan.md`](./step4-ai-plan.md) §10 其余五项（向量维度 1024 vs 1536 / 是否接 Ollama / 配额策略 / 是否含求职者侧能力 / Boot 4 + Spring AI 2.0 迁移时机） |
+| AI 密钥的存放位置（已定，已落地） | **用户级环境变量**（`环境变量` 对话框 → 用户变量），6 个 `PINLIAO_AI_*`；仓库只留 `${引用}`。理由：防泄露（用户明确要求「不要被上传 git 用光额度」）+ 一处修改全局生效；系统变量需管理员且扩大泄露面，不采用。已核查 `git grep` / 未跟踪文件 / 全部提交历史零命中 |
 
 ---
 
@@ -853,3 +888,4 @@ HR 新建 → 追加。
 | v1.20 | 2026-10-19 | Step 3 T9：全量联调打通（`USE_MOCK=false`，`npm run e2e` **63/63**，连续两轮通过）——`next.config.ts` 加 `/api/v1` `/uploads` rewrites、`.env.local` 切开关、演示账号一键填入不再被 `USE_MOCK` 隐藏、真实登录分支补身份校验、列表统一解包 `.list`、HR 详情改走 §4.4、约面试补 `conversationId`、自动回复改定时重取、e2e 精确豁免 1 条预期 401；新增 `backend/scripts/db-reset.ps1`（清库重迁 + 清 Redis + 重启后端 + 等 health）；补 §6.18（14 条联调坑）、§6.11/§6.13 更新、§9 增「T9 遗留真实分支」待确认项 |
 | v1.21 | 2026-10-19 | T9 追加（用户选 A）：**求职者职位列表切真实**——`JobsView` 改 `useQuery + listJobs()`（`GET /jobs`，`limit=100` 单页取全、计数用 `pagination.total`），删除 `src/api/mock/filter.ts`；HR 发布 / 编辑 / 关闭职位在真实模式下对求职者立即生效。§6.18 新增该条坑（limit 默认 20 / 计数用 total / q 已含公司名），遗留清单更新为「分类字典 / 消息会话 / HR 发消息」；§9 改为「部分已定」 |
 | v1.22 | 2026-10-19 | 新增 Step 4 AI / RAG 增量方案文档 [`step4-ai-plan.md`](./step4-ai-plan.md) v1.0（选型 / 数据流 / 多租户红线 §5.3 / 代码结构 / V9 表草案 / T-AI0~T-AI7 / 假模型测试策略 / 风险与未决 6 项）；§2 状态表新增该行（原「Step 4 联调」更名「Step 3-T9 联调」）；§9 新增「Step 4 方案（已定 / 待确认子项）」。**本轮只落文档，未改代码** |
+| v1.23 | 2026-10-19 | **Step 4 T-AI0 落地**：Spring AI 1.1.8（BOM + OpenAI starter）接入百炼 DashScope 兼容模式；`ai/` 包（`AiCodes` / `AiProperties` / `AiConnectivityService` / `AiController` → `/api/v1/ai/status|ping`）；密钥与模型全部走用户级环境变量 `PINLIAO_AI_*`（`api-key` 占位，无 key 也能启动）。**新增 §6.19（AI 接入 10 条坑）**：`sk-ws-` key 可用性与 coding 域名 401、`enable_thinking=false`（思考型模型 10s+ → 1.0s）、空 `api-key` 会导致启动失败、错误码不能用 `43xxx`、AI 自检端点须鉴权、PowerShell 5.1 下 `java -version` NativeCommandError 吞掉 JDK 探测、key 泄露三连核查法。实测 ping chat 1005ms/44 tokens、embedding 1024 维/538ms；`mvnw test` 176/176、e2e 63/63 无回归；§2 状态行与 §9 同步 |

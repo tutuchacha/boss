@@ -6,6 +6,24 @@ spring:
     active: local
   jackson:
     time-zone: UTC
+  # ── AI（Step 4）────────────────────────────────────────────
+  # OpenAI 兼容协议指向阿里云百炼 compatible-mode（实测 base-url + /v1/chat/completions 可用）。
+  # 密钥 / 地址 / 模型全部由环境变量注入，改这一处即可（见 backend/README.md「AI 配置」）：
+  #   PINLIAO_AI_API_KEY / PINLIAO_AI_BASE_URL / PINLIAO_AI_CHAT_MODEL /
+  #   PINLIAO_AI_EMBEDDING_MODEL / PINLIAO_AI_EMBEDDING_DIM / PINLIAO_AI_ENABLED
+  # api-key 给占位默认值：未配密钥时应用仍能正常启动，AI 功能由 pinliao.ai.enabled 关闭。
+  ai:
+    openai:
+      api-key: ${PINLIAO_AI_API_KEY:pinliao-ai-disabled-placeholder}
+      base-url: ${PINLIAO_AI_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode}
+      chat:
+        options:
+          model: ${PINLIAO_AI_CHAT_MODEL:qwen3.5-122b-a10b}
+          temperature: 0.3
+      embedding:
+        options:
+          model: ${PINLIAO_AI_EMBEDDING_MODEL:text-embedding-v4}
+          dimensions: ${PINLIAO_AI_EMBEDDING_DIM:1024}
 
 server:
   port: 8080
@@ -21,6 +39,9 @@ springdoc:
     path: /v3/api-docs
 
 pinliao:
+  ai:
+    # AI 总开关（默认关：无密钥的机器 / CI 不受影响；本地演示用 PINLIAO_AI_ENABLED=true 打开）
+    enabled: ${PINLIAO_AI_ENABLED:false}
   auth:
     # HS256 签名密钥（≥32 字节）；生产用环境变量 PINLIAO_AUTH_SECRET 覆盖
     secret: ${PINLIAO_AUTH_SECRET:pinliao-local-dev-secret-0123456789abcdef}

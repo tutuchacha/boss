@@ -3,6 +3,8 @@
 Step 3 后端：实现 `docs/api-endpoints.md` 正文契约（70 条）与 `docs/api-contract.md` 通用规范
 （统一包络 / 错误码 / traceId / 时间格式）。技术栈：Spring Boot 3.5 + MySQL 8 + Redis + MyBatis-Plus。
 
+Step 4 起增量接入 AI（Spring AI 1.1.8 + 百炼 DashScope OpenAI 兼容模式，见「AI 配置」一节）。
+
 ## 环境要求（本机现状，2026-10-17 定）
 
 | 项 | 定 |
@@ -98,6 +100,45 @@ npm run e2e     # 真实后端下 63/63
   `POST /uploads/sign|confirm`（上传直传为 `PUT /api/v1/uploads/local/{objectKey}?expires=&sig=`）。
   偏好存 Redis（`pinliao:user:prefs:{userId}`）；上传目录默认 `target/uploads`，可用
   `PINLIAO_UPLOAD_DIR` 覆盖，URL 有效期 `pinliao.upload.url-ttl`（默认 10m）；静态地址 `/uploads/**`
+- AI 自检（Step 4 T-AI0，登录 token）：`GET /api/v1/ai/status`（只回显配置）、
+  `GET /api/v1/ai/ping`（真实调用一次 chat + embedding，返回耗时 / token / 向量维度）。
+  两者**受鉴权拦截器保护**（非公开），避免未授权调用产生费用；配置见下节「AI 配置」
+
+## AI 配置（Step 4 T-AI0）
+
+对话与向量都走**阿里云百炼（DashScope）OpenAI 兼容模式**。**密钥只放本机环境变量，绝不进仓库**
+（仓库内只有 `${PINLIAO_AI_API_KEY:占位}` 引用；已核查 `git grep` / 未跟踪文件 / 全部历史提交零命中）。
+
+一次设置（**用户级**，持久化到注册表；重启终端 / IDE 后对新进程生效）：
+
+```powershell
+# 改成你自己的 key；其余为演示默认值，可只设 KEY 与 ENABLED
+[Environment]::SetEnvironmentVariable('PINLIAO_AI_API_KEY',         'sk-……',                                            'User')
+[Environment]::SetEnvironmentVariable('PINLIAO_AI_BASE_URL',        'https://dashscope.aliyuncs.com/compatible-mode',   'User')
+[Environment]::SetEnvironmentVariable('PINLIAO_AI_CHAT_MODEL',      'qwen3.5-122b-a10b',                                'User')
+[Environment]::SetEnvironmentVariable('PINLIAO_AI_EMBEDDING_MODEL', 'text-embedding-v4',                                'User')
+[Environment]::SetEnvironmentVariable('PINLIAO_AI_EMBEDDING_DIM',   '1024',                                             'User')
+[Environment]::SetEnvironmentVariable('PINLIAO_AI_ENABLED',         'true',                                             'User')   # 总开关，默认 false
+```
+
+改完**重启后端**（环境变量在进程启动时读取），然后自检：
+
+```powershell
+$tk = (Invoke-RestMethod http://localhost:8080/api/v1/auth/login/password -Method Post `
+       -ContentType 'application/json' -Body '{"account":"13800000002","password":"123456"}').data.accessToken
+Invoke-RestMethod http://localhost:8080/api/v1/ai/status -Headers @{ Authorization = "Bearer $tk" } | ConvertTo-Json -Depth 5
+Invoke-RestMethod http://localhost:8080/api/v1/ai/ping   -Headers @{ Authorization = "Bearer $tk" } | ConvertTo-Json -Depth 5
+```
+
+实测参考（2026-10-19）：`ping` → chat `1005ms` / `44 tokens`、embedding `538ms` / `dim 1024`，端到端 1.56s。
+
+已知要点：
+
+- `qwen3.5-122b-a10b` 是**思考型**模型，代码里已固定 `enable_thinking=false`（否则 >10s 且多计 token）。
+- key 前缀 `sk-ws-` 属百炼套餐类 key，但**按量计费的兼容模式端点可用**（实测 chat / embeddings 均 200）；
+  若误配 `coding.dashscope.aliyuncs.com`（Coding Plan 专属，只服务编码类工具）会 401。
+- `pinliao.ai.enabled=false` 时 `/ai/ping` 返回 **42220**，`/ai/status` 仍可读（enabled=false），
+  不影响任何既有接口。
 
 ## 本地账号（仅演示用）
 
@@ -114,7 +155,7 @@ npm run e2e     # 真实后端下 63/63
 | `db-start.ps1` / `db-stop.ps1` | 起 / 停 MySQL |
 | `redis-start.ps1` / `redis-stop.ps1` | 起 / 停 Redis |
 | `dev-up.ps1` / `dev-down.ps1` | 一键起 / 停两者 |
-| `db-reset.ps1` | **T9 起：清库重迁**——按 8080 端口止后端 → `DROP + CREATE pinliao` → Redis `FLUSHALL` → 起后端 → 等 `/actuator/health` UP → 回读基线（`-NoRestart` 只清库、`-KeepRedis` 保留缓存）。每轮 `npm run e2e` 前必跑 |
+| `db-reset.ps1` | **T9 起：清库重迁**——按 8080 端口止后端 → `DROP + CREATE pinliao` → Redis `FLUSHALL` → 起后端 → 等 `/actuator/health` UP → 回读基线（`-NoRestart` 只清库、`-KeepRedis` 保留缓存）。每轮 `npm run e2e` 前必跑。Win PowerShell 5.1 与 PowerShell 7 均可（T-AI0 修复：5.1 下 JDK 探测曾被 `$ErrorActionPreference='Stop'` 吞成 major=0） |
 | `smoke-auth.mjs` | 鉴权接口冒烟（Node 18+；后端启动后运行，20 项断言含注册） |
 | `smoke-jobs.mjs` | 职位与字典接口冒烟（T3a/T3b；公开读 + HR 写 发布 / 更新 / 关闭重开 / 软删 / 越权，49 项断言） |
 | `smoke-applications.mjs` | 投递与面试接口冒烟（T4；状态机 / 校验码 / 约面试 / 接受拒绝 / 撤回重投，51 项断言，可重复执行） |
@@ -124,7 +165,8 @@ npm run e2e     # 真实后端下 63/63
 | `smoke-recruiter.mjs` | 招聘者模块冒烟（T8；HR 画像读改 / 我发布的职位（含 CLOSED 可见）/ 我收到的投递超集 / 人才筛选关键词与证据 / 词表，50 项断言，可重复执行） |
 | `verify-seed.ps1` | 种子行数抽查（16 项断言，对齐 step3-plan §3 数字；须先完成迁移；已排除冒烟 / 注册产物前缀、T7 软删简历） |
 
-当前验收基线（2026-10-19）：`mvnw test` **173/173**；`smoke-auth` 20/20；`smoke-jobs` 49/49；
+当前验收基线（2026-10-19）：`mvnw test` **176/176**（T-AI0 新增 3 项：AI 自检开关 / 调用参数 + AI 端点非公开）；
+`smoke-auth` 20/20；`smoke-jobs` 49/49；
 `smoke-applications` 51/51；`smoke-company` 26/26；`smoke-messages` 40/40（连续两次）；
 `smoke-user` 64/64（连续两次）；`smoke-recruiter` 50/50（可重复执行）；`verify-seed` 16/16；
 前端 `npm run e2e` 在**真实后端**下 **63/63**（T9，连续两轮，每轮前先 `db-reset.ps1`）。
@@ -153,11 +195,12 @@ backend/
 │  ├─ resume/          简历 CRUD / 默认简历 / HR 可见性（T7）
 │  ├─ favorite/        收藏 / 取消 / 游标列表（T7）
 │  ├─ upload/          预签名 / 本地直传 / 确认 / 静态映射（T7）
+│  ├─ ai/              AI 连通性自检 / 配置（Step 4 T-AI0；`/api/v1/ai/*`）
 │  ├─ config/          MyBatis-Plus 分页 / 租户注入 / 时间填充 + OpenAPI 等配置（T1）
 │  └─ demo/            骨架自检样例接口（非契约，T9 后可移除）
 ├─ src/main/resources/
-│  ├─ application.yml          通用配置
+│  ├─ application.yml          通用配置（含 `spring.ai.openai.*` + `pinliao.ai.enabled`，key 走环境变量）
 │  ├─ application-local.yml    本地环境（MySQL 3307 / Redis 6379）
 │  └─ db/migration/            Flyway 迁移（V1 鉴权建表 / V2 演示账号 / V3 业务建表 / V4~V8 演示种子）
-└─ src/test/java/...           包络 / JWT / 种子密码 / 租户策略 / 注册 / 职位 / 投递面试 / 公司 / 消息 / 用户 / 简历 / 收藏 / 上传测试（不依赖数据库）
+└─ src/test/java/...           包络 / JWT / 种子密码 / 租户策略 / 注册 / 职位 / 投递面试 / 公司 / 消息 / 用户 / 简历 / 收藏 / 上传 / AI 自检测试（不依赖数据库与网络）
 ```

@@ -13,15 +13,16 @@
 
 | 项 | 值 |
 | --- | --- |
-| 上一提交（历史基线） | `9cf3ae0`（feat(backend): Step 3 T8 招聘者模块）+ `690e438`（docs: T8 结算） |
-| 本轮提交 | T9 全量联调（前端代理/解包/身份校验 + `db-reset.ps1` + e2e 豁免 + docs 结算）；若 `git status` 仍有未提交文件，以工作区现状为准 |
+| 上一提交（历史基线） | `15a78a2`（docs: Step 4 AI / RAG 增量方案定稿）← `485e654`（T9 追加：求职者职位列表切真实）← `f7ddc2b`（T9 全量联调） |
+| 本轮提交 | Step 4 **T-AI0**（Spring AI 依赖 + AI 配置走环境变量 + `/api/v1/ai/*` 自检 + 单测）；若 `git status` 仍有未提交文件，以工作区现状为准 |
 | dev server（前端） | 端口 3000；`npm run dev`（**已切真实后端**：`.env.local` 的 `NEXT_PUBLIC_USE_MOCK=false` + `API_BASE_URL=/api/v1`，由 `next.config.ts` rewrites 代理到 :8080） |
 | 后端（Step 3） | `backend/`（Spring Boot 3.5.16，:8080）；MySQL 专用实例 **3307** + Redis **6379** 运行中，**后端 :8080 本会话保持运行**（停止按端口 8080 定位 PID 精确处理，勿按名杀 java）；起停脚本 `backend/scripts/`（新增 `db-reset.ps1`） |
+| AI（Step 4） | 依赖 `spring-ai-bom:1.1.8` + `spring-ai-starter-model-openai`；配置走 **用户级环境变量** `PINLIAO_AI_API_KEY` / `_BASE_URL` / `_CHAT_MODEL`（`qwen3.5-122b-a10b`）/ `_EMBEDDING_MODEL`（`text-embedding-v4`）/ `_EMBEDDING_DIM`（1024）/ `_ENABLED`（true）；自检 `GET /api/v1/ai/status|ping`（需 HR token）；**key 只在环境变量、仓库零命中**（详见 `docs/step4-ai-plan.md` §6.2 与 `backend/README.md`「AI 配置」） |
 | 测试账号 | 求职者 `13800000001` / HR `13800000002`，密码均 `123456`；短信验证码固定 `123456`；e2e 注册专用 `13900004321`（**必须清库后才能重复注册**） |
 | 环境 | Windows（`D:\boss`）+ PowerShell；Node 实测 v24 可跑；**无 bun，统一用 npm**；后端 JDK 用 IDEA 自带 **JBR 21**（跑 `mvnw` 必设 `JAVA_HOME`，见 §7.2） |
 | 远端仓库 | `origin` → GitHub `tutuchacha/boss`（SSH）；接手前先 `git pull` 与远端对齐 |
 | Step 3 计划 | [`docs/step3-plan.md`](./docs/step3-plan.md)（分块 T0~T9 + 上下文交接协议）；**T0 ✅、T2a ✅（2026-10-17 登录/退出先行）、T1 ✅（2026-10-18 全量表 + 演示种子）、T2b ✅（2026-10-18 注册 §1.2）、T3a ✅（2026-10-18 职位公开读 + 分类字典）、T3b ✅（2026-10-18 HR 职位写）、T4 ✅（2026-10-18 投递与面试闭环）、T5 ✅（2026-10-18 公司模块 + 企业认证）、T6 ✅（2026-10-18 消息 + WebSocket）、T7 ✅（2026-10-18 求职者 / 简历 / 收藏 / 上传）、T8 ✅（2026-10-19 招聘者 / 候选人 / 人才筛选 §4）、T9 ✅（2026-10-19 全量联调：`USE_MOCK=false` 下 `npm run e2e` 63/63，连续两轮）**；遗留：求职者端「分类字典 / 消息会话」仍读 mock（职位列表已于 T9 追加切真实，见 §6.3 / `docs/AI-CONTINUE.md` §6.18） |
-| Step 4 AI 计划 | [`docs/step4-ai-plan.md`](./docs/step4-ai-plan.md)（AI / RAG 增量任务板 T-AI0~T-AI7）；**方案已定稿、未开工**：通义千问一站式（`qwen-plus` + `text-embedding-v4` 1024 维）、向量库先内存后 MySQL、Spring AI 主线 + 事后补 LangChain4j、**单简历问答先行**；本轮只落文档不改代码，开工待用户指示（决策见该文件 §1，待确认子项见 §10） |
+| Step 4 AI 计划 | [`docs/step4-ai-plan.md`](./docs/step4-ai-plan.md)（AI / RAG 增量任务板 T-AI0~T-AI7）；**方案已定稿，T-AI0 ✅（2026-10-19）**：Spring AI 1.1.8 + 百炼 DashScope 兼容模式打通（`/api/v1/ai/ping` 实测 chat 1005ms/44 tokens、embedding 1024 维），key 只进用户级环境变量；下一步 T-AI1 索引入库（决策见该文件 §1，实测见 §6.2/§7，待确认子项见 §10） |
 
 > 接手时先跑一次 `git status --porcelain` 与 `npx tsc --noEmit` 核对本表是否仍然成立。
 
@@ -36,7 +37,7 @@
 | Step 2 前端验收 | ⏳ 进行中 | 验收五项功能已全部完成，并新增**人才筛选（演示版）**增量；`npm run e2e` 63/63 通过（见 §2/§5）；**用户人工验收初步通过（2026-10-16）**；待确认 `docs/AI-CONTINUE.md` §9 待决事项 |
 | Step 3 后端（Spring Boot） | ✅ 完成（T0~T9） | `backend/` Spring Boot 3.5.16 骨架 + MySQL 专用实例 3307 / Redis 6379；**T0 ✅、T2a 鉴权 ✅（2026-10-17）、T1 数据库迁移与演示种子 ✅、T2b 注册 ✅、T3a 职位公开读 + 分类字典 ✅、T3b HR 职位写 ✅、T4 投递与面试闭环 ✅、T5 公司模块 + 企业认证 ✅、T6 消息 + WebSocket ✅、T7 求职者 / 简历 / 收藏 / 上传 ✅（2026-10-18）、T8 招聘者 / 候选人 / 人才筛选 ✅、T9 全量联调 ✅（2026-10-19，实测见 §7.2）** |
 | Step 3-T9 联调 | ✅ 基本完成 | `NEXT_PUBLIC_USE_MOCK=false` 已切；`npm run e2e` 在真实后端上 **63/63**；**求职者职位列表 / 详情已切真实**（`listJobs` → `GET /jobs`，HR 发布 / 关闭对求职者立即生效）；遗留：求职者端「分类字典 / 消息会话」与 HR「发消息」入口仍为 mock 驱动（见 §6.3） |
-| Step 4 AI / RAG 增量 | ⬜ 方案定稿，未开工 | [`docs/step4-ai-plan.md`](./docs/step4-ai-plan.md)：HR 简历问答（带引用）→ 语义人才检索；选型与里程碑已定（通义一站式 / 先内存后 MySQL / Spring AI 主线）；**本轮只落文档**，开工时机待拍板（§10 未决 6 项） |
+| Step 4 AI / RAG 增量 | 🔄 进行中（T-AI0 ✅） | [`docs/step4-ai-plan.md`](./docs/step4-ai-plan.md)：HR 简历问答（带引用）→ 语义人才检索；**T-AI0 已落地**（Spring AI 1.1.8 依赖 + 环境变量配置 + `/api/v1/ai/status|ping` 自检 + 3 项单测，`mvnw test` 176/176）；下一步 T-AI1 索引入库（V9 `resume_chunks` + `ResumeChunker`） |
 
 ---
 
@@ -210,13 +211,23 @@
       HR「发消息」入口仍为 mock 专用；建议独立一轮（T10）处理，且先补求职者消息页的 e2e / 人工验收清单
       （现在 e2e 对该页零覆盖）。另：接口账目口径、前端最终框架仍在 `docs/AI-CONTINUE.md` §9 待确认清单里。
 3. 可选增量（未被本轮涵盖）：招聘者端桌面 Web 后台、HR 上传外部简历库、人才筛选语义检索升级（接口不变）等。
-4. **Step 4 AI / RAG 增量（方案已定稿，未开工）**：完整方案与任务板见
+4. **Step 4 AI / RAG 增量（T-AI0 ✅ 2026-10-19，T-AI1 待开工）**：完整方案与任务板见
    [`docs/step4-ai-plan.md`](./docs/step4-ai-plan.md)（T-AI0 依赖连通 → T-AI1 索引 → T-AI2 单简历问答
    MVP → T-AI3 流式 → T-AI4 语义检索 → T-AI5 面试题生成 → T-AI6 工程化 → T-AI7 LangChain4j 对照）。
-   用户已拍板：通义千问一站式（对话 `qwen-plus` + 向量 `text-embedding-v4` 1024 维）、向量库先内存
-   后 MySQL、Spring AI 主线 + 事后补 LangChain4j、**问答先行**；**本轮只落文档，不改代码**。
-   开工前需用户确认该文件 §10 的 6 项（模型档位 / 维度 / 是否接 Ollama / 配额 / 是否含求职者侧 /
-   Boot 4 迁移时机），并按 §8 的「假模型 + 不变量断言」策略保证 e2e 63/63 与 `mvnw test` 不被破坏。
+   - **T-AI0 已交付**：`spring-ai-bom:1.1.8` + `spring-ai-starter-model-openai`；`ai/` 包
+     （`AiCodes` / `AiProperties` / `AiConnectivityService` / `AiController`）；`pinliao.ai.enabled`
+     总开关 + `spring.ai.openai.*` 全部由**用户级环境变量**注入（`PINLIAO_AI_API_KEY` / `_BASE_URL` /
+     `_CHAT_MODEL=qwen3.5-122b-a10b` / `_EMBEDDING_MODEL=text-embedding-v4` / `_EMBEDDING_DIM=1024` /
+     `_ENABLED`）；`api-key` 给占位默认值，**无 key 的机器照样能启动**。实测 `/api/v1/ai/ping`：
+     chat 1005ms / 44 tokens、embedding 538ms / dim 1024；`mvnw test` **176/176**、e2e **63/63** 无回归。
+     两个实测排雷：① `sk-ws-` 前缀 key 走**按量计费兼容模式端点**可用（Coding Plan 专属域名 401）；
+     ② `qwen3.5-122b-a10b` 是思考型，必须 `enable_thinking=false`（否则 >10s）。
+   - 用户已拍板：通义千问一站式（对话 `qwen3.5-122b-a10b` + 向量 `text-embedding-v4` 1024 维）、
+     向量库先内存后 MySQL、Spring AI 主线 + 事后补 LangChain4j、**问答先行**。
+   - 下一步：**T-AI1 索引入库**（`ResumeChunker` 结构化分块 + V9 `resume_chunks` + 重建接口，用
+     假向量模型做单测）；§10 仍有 5 项待拍板（向量维度 / Ollama 兜底 / 配额 / 是否含求职者侧 / Boot 4 时机）。
+   - 顺手修复：`backend/scripts/db-reset.ps1` 在 **Windows PowerShell 5.1** 下 JDK 探测被
+     `$ErrorActionPreference='Stop'` 吞成 `major=0`（PS 7 不复现），现已局部降级为 `Continue`。
 
 ---
 
@@ -241,6 +252,9 @@
   `examples/websocket/server.ts`（缺 socket.io）、`src/lib/db.ts`（缺 Prisma client 生成）。
 - `npx eslint src` 有少量既有告警（`src/components/ui/*`、`src/hooks/use-mobile.ts`）。
 - 浏览器控制台：`next-themes` 注入 script 的告警（无害）、`favicon.ico` 404（未放置图标）。
+- **AI（Step 4）需要 6 个用户级环境变量**（`PINLIAO_AI_API_KEY` 等，见 `docs/step4-ai-plan.md` §6.2）；
+  未设时后端仍能正常启动（`api-key` 有占位默认值），仅 AI 接口不可用。
+  另：`db-reset.ps1` 曾只在 PowerShell 7 可用（5.1 下 JDK 探测恒返回 0），T-AI0 已修。
 
 ### 6.2 需要留意的风险点
 
@@ -364,7 +378,7 @@ npm run e2e            # 真实后端下 63/63（2026-10-19 连续两轮通过�
 可覆盖的环境变量：`npm run e2e` 支持 `BASE_URL` / `CHROME_PATH` / `CDP_PORT`；
 `next.config.ts` 代理目标支持 `API_PROXY_TARGET`（默认 `http://localhost:8080`）。
 
-### 7.2 后端 `backend/`（2026-10-19 实测，Step 3 T0 + T2a + T1 + T2b + T3a + T3b + T4 + T5 + T6 + T7 + T8 + T9）
+### 7.2 后端 `backend/`（2026-10-19 实测，Step 3 T0 + T2a + T1 + T2b + T3a + T3b + T4 + T5 + T6 + T7 + T8 + T9 + Step 4 T-AI0）
 
 ```powershell
 cd backend
@@ -372,7 +386,7 @@ $env:JAVA_HOME='C:\Program Files\JetBrains\IntelliJ IDEA Community Edition 2025.
 .\scripts\dev-up.ps1         # 起 MySQL 专用实例 3307 + Redis 6379（首次先 .\scripts\db-init.ps1）
 .\scripts\db-reset.ps1       # 清库重迁（drop+create → Redis FLUSHALL → 起后端 → 等 health UP → 回读基线）
 .\mvnw.cmd spring-boot:run   # 后端 :8080；Ctrl+C 停止（收尾用 .\scripts\dev-down.ps1）
-.\mvnw.cmd test              # 单元测试（包络 / JWT / 种子密码 / 租户策略 / 注册 / 职位 / 职位写 / 字典 / 投递面试 / 公司 / 消息 / 用户 / 简历 / 收藏 / 上传 / 招聘者）
+.\mvnw.cmd test              # 单元测试（包络 / JWT / 种子密码 / 租户策略 / 注册 / 职位 / 职位写 / 字典 / 投递面试 / 公司 / 消息 / 用户 / 简历 / 收藏 / 上传 / 招聘者 / AI 自检）
 node scripts\smoke-auth.mjs  # 鉴权接口冒烟（20 项，含注册；需后端已启动）
 node scripts\smoke-jobs.mjs  # 职位与字典冒烟（49 项；需后端已启动，T3a/T3b）
 node scripts\smoke-applications.mjs  # 投递与面试冒烟（51 项；需后端已启动，T4，可重复执行）
@@ -386,7 +400,7 @@ node scripts\smoke-recruiter.mjs  # 招聘者模块冒烟（50 项；需后端�
 
 | 检查 | 结果 |
 | --- | --- |
-| `mvnw.cmd test` | **173/173 通过**（包络 3 + JwtService 4 + 种子密码 hash 1 + 租户策略 6 + 注册 4 + 职位 13 + 职位写 15 + 公开路径 2 + 字典 3 + 投递面试写 22 + 投递面试读 5 + 公司 12 + 消息 24 + 用户 13 + 简历 10 + 收藏 5 + 上传 9 + **招聘者 22**（HR 画像 4 / 我发布的职位 3 / 收到的投递 4 / 人才筛选 11） |
+| `mvnw.cmd test` | **176/176 通过**（包络 3 + JwtService 4 + 种子密码 hash 1 + 租户策略 6 + 注册 4 + 职位 13 + 职位写 15 + 公开路径 2 + 字典 3 + 投递面试写 22 + 投递面试读 5 + 公司 12 + 消息 24 + 用户 13 + 简历 10 + 收藏 5 + 上传 9 + 招聘者 22 + **AI 自检 3**（关闭→42220 且不调上游 / 开启→回显模型与维度 / 开启→`enable_thinking=false` 与 token 上限）；T-AI0 新增，`AuthInterceptorPublicEndpointTest` 加 2 项断言） |
 | `spring-boot:run` | **约 3.5s 启动**（T7 重启实测，schema 已最新无需迁移；T1 首迁为 3.3s）；Flyway 校验 **V1~V8** 通过 |
 | `/actuator/health` | `{"status":"UP"}`（200） |
 | `/api/v1/_demo/*` 包络 | 与 T0 一致：`traceId`、`42201/40401` 等码位不变 |
@@ -400,7 +414,8 @@ node scripts\smoke-recruiter.mjs  # 招聘者模块冒烟（50 项；需后端�
 | 招聘者模块冒烟（`backend/scripts/smoke-recruiter.mjs`） | **50/50 全对，可重复执行**：§4.1 未登录 40101 / 求职者 40301 / HR 画像本人 + 本公司；§4.2 部分更新只改入参、空姓名 42201、空串清空可选字段、还原种子值、越权 40301；§4.3 本公司 7 条种子职位 + 超集字段、`status=OPEN` / `CLOSED` 过滤、非法状态 42201、`q` 标题 / `hrId` 归属筛选、不存在 40410、求职者 40301，并现场创建 `job-new-*` → 关闭 → **HR 可见 CLOSED 而公开详情 40410** → 软删后 HR 详情 40410 → 回到基线；§4.4 6 条种子投递 + 超集字段（候选人 / 职位 / `conversationId` / 面试）、更新倒序、`status=OFFER` / `jobId` / `q=林小满` 过滤、非法状态 42201、越权 40301、面试待确认优先（int-hr-01 PENDING）与次选最近（int-hr-02 COMPLETED）；§4.5 `React` 命中林小满（score 3、证据 `技能 / 个人简介 / 项目经历 · 招聘管理系统前端重构`、片段含「技术栈」）、`COBOL` 空数组、仅标签 `自动化测试` 命中沈禾、多关键词权重倒序、空条件 42210、越权 40301；§4.6 词表 20 条 + 未登录 40101 |
 | 种子抽查（`backend/scripts/verify-seed.ps1`） | **16/16 命中**（注册 `u-reg-*` / `co-reg-*`、T3b `job-new-*`、T4/T6 `app-new-*` / `int-new-*` / `conv-new-*` / `msg-new-*` 均已排除；T7 起 resumes 另排除 `u-reg-*` 与软删行）：flyway v8；companies 16；jobs 51（可见 38 / 云杉 7）；categories 84；cities 9；users 8；resumes 7；投递 6+3；interviews 3；HR 会话 6（未读 4）；求职者会话 2；messages 16 |
 | 数据库抽查（MySQL 3307） | V4~V8 success=1；种子内容与 mock 一致（职位关闭规则 stableHash(id)%4、简历 content JSON 原文、会话 id 序列 conv-hr-1/4/8/11/14/16 等）；T2b 后新增 `u-reg-*` / `co-reg-*` 等注册记录（持久保留） |
-| 清库重迁脚本（`backend/scripts/db-reset.ps1`） | **实测可用**：止端口 8080 后端 → `DROP + CREATE pinliao` → Redis `FLUSHALL` → 起后端 → `/actuator/health` UP（约 8s 含 Maven）→ 回读 `flyway=8 / companies=16 / jobs=51 / applications=9`；随后 `verify-seed.ps1` 16/16 |
+| 清库重迁脚本（`backend/scripts/db-reset.ps1`） | **实测可用**：止端口 8080 后端 → `DROP + CREATE pinliao` → Redis `FLUSHALL` → 起后端 → `/actuator/health` UP（约 8s 含 Maven）→ 回读 `flyway=8 / companies=16 / jobs=51 / applications=9`；随后 `verify-seed.ps1` 16/16。**T-AI0 修复**：`Get-JavaMajor` 在 Win PowerShell 5.1 + `$ErrorActionPreference='Stop'` 下会把 `java -version`（走 stderr）抛的 NativeCommandError 吞掉而恒返回 0（PS 7 不复现），现已局部降级为 `Continue`；5.1 与 7 均实跑通过 |
+| **AI 自检（Step 4 T-AI0）** | **实测通过**：`GET /api/v1/ai/status` → `enabled=true / openai-compatible / qwen3.5-122b-a10b / text-embedding-v4`；`GET /api/v1/ai/ping` → chat `1005ms` `44 tokens`、embedding `538ms` `dim 1024`，端到端 1.56s（需 HR token；`enabled=false` 时 ping 返回 42220）；`spring-ai-bom:1.1.8` + `spring-ai-starter-model-openai` 启动无异常 |
 | **前端 e2e（真实后端，`USE_MOCK=false`）** | **63/63 通过，连续两轮（每轮前 `db-reset.ps1`）**：求职者 / HR 全链路、跨端投递→约面→接受、注册与企业认证、零控制台错误（仅豁免「错误密码」用例的 1 条预期 401）、零 hydration 报错；Chrome 进程数前后不变 |
 
 运行数据在 `.local/`（已 gitignore）；MySQL / Redis 起停详见 `backend/README.md` 与 `backend/scripts/`。
@@ -432,3 +447,4 @@ node scripts\smoke-recruiter.mjs  # 招聘者模块冒烟（50 项；需后端�
 | v1.18 | 2026-10-19 | Step 3 T9 完成：全量联调打通（`USE_MOCK=false`，`npm run e2e` **63/63**，连续两轮）——Next rewrites 代理 `/api/v1`+`/uploads`、`.env.local` 切开关、演示账号一键填入不再被 `USE_MOCK` 隐藏、真实登录补身份校验、列表统一解包 `.list`、HR 详情改走 §4.4、约面试补 `conversationId`、自动回复改定时重取、e2e 精确豁免 1 条预期 401；新增 `db-reset.ps1`（清库重迁 + 清 Redis + 起后端 + 等 health）；§6.3 更新（新增 T9 联调 / 重置脚本 / 遗留清单四条）；遗留：求职者端职位列表 / 分类字典 / 消息会话仍读 mock，待用户拍板是否本轮切换 |
 | v1.19 | 2026-10-19 | T9 追加（用户选 A）：**求职者职位列表切真实**——`JobsView` 改 `useQuery + listJobs()`（`GET /jobs`，`limit=100` + 后端 `total`），删除 `src/api/mock/filter.ts`；HR 发布 / 编辑 / 关闭职位从此在真实模式下对求职者立即生效。回归：真实后端 e2e **63/63**、Mock 基线 **63/63**、`tsc` 仍 3 个既有错误。§6.3 遗留清单更新为「分类字典 / 消息会话 / HR 发消息」三项 |
 | v1.20 | 2026-10-19 | 新增 Step 4 AI / RAG 增量方案：[`docs/step4-ai-plan.md`](./docs/step4-ai-plan.md) v1.0（目标与 DoD、选型、数据流、代码结构、V9 表草案、T-AI0~T-AI7 任务板、测试策略、风险与未决 6 项）。§0 快照 / §1 阶段表新增该行（原「Step 4 联调」更名为「Step 3-T9 联调」）、§4 下一步新增第 4 条；用户拍板：通义千问一站式、先内存后 MySQL、Spring AI 主线 + 事后补 LangChain4j、问答先行、**本轮只落文档不改代码** |
+| v1.21 | 2026-10-19 | **Step 4 T-AI0 完成**：`spring-ai-bom:1.1.8` + `spring-ai-starter-model-openai`；新增 `ai/` 包（`AiCodes` 42220/42221/42902/50020、`AiProperties`、`AiConnectivityService`、`AiController` 的 `/api/v1/ai/status|ping`）；模型 / 地址 / 密钥 / 开关全部由**用户级环境变量** `PINLIAO_AI_*` 注入（`api-key` 占位保证无 key 可启动，key 经核查仓库零命中）。实测 ping：chat 1005ms/44 tokens、embedding 1024 维/538ms；`mvnw test` **176/176**（+3）、e2e **63/63**、`verify-seed` 16/16 无回归。修正方案两处：错误码 `43xxx` 不可用（契约前 3 位=HTTP 状态）→ 改 `42220/42221/42902/50020`；对话模型定为 `qwen3.5-122b-a10b`（思考型，须 `enable_thinking=false`）。顺手修复 `db-reset.ps1` 在 PowerShell 5.1 下的 JDK 探测 bug |
