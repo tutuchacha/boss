@@ -14,11 +14,11 @@
 | 项 | 值 |
 | --- | --- |
 | 上一提交（历史基线） | `fe04fcc`（docs: ARMS 链路接入方案）← `c0d24eb`（Step 4 T-AI0：Spring AI + 百炼打通）← `15a78a2`（Step 4 AI / RAG 方案定稿）← `485e654`（T9 追加：求职者职位列表切真实） |
-| 本轮提交 | 可观测性 **T-OBS1**（阿里云 ARMS 应用监控探针骨架：`fetch-arms-agent.ps1` / `dev-with-arms.ps1` / `_env.ps1` 共享函数 / `TraceIdFilter` 三级 traceId 优先级 + 6 项单测 / README 一节）；若 `git status` 仍有未提交文件，以工作区现状为准 |
+| 本轮提交 | 可观测性 **T-OBS2**（链路打通 + 修 `dev-with-arms.ps1 -Background` 引号 bug；带探针 e2e 63/63）；上一提交 **T-OBS1**（ARMS 探针骨架：`fetch-arms-agent.ps1` / `dev-with-arms.ps1` / `_env.ps1` 共享函数 / `TraceIdFilter` 三级 traceId 优先级 + 6 项单测）；若 `git status` 仍有未提交文件，以工作区现状为准 |
 | dev server（前端） | 端口 3000；`npm run dev`（**已切真实后端**：`.env.local` 的 `NEXT_PUBLIC_USE_MOCK=false` + `API_BASE_URL=/api/v1`，由 `next.config.ts` rewrites 代理到 :8080） |
 | 后端（Step 3） | `backend/`（Spring Boot 3.5.16，:8080）；MySQL 专用实例 **3307** + Redis **6379** 运行中，**后端 :8080 本会话保持运行**（停止按端口 8080 定位 PID 精确处理，勿按名杀 java）；起停脚本 `backend/scripts/`（新增 `db-reset.ps1`） |
 | AI（Step 4） | 依赖 `spring-ai-bom:1.1.8` + `spring-ai-starter-model-openai`；配置走 **用户级环境变量** `PINLIAO_AI_API_KEY` / `_BASE_URL` / `_CHAT_MODEL`（`qwen3.5-122b-a10b`）/ `_EMBEDDING_MODEL`（`text-embedding-v4`）/ `_EMBEDDING_DIM`（1024）/ `_ENABLED`（true）；自检 `GET /api/v1/ai/status|ping`（需 HR token）；**key 只在环境变量、仓库零命中**（详见 `docs/step4-ai-plan.md` §6.2 与 `backend/README.md`「AI 配置」） |
-| 可观测性（T-OBS） | **T-OBS1 ✅（2026-10-19）**：阿里云 ARMS **应用监控**探针（`AliyunJavaAgent` 5.1.2 = OTel 2.23.0 改名版）只挂应用 JVM；环境变量 `PINLIAO_ARMS_ENABLED` / `_LICENSE_KEY` / `_APP_NAME`；脚本 `fetch-arms-agent.ps1` / `dev-with-arms.ps1`；`TraceIdFilter` 改为「活跃 OTel span → 透传头 → UUID」；方案见 [`docs/arms-plan.md`](./docs/arms-plan.md)，**T-OBS2 待用户提供 LicenseKey**（当前无 key 时探针不产生 span） |
+| 可观测性（T-OBS） | **T-OBS1 ✅ + T-OBS2 ✅（2026-10-19）**：阿里云 ARMS **应用监控**探针（`AliyunJavaAgent` 5.1.2 = OTel 2.23.0 改名版）只挂应用 JVM；环境变量 `PINLIAO_ARMS_ENABLED` / `_LICENSE_KEY` / `_APP_NAME`；脚本 `fetch-arms-agent.ps1` / `dev-with-arms.ps1`；`TraceIdFilter` 为「活跃 OTel span → 透传头 → UUID」。**已打通**：LicenseKey 写入用户级环境变量后，控制台「应用监控 → 应用列表」可见 `pinliao-backend`，响应包络 traceId 即探针的 32 位 traceId（span 分支命中），应用 JVM 有到阿里云 80 端口的上报连接；带探针 e2e **63/63**。注意 `status` 文件**不刷新、不能作授权判据**（判活三条判据见 `docs/arms-plan.md` §4）。方案见 [`docs/arms-plan.md`](./docs/arms-plan.md) |
 | 测试账号 | 求职者 `13800000001` / HR `13800000002`，密码均 `123456`；短信验证码固定 `123456`；e2e 注册专用 `13900004321`（**必须清库后才能重复注册**） |
 | 环境 | Windows（`D:\boss`）+ PowerShell；Node 实测 v24 可跑；**无 bun，统一用 npm**；后端 JDK 用 IDEA 自带 **JBR 21**（跑 `mvnw` 必设 `JAVA_HOME`，见 §7.2） |
 | 远端仓库 | `origin` → GitHub `tutuchacha/boss`（SSH）；接手前先 `git pull` 与远端对齐 |
@@ -39,7 +39,7 @@
 | Step 3 后端（Spring Boot） | ✅ 完成（T0~T9） | `backend/` Spring Boot 3.5.16 骨架 + MySQL 专用实例 3307 / Redis 6379；**T0 ✅、T2a 鉴权 ✅（2026-10-17）、T1 数据库迁移与演示种子 ✅、T2b 注册 ✅、T3a 职位公开读 + 分类字典 ✅、T3b HR 职位写 ✅、T4 投递与面试闭环 ✅、T5 公司模块 + 企业认证 ✅、T6 消息 + WebSocket ✅、T7 求职者 / 简历 / 收藏 / 上传 ✅（2026-10-18）、T8 招聘者 / 候选人 / 人才筛选 ✅、T9 全量联调 ✅（2026-10-19，实测见 §7.2）** |
 | Step 3-T9 联调 | ✅ 基本完成 | `NEXT_PUBLIC_USE_MOCK=false` 已切；`npm run e2e` 在真实后端上 **63/63**；**求职者职位列表 / 详情已切真实**（`listJobs` → `GET /jobs`，HR 发布 / 关闭对求职者立即生效）；遗留：求职者端「分类字典 / 消息会话」与 HR「发消息」入口仍为 mock 驱动（见 §6.3） |
 | Step 4 AI / RAG 增量 | 🔄 进行中（T-AI0 ✅） | [`docs/step4-ai-plan.md`](./docs/step4-ai-plan.md)：HR 简历问答（带引用）→ 语义人才检索；**T-AI0 已落地**（Spring AI 1.1.8 依赖 + 环境变量配置 + `/api/v1/ai/status|ping` 自检 + 3 项单测，`mvnw test` 176/176）；下一步 T-AI1 索引入库（V9 `resume_chunks` + `ResumeChunker`） |
-| 可观测性 ARMS 增量（T-OBS） | 🔄 进行中（T-OBS1 ✅） | [`docs/arms-plan.md`](./docs/arms-plan.md)：路径 B（阿里云 ARMS **应用监控** Java 探针，而非开源 OTel Agent）为选定方案；**T-OBS1 已落地**（探针下载 / `dev-with-arms.ps1` / 共享环境函数 / `TraceIdFilter` 三级 traceId 优先级 + 6 项单测，`mvnw test` **182/182**，真实后端 e2e **63/63** 无回归）；**T-OBS2 待 LicenseKey**（无 key 探针不产生 span，DoD「包络 traceId == ARMS TraceId」无法实测） |
+| 可观测性 ARMS 增量（T-OBS） | ✅ T-OBS1 + T-OBS2 完成 | [`docs/arms-plan.md`](./docs/arms-plan.md)：路径 B（阿里云 ARMS **应用监控** Java 探针）已打通 —— 控制台可见 `pinliao-backend`、包络 traceId 即链路 TraceId、应用 JVM 有上报连接；带探针 `mvnw test` 182/182、真实后端 e2e **63/63** 无回归。**修脚本 bug**：`-Background` 的 `Start-Process -ArgumentList` 数组丢引号导致 `-Darms.*` 没进应用 JVM |
 
 ---
 
@@ -230,21 +230,25 @@
      假向量模型做单测）；§10 仍有 5 项待拍板（向量维度 / Ollama 兜底 / 配额 / 是否含求职者侧 / Boot 4 时机）。
    - 顺手修复：`backend/scripts/db-reset.ps1` 在 **Windows PowerShell 5.1** 下 JDK 探测被
      `$ErrorActionPreference='Stop'` 吞成 `major=0`（PS 7 不复现），现已局部降级为 `Continue`。
-5. **可观测性增量 ARMS（T-OBS1 ✅ 2026-10-19，T-OBS2 待 LicenseKey）**：方案与任务板见
-   [`docs/arms-plan.md`](./docs/arms-plan.md)（v1.1，路径 B 阿里云 ARMS **应用监控**）。
+5. **可观测性增量 ARMS（T-OBS1 ✅ + T-OBS2 ✅ 2026-10-19，链路已打通）**：方案与任务板见
+   [`docs/arms-plan.md`](./docs/arms-plan.md)（v1.2，路径 B 阿里云 ARMS **应用监控**）。
    - **T-OBS1 已交付**：`fetch-arms-agent.ps1`（下载探针 5.1.2 到 `.local/arms/AliyunJavaAgent/`）+
      `dev-with-arms.ps1`（`-DryRun` 自检 / `-Background` / `-AllowMissingLicenseKey`；只挂 fork 出的应用 JVM）+
      `_env.ps1` 新增 `PINLIAO_ARMS_*` 与 `Wait-BackendUp` / `Get-JavaMajor` / `Resolve-PinliaoJavaHome` / `Format-Secret`
      （`db-reset.ps1` 去掉重复实现改用共享函数，行为不变）+ `TraceIdFilter` 改为
      「活跃 OTel span 的 traceId → 透传 `X-Trace-Id` → UUID 兜底」+ 6 项 `TraceIdFilterTest` + README 一节。
-     实测：探针启动日志正常、应用 health UP、`mvnw test` **182/182**、真实后端 e2e **63/63**（零影响）。
-   - **关键实测事实**：探针 `apsara-java-agent-5.1.2-otel-2.23.0`（OTel javaagent 2.23.0 的阿里云改名版）；
-     `spring-boot:run` 默认 fork，`-Dspring-boot.run.jvmArguments=-javaagent:...` **只作用于应用 JVM**（Maven JVM 无）；
-     **未配 LicenseKey 时探针不产生 span**（`status` 文件 `licenseKey=null`；`traceparent` / `EagleEye-TraceId` 头均不被采纳；
-     请求期间 MDC 只有本项目写的 `traceId`）→ DoD 第 2 条（包络 traceId == ARMS TraceId）须配 key 后实测，
-     备选口径（读探针 MDC / 自定义埋点上报 attribute）见方案 §6。
-   - 下一步（**需用户操作 T-OBS0**）：控制台「应用监控 → 应用列表 → 创建应用（无侵入 Java）」取 LicenseKey
-     → 写入用户级环境变量 → `dev-with-arms.ps1` 启动 → 核对链路与 traceId 对齐。
+   - **T-OBS2 已打通**（LicenseKey 写入用户级环境变量后）：
+     ✅ 控制台「应用监控 → 应用列表」可见 `pinliao-backend`（用户确认）；
+     ✅ 送 `X-Trace-Id=mycustomtraceid123` 时包络**不回显**、返回探针 32 位 traceId → `Span.current()` 命中活跃 span；
+     ✅ 应用 JVM 出现到阿里云 **80** 端口的 Established 上报连接（`100.103.107.x:9990` 的 SynSent 属 EagleEye 配置通道，不影响链路）；
+     ✅ `db-reset.ps1` 基线不变（`flyway=8 / companies=16 / jobs=51 / applications=9`）+ **带探针** e2e **63/63**。
+   - **修掉一个真 bug**：`dev-with-arms.ps1 -Background` 用 `Start-Process -ArgumentList <数组>` 时 PowerShell
+     只按空格拼接、丢参数内引号 → `-Dspring-boot.run.jvmArguments="… -Darms.licenseKey=… -Darms.appName=…"`
+     被 Maven 拆开，应用 JVM **只拿到 `-javaagent`**（探针加载但不产生 span、控制台看不到应用）。
+     改为单个带引号参数字符串后正常，并用 WMI 回读应用 JVM 命令行确认三个参数都在。
+   - **坑**：`.apsara-apm\java\<版本>\status` **不刷新**，链路已通时仍显示 `licenseKey=null`；
+     判活看「应用 JVM 命令行含 `-Darms.*` + 送 `X-Trace-Id` 不回显 + 有到阿里云 80 端口的 Established 连接」三条。
+   - 下一步（可选，T-OBS3）：慢 SQL / 异常分析 / JVM 大盘核对；前端监控（Web SDK）需最后做且加开关（会碰 e2e 零控制台错误门禁）。
 
 ---
 
@@ -395,7 +399,7 @@ npm run e2e            # 真实后端下 63/63（2026-10-19 连续两轮通过�
 可覆盖的环境变量：`npm run e2e` 支持 `BASE_URL` / `CHROME_PATH` / `CDP_PORT`；
 `next.config.ts` 代理目标支持 `API_PROXY_TARGET`（默认 `http://localhost:8080`）。
 
-### 7.2 后端 `backend/`（2026-10-19 实测，Step 3 T0 + T2a + T1 + T2b + T3a + T3b + T4 + T5 + T6 + T7 + T8 + T9 + Step 4 T-AI0 + 可观测性 T-OBS1）
+### 7.2 后端 `backend/`（2026-10-19 实测，Step 3 T0 + T2a + T1 + T2b + T3a + T3b + T4 + T5 + T6 + T7 + T8 + T9 + Step 4 T-AI0 + 可观测性 T-OBS1/T-OBS2）
 
 ```powershell
 cd backend
@@ -435,7 +439,7 @@ node scripts\smoke-recruiter.mjs  # 招聘者模块冒烟（50 项；需后端�
 | 数据库抽查（MySQL 3307） | V4~V8 success=1；种子内容与 mock 一致（职位关闭规则 stableHash(id)%4、简历 content JSON 原文、会话 id 序列 conv-hr-1/4/8/11/14/16 等）；T2b 后新增 `u-reg-*` / `co-reg-*` 等注册记录（持久保留） |
 | 清库重迁脚本（`backend/scripts/db-reset.ps1`） | **实测可用**：止端口 8080 后端 → `DROP + CREATE pinliao` → Redis `FLUSHALL` → 起后端 → `/actuator/health` UP（约 8s 含 Maven）→ 回读 `flyway=8 / companies=16 / jobs=51 / applications=9`；随后 `verify-seed.ps1` 16/16。**T-AI0 修复**：`Get-JavaMajor` 在 Win PowerShell 5.1 + `$ErrorActionPreference='Stop'` 下会把 `java -version`（走 stderr）抛的 NativeCommandError 吞掉而恒返回 0（PS 7 不复现），现已局部降级为 `Continue`；5.1 与 7 均实跑通过。**T-OBS1 重构**：JDK 探测与 `/actuator/health` 轮询改用 `_env.ps1` 共享函数（`Get-JavaMajor` / `Resolve-PinliaoJavaHome` / `Wait-BackendUp`），脚本行为不变（复跑基线 `flyway=8 / companies=16 / jobs=51 / applications=9`） |
 | **AI 自检（Step 4 T-AI0）** | **实测通过**：`GET /api/v1/ai/status` → `enabled=true / openai-compatible / qwen3.5-122b-a10b / text-embedding-v4`；`GET /api/v1/ai/ping` → chat `1005ms` `44 tokens`、embedding `538ms` `dim 1024`，端到端 1.56s（需 HR token；`enabled=false` 时 ping 返回 42220）；`spring-ai-bom:1.1.8` + `spring-ai-starter-model-openai` 启动无异常 |
-| **ARMS 探针（可观测性 T-OBS1，`dev-with-arms.ps1 -AllowMissingLicenseKey`）** | **实测探针可用**：`Load Apsara Java Agent version: 5.1.2.` / `report to region: cn-hangzhou`；探针身份 `apsara-java-agent-5.1.2-otel-2.23.0`；`-javaagent` **只出现在 fork 出的应用 JVM**（Maven JVM 无，WMI 命令行核对）；带探针启动 `/actuator/health` 仍 UP 且接口正常。**未配 LicenseKey 时探针不产生 span**（`.apsara-apm\...\status` → `licenseKey=null / appId=null / applicationName=null`；`traceparent`、`EagleEye-TraceId` 请求头均不被采纳；请求期间日志 MDC 只有本项目写的 `traceId`）→ 包络 traceId == ARMS TraceId 一条待 T-OBS0 后实测 |
+| **ARMS 探针（可观测性 T-OBS1 ✅ / T-OBS2 ✅）** | **链路已打通**：`Load Apsara Java Agent version: 5.1.2.` / `report to region: cn-hangzhou`；探针身份 `apsara-java-agent-5.1.2-otel-2.23.0`；`-javaagent` + `-Darms.appName` + `-Darms.licenseKey` **只出现在 fork 出的应用 JVM**（Maven JVM 无，WMI 命令行核对）；带探针 `/actuator/health` UP。**配好 LicenseKey 后**：控制台「应用监控 → 应用列表」可见 `pinliao-backend`（用户确认）；送 `X-Trace-Id=mycustomtraceid123` 时包络不回显、返回探针 32 位 traceId（如 `18c2a41966c9f7e920b455c6fa4d1aa6`）→ span 分支命中；应用 JVM 有到阿里云 80 端口 Established 上报连接（`121.43.177.209:80` 等）。⚠️ `.apsara-apm\java\<版本>\status` **不可作判据**（链路已通仍显示 `licenseKey=null`）。**未配 LicenseKey 时的旧结论**：探针不产生 span、`traceparent`/`EagleEye-TraceId` 均不被采纳。**T-OBS2 修 bug**：`-Background` 的 `Start-Process -ArgumentList` 数组丢引号 → `-Darms.*` 没进应用 JVM（现改为单个带引号参数字符串） |
 | **前端 e2e（真实后端，`USE_MOCK=false`）** | **63/63 通过，连续两轮（每轮前 `db-reset.ps1`）**：求职者 / HR 全链路、跨端投递→约面→接受、注册与企业认证、零控制台错误（仅豁免「错误密码」用例的 1 条预期 401）、零 hydration 报错；Chrome 进程数前后不变 |
 
 运行数据在 `.local/`（已 gitignore）；MySQL / Redis 起停详见 `backend/README.md` 与 `backend/scripts/`。
@@ -469,3 +473,4 @@ node scripts\smoke-recruiter.mjs  # 招聘者模块冒烟（50 项；需后端�
 | v1.20 | 2026-10-19 | 新增 Step 4 AI / RAG 增量方案：[`docs/step4-ai-plan.md`](./docs/step4-ai-plan.md) v1.0（目标与 DoD、选型、数据流、代码结构、V9 表草案、T-AI0~T-AI7 任务板、测试策略、风险与未决 6 项）。§0 快照 / §1 阶段表新增该行（原「Step 4 联调」更名为「Step 3-T9 联调」）、§4 下一步新增第 4 条；用户拍板：通义千问一站式、先内存后 MySQL、Spring AI 主线 + 事后补 LangChain4j、问答先行、**本轮只落文档不改代码** |
 | v1.21 | 2026-10-19 | **Step 4 T-AI0 完成**：`spring-ai-bom:1.1.8` + `spring-ai-starter-model-openai`；新增 `ai/` 包（`AiCodes` 42220/42221/42902/50020、`AiProperties`、`AiConnectivityService`、`AiController` 的 `/api/v1/ai/status|ping`）；模型 / 地址 / 密钥 / 开关全部由**用户级环境变量** `PINLIAO_AI_*` 注入（`api-key` 占位保证无 key 可启动，key 经核查仓库零命中）。实测 ping：chat 1005ms/44 tokens、embedding 1024 维/538ms；`mvnw test` **176/176**（+3）、e2e **63/63**、`verify-seed` 16/16 无回归。修正方案两处：错误码 `43xxx` 不可用（契约前 3 位=HTTP 状态）→ 改 `42220/42221/42902/50020`；对话模型定为 `qwen3.5-122b-a10b`（思考型，须 `enable_thinking=false`）。顺手修复 `db-reset.ps1` 在 PowerShell 5.1 下的 JDK 探测 bug |
 | v1.22 | 2026-10-19 | **可观测性 T-OBS1 完成（选型由 OTel Agent 改为阿里云 ARMS 应用监控探针）**：新增 `fetch-arms-agent.ps1`（下载探针 5.1.2 到 `.local/arms/`）与 `dev-with-arms.ps1`（配置自检 / 后台起 / 等 health UP；`-javaagent` **只挂 fork 出的应用 JVM**）；`_env.ps1` 新增 `PINLIAO_ARMS_*` 与 `Wait-BackendUp` / `Get-JavaMajor` / `Resolve-PinliaoJavaHome` / `Format-Secret` 共享函数（`db-reset.ps1` 去重，行为不变）；`TraceIdFilter` 取值改为「活跃 OTel span → 透传 `X-Trace-Id` → UUID」（契约不变，e2e 不校验 traceId）+ 6 项单测；方案文档升 v1.1（含选型理由与实测记录）。实测：探针 `apsara-java-agent-5.1.2-otel-2.23.0`（OTel 2.23.0 改名版）加载正常、应用 health UP；`mvnw test` **182/182**、真实后端 e2e **63/63**（零影响）。**未配 LicenseKey 时探针不产生 span**（`status` 文件 `licenseKey=null`；W3C `traceparent` / `EagleEye-TraceId` 头均不被采纳；请求期 MDC 只有本项目 `traceId`）→ T-OBS2 的「包络 traceId == ARMS TraceId」待用户提供 LicenseKey 后实测，备选口径见 `docs/arms-plan.md` §6 |
+| v1.23 | 2026-10-19 | **可观测性 T-OBS2 完成（ARMS 链路打通）**：LicenseKey 写入用户级环境变量后，控制台「应用监控 → 应用列表」可见 `pinliao-backend`；送 `X-Trace-Id=mycustomtraceid123` 时包络**不回显**而是探针 32 位 traceId（`Span.current()` 命中活跃 span，`TraceIdFilter` 走 span 分支）；应用 JVM 出现到阿里云 80 端口的 Established 上报连接；带探针 `db-reset.ps1`（基线不变）+ 真实后端 e2e **63/63**。**修 `dev-with-arms.ps1 -Background` 真 bug**：`Start-Process -ArgumentList` 数组按空格拼接丢引号 → `-Dspring-boot.run.jvmArguments="… -Darms.licenseKey=… -Darms.appName=…"` 被 Maven 拆开，应用 JVM 只拿到 `-javaagent`（探针加载却不产生 span、控制台看不到应用）；改为单个带引号参数字符串并用 WMI 回读确认。新增「判活三条判据」，并明确 `.apsara-apm\java\<版本>\status` **不刷新、不可作授权判据**。文档：`docs/arms-plan.md` v1.2、`docs/AI-CONTINUE.md` §6.20 补 5 条坑、`backend/README.md`、`CHANGELOG.md`、worklog Task 35 |

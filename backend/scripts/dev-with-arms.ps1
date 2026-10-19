@@ -107,9 +107,16 @@ if (-not $javaHome) {
 $env:JAVA_HOME = $javaHome
 Write-Host "[arms] JAVA_HOME=$javaHome"
 
+# 关键坑：-ArgumentList 传数组时 Start-Process 只用空格拼接、不会给含空格的参数补引号，
+#   "-Dspring-boot.run.jvmArguments=-javaagent:... -Darms.licenseKey=..." 会被 Maven 拆成
+#   jvmArguments 只剩 -javaagent、其余 -Darms.* 变成 Maven 自己的 -D 参数。
+#   结果：探针加载了但拿不到 LicenseKey/appName → 不产生 span、控制台看不到应用。
+#   故这里显式拼成【单个带引号的参数字符串】再交给 Start-Process。
+$jvmArgLine = "-Dspring-boot.run.jvmArguments=`"$jvmArgs`""
+
 if ($Background) {
     Write-Host "[arms] 后台启动，日志：$logFile"
-    Start-Process -FilePath $mvnw -ArgumentList 'spring-boot:run', "-Dspring-boot.run.jvmArguments=$jvmArgs" `
+    Start-Process -FilePath $mvnw -ArgumentList "spring-boot:run $jvmArgLine" `
         -WorkingDirectory $BackendDir -WindowStyle Hidden `
         -RedirectStandardOutput $logFile -RedirectStandardError $errFile
 

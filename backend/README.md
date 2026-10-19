@@ -172,21 +172,29 @@ Invoke-RestMethod http://localhost:8080/api/v1/ai/ping   -Headers @{ Authorizati
 ```
 
 启动后日志应出现探针自述：`Load Apsara Java Agent version: 5.1.2.` /
-`report to region: cn-hangzhou`。约 1 分钟后在控制台「应用监控 → 应用列表」能看到应用。
+`report to region: cn-hangzhou`。约 1 分钟后在控制台「应用监控 → 应用列表」能看到应用（`pinliao-backend`），
+点进去即可看调用链 / 慢 SQL / 异常。
 
-已知要点（本机实测 2026-10-19）：
+想验证「包络 traceId 就是链路 TraceId」：随便打一个接口，把响应里的 `traceId` 到控制台
+「调用链查询 → TraceId」搜，应能搜到同一条链路（含 HTTP 入口 + MySQL/Redis 子调用）。
+
+已知要点（本机实测 2026-10-19，链路**已打通**）：
 
 - 探针版本 `apsara-java-agent-5.1.2-otel-2.23.0` —— 是 **opentelemetry-javaagent 的阿里云改名版**，
   所以后续想让链路带自定义埋点可以直接用 OTel API；jar 解压在 `.local/arms/AliyunJavaAgent/`。
 - 探针**只挂在 `spring-boot:run` fork 出的应用 JVM** 上（脚本用 `-Dspring-boot.run.jvmArguments=-javaagent:……`）；
   **不要**用 `JAVA_TOOL_OPTIONS`，否则 Maven 自身也会挂探针，控制台里会出现同名的第二个应用、数据双份。
-- 探针工作目录：`C:\Users\<你>\.apsara-apm\java\<版本>\`，其中 `status` 文件可直接看出是否生效
-  （未配置 LicenseKey 时 `licenseKey=null / appId=null / applicationName=null`）。
-- **未配置 LicenseKey 时探针不会产生 span**：此时
-  `traceparent` / `EagleEye-TraceId` 请求头都不会被采纳（ARMS 用自己的 EagleEye 传播），
-  请求期间的日志 MDC 里只有本项目 `TraceIdFilter` 写的 `traceId`。
-  因此 `common/web/TraceIdFilter` 的「包络 traceId == ARMS 链路 TraceId」这一条**必须在配好 LicenseKey 后实测确认**，
-  若届时仍取不到活跃 span，按 `docs/arms-plan.md` §6 的备选口径处理。
+- **`-Background` 的引号坑（已修）**：`Start-Process -ArgumentList <数组>` 只按空格拼接、
+  不给含空格的元素补引号，`-Dspring-boot.run.jvmArguments="…"` 会被拆开，应用 JVM 只拿到 `-javaagent`，
+  表现为「探针加载了但控制台看不到应用、请求没有 span」。脚本现已改为单个带引号的参数字符串；
+  排查同类问题时先 `Get-CimInstance Win32_Process` 回读应用 JVM 命令行，确认 `-Darms.*` 真的在。
+- **判活三条判据**（本地自检，别再看 `status` 文件）：
+  ① 应用 JVM 命令行含 `-javaagent` + `-Darms.appName` + `-Darms.licenseKey`；
+  ② 送 `X-Trace-Id=mycustomtraceid123`，包络**不回显**该值而是 32 位 hex（= span 分支命中）；
+  ③ 应用 JVM 有到阿里云 **80** 端口的 Established 连接（= 正在上报；`100.103.107.x:9990` 的 SynSent
+  属 EagleEye 配置通道被阻断，不影响链路数据）。
+- 探针工作目录：`C:\Users\<你>\.apsara-apm\java\<版本>\`。⚠️ 其中 `status` 文件**不刷新**，
+  链路已通时它仍可能是 `licenseKey=null`，**不要**拿它作为授权判据。
 - SQL 文本报警默认脱敏（含手机号），**不要**为看清 SQL 关掉探针的脱敏开关。
 - 收工用 `.\scripts\db-reset.ps1`（无探针，自动恢复干净环境）。
 
@@ -215,7 +223,7 @@ Invoke-RestMethod http://localhost:8080/api/v1/ai/ping   -Headers @{ Authorizati
 | `smoke-recruiter.mjs` | 招聘者模块冒烟（T8；HR 画像读改 / 我发布的职位（含 CLOSED 可见）/ 我收到的投递超集 / 人才筛选关键词与证据 / 词表，50 项断言，可重复执行） |
 | `verify-seed.ps1` | 种子行数抽查（16 项断言，对齐 step3-plan §3 数字；须先完成迁移；已排除冒烟 / 注册产物前缀、T7 软删简历） |
 | `fetch-arms-agent.ps1` | **T-OBS1**：下载阿里云 ARMS Java 探针到 `.local/arms/AliyunJavaAgent/`（默认华东1-杭州公网，`-Region` 换地域、`-ZipPath` 用控制台下载的包、`-Force` 重下） |
-| `dev-with-arms.ps1` | **T-OBS1**：带 ARMS 探针启动后端（只挂应用 JVM）。`-DryRun` 配置自检（密钥打码）、`-Background` 后台起 + 等 health UP、`-AllowMissingLicenseKey` 仅验证探针能加载。默认关闭时请用 `db-reset.ps1` / `mvnw spring-boot:run` |
+| `dev-with-arms.ps1` | **T-OBS1**：带 ARMS 探针启动后端（只挂应用 JVM）。`-DryRun` 配置自检（密钥打码）、`-Background` 后台起 + 等 health UP、`-AllowMissingLicenseKey` 仅验证探针能加载。**T-OBS2 修**：`-Background` 改为传单个带引号的参数字符串（原先 `Start-Process -ArgumentList` 数组会丢引号，`-Darms.*` 进不了应用 JVM）。默认关闭时请用 `db-reset.ps1` / `mvnw spring-boot:run` |
 
 当前验收基线（2026-10-19）：`mvnw test` **182/182**（T-AI0 新增 3 项：AI 自检开关 / 调用参数 + AI 端点非公开；
 T-OBS2 新增 6 项：traceId 三级优先级 `TraceIdFilterTest`）；
@@ -223,7 +231,7 @@ T-OBS2 新增 6 项：traceId 三级优先级 `TraceIdFilterTest`）；
 `smoke-applications` 51/51；`smoke-company` 26/26；`smoke-messages` 40/40（连续两次）；
 `smoke-user` 64/64（连续两次）；`smoke-recruiter` 50/50（可重复执行）；`verify-seed` 16/16；
 前端 `npm run e2e` 在**真实后端**下 **63/63**（T9，连续两轮，每轮前先 `db-reset.ps1`；
-T-OBS1 后又复跑一轮 63/63，确认接入 ARMS 对既有功能零影响）。
+T-OBS1 后又复跑一轮 63/63；**T-OBS2 带 ARMS 探针再跑一轮仍是 63/63**，确认接入探针对既有功能零影响）。
 
 另有 `scripts/seed-gen/`（开发期工具）：从仓库 `src/api/mock/*` 生成 `V4~V8` 种子迁移，
 杜绝手抄漂移；**勿手改 `V4~V8` 迁移文件**，改演示数据请改 mock 后重跑生成脚本（用法见脚本头部注释）。

@@ -8,7 +8,7 @@
 > （2026-10-16 起另有交接四件套：`PROJECT.md` / `ARCHITECTURE.md` / `PROGRESS.md` / `CHANGELOG.md`）。
 > 开工顺序：先 `PROGRESS.md`，再本文件；需要细节时再按下文索引深入 `docs/` 的专项文档。
 >
-> 最后更新：2026-10-19 · 对应本轮提交（**可观测性 T-OBS1：阿里云 ARMS 应用监控探针骨架 + traceId 三级优先级**，`mvnw test` 182/182、前端 e2e 63/63 无回归；**T-OBS2 待用户提供 LicenseKey**）；Step 4 侧**下一步 T-AI1 索引入库**
+> 最后更新：2026-10-19 · 对应本轮提交（**可观测性 T-OBS2：ARMS 链路打通** —— 控制台可见 `pinliao-backend`、包络 traceId 即链路 TraceId、修 `-Background` 引号 bug，带探针 `mvnw test` 182/182、前端 e2e 63/63 无回归）；Step 4 侧**下一步 T-AI1 索引入库**
 > 维护要求：**每次改变项目状态（新增功能、改架构、修坑）后，必须回来更新本文件**，
 > 否则它会像之前的 `HANDOFF.md` 一样过期并误导后来者。
 
@@ -787,12 +787,34 @@ const { data, isPending } = useQuery({
   默认 fork；实测 WMI 命令行确认 application JVM 有、Maven JVM 没有）。**千万不要**用 `JAVA_TOOL_OPTIONS`——
   Maven 自身也会挂上探针，控制台会出现同名的第二个「应用」且数据双份（还费钱）。
 - **`jvmArguments` 是按空格切分的字符串**：探针路径与参数值不能含空格，否则参数会被切坏（脚本已加显式检查与提示）。
-- **探针工作目录在用户目录**：`%USERPROFILE%\.apsara-apm\java\<探针版本>\`，其中 `status` 文件能直接看出
-  是否生效（`licenseKey= / appId= / applicationName=` 全为 `null` 即**未授权**）。日志在该目录 `logs/`。
+- **`-Dspring-boot.run.jvmArguments` 在 PowerShell 里有个致命坑（本增量实际踩中并修复）**：
+  `Start-Process -ArgumentList <数组>` **只用空格拼接**、不会给含空格的元素补引号，于是
+  `-Dspring-boot.run.jvmArguments="-javaagent:… -Darms.licenseKey=… -Darms.appName=…"` 被 Maven 拆成
+  `jvmArguments` 只剩 `-javaagent`、其余 `-Darms.*` 变成 Maven 自己的 `-D` 参数。现象极具误导性：
+  **探针横幅正常、健康检查正常、但控制台看不到应用、请求不产生 span**。修法是把整行拼成
+  **单个带引号的字符串**（`Start-Process -ArgumentList "spring-boot:run `"$jvmArgLine`""`），
+  并用 WMI 回读应用 JVM 命令行确认三个参数都在 —— 这是「挂了探针却没数据」的第一排查项。
+- **探针工作目录在用户目录**：`%USERPROFILE%\.apsara-apm\java\<探针版本>\`（含 `logs/`、`status`）。
+  ⚠️ **`status` 文件不可作为授权判据**：本机链路上报已通、控制台已能看到应用时，`status` 仍停在
+  首次运行的内容（`licenseKey=null`、`lastWriteTime` 不变）。判活请看「判活三条判据」（下一条），
+  不要再拿 `status` 下结论。
+- **判活三条判据（不需要进控制台，本地就能定性）**：① 应用 JVM 命令行 `-Darms.*` 三个参数都在；
+  ② 送 `X-Trace-Id=mycustomtraceid123`，包络**不回显**而是 32 位 hex（= span 分支命中）；
+  ③ 应用 JVM 有到阿里云 **80** 端口的 Established 连接（= 正在上报）。三条全中即「探针在工作」。
+  另外 `100.103.107.x:9990` 上出现 SynSent 是探针的 EagleEye 配置通道被网络阻断所致，**不影响链路数据**。
+- **两种传参形式都可用**：控制台文档的 `-Darms.licenseKey` / `-Darms.appName`（脚本采用）与
+  `ARMS_LICENSE_KEY` / `ARMS_APP_NAME` **环境变量**（实测同样能产生 span）。想避免密钥出现在进程命令行时用后者；
+  但注意 `Start-Process` 的引号坑只影响前者。
 - **未配 LicenseKey 时探针不产生 span**（本机实测，2026-10-19）：此时 `traceparent`（W3C）与
   `EagleEye-TraceId` 请求头**都不会被采纳**，请求期间日志 MDC 里也没有探针注入的键（只有本项目
   `TraceIdFilter` 写的 `traceId`）。→ 凡是要证明「响应包络 traceId == ARMS 链路 TraceId」的验证，
   **必须先有 LicenseKey**；无 key 时只能验证「探针能加载 + 应用不受影响」。
+  **配好 LicenseKey 后已实测打通**：`Span.current()` 命中活跃 span，包络返回的就是探针的 32 位 traceId，
+  应用 JVM 同时出现到阿里云 80 端口的 Established 上报连接，带探针 `npm run e2e` 仍 **63/63**。
+- **别用 `OTEL_JAVAAGENT_LOGGING=debug` 开 debug**：该值非法，探针会打印
+  `Unrecognized value of 'otel.javaagent.logging': 'debug'. The agent will use the no-op implementation.`，
+  随后**连探针横幅都不打印**（日志实现变 no-op），很容易被误判成「探针没加载」。要开 debug 用
+  `-Dio.opentelemetry.javaagent.slf4j.simpleLogger.defaultLogLevel=debug`。
 - **探测「探针到底注入了什么」的零代码手法**：临时用环境变量 `LOGGING_PATTERN_CONSOLE` 覆盖日志格式为
   `%mdc | %msg%n`（或加 `%X{trace_id:-} %X{span_id:-}`），打一个请求后看请求内的日志行——比读探针文档更快。
 - **OTel API 读活跃 span 是安全降级写法**：`io.opentelemetry:opentelemetry-api`（版本由 Boot BOM 管，
@@ -928,3 +950,4 @@ HR 新建 → 追加。
 | v1.22 | 2026-10-19 | 新增 Step 4 AI / RAG 增量方案文档 [`step4-ai-plan.md`](./step4-ai-plan.md) v1.0（选型 / 数据流 / 多租户红线 §5.3 / 代码结构 / V9 表草案 / T-AI0~T-AI7 / 假模型测试策略 / 风险与未决 6 项）；§2 状态表新增该行（原「Step 4 联调」更名「Step 3-T9 联调」）；§9 新增「Step 4 方案（已定 / 待确认子项）」。**本轮只落文档，未改代码** |
 | v1.23 | 2026-10-19 | **Step 4 T-AI0 落地**：Spring AI 1.1.8（BOM + OpenAI starter）接入百炼 DashScope 兼容模式；`ai/` 包（`AiCodes` / `AiProperties` / `AiConnectivityService` / `AiController` → `/api/v1/ai/status|ping`）；密钥与模型全部走用户级环境变量 `PINLIAO_AI_*`（`api-key` 占位，无 key 也能启动）。**新增 §6.19（AI 接入 10 条坑）**：`sk-ws-` key 可用性与 coding 域名 401、`enable_thinking=false`（思考型模型 10s+ → 1.0s）、空 `api-key` 会导致启动失败、错误码不能用 `43xxx`、AI 自检端点须鉴权、PowerShell 5.1 下 `java -version` NativeCommandError 吞掉 JDK 探测、key 泄露三连核查法。实测 ping chat 1005ms/44 tokens、embedding 1024 维/538ms；`mvnw test` 176/176、e2e 63/63 无回归；§2 状态行与 §9 同步 |
 | v1.24 | 2026-10-19 | **可观测性 T-OBS1 落地（选型由开源 OTel Agent 改为阿里云 ARMS 应用监控探针）**：新增 `scripts/fetch-arms-agent.ps1`（下载探针到 `.local/arms/`）与 `scripts/dev-with-arms.ps1`（`-DryRun` 配置自检含密钥打码 / `-Background` / `-AllowMissingLicenseKey`；`-javaagent` 只挂 fork 出的应用 JVM）；`scripts/_env.ps1` 新增 `PINLIAO_ARMS_*` 与共享函数（`Wait-BackendUp` / `Get-JavaMajor` / `Resolve-PinliaoJavaHome` / `Format-Secret`），`db-reset.ps1` 去重改用它；`common/web/TraceIdFilter` 取值改为「活跃 OTel span 的 traceId → 透传 `X-Trace-Id` → UUID」（契约不变）+ 6 项 `TraceIdFilterTest`；新增 `docs/arms-plan.md` v1.1 与 `backend/README.md`「ARMS 链路」一节。**新增 §6.20（ARMS 接入 12 条坑）**：两产品入口区别（应用监控 vs 链路 OTel 版）、探针实为 OTel javaagent 2.23.0 改名版、只能挂应用 JVM、`jvmArguments` 空格坑、探针工作目录与 `status` 文件、**未配 LicenseKey 时不产生 span**、`%mdc` 探针法、OTel API 安全降级写法、计费与前端监控门禁。实测 `mvnw test` 182/182、真实后端 e2e 63/63（零影响） |
+| v1.25 | 2026-10-19 | **可观测性 T-OBS2：ARMS 链路打通**（控制台可见 `pinliao-backend`、包络 traceId 即链路 TraceId、应用 JVM 有到阿里云 80 端口的 Established 上报连接、带探针 e2e 63/63）。**§6.20 补 5 条坑**：① `Start-Process -ArgumentList` 传数组会丢引号 → `-Darms.licenseKey/appName` 进不了应用 JVM（探针加载却不产生 span、控制台看不到应用），必须传单个带引号字符串并回读进程命令行；② `.apsara-apm\java\<版本>\status` **不刷新、不可作授权判据**；③ 判活三条判据（命令行含 `-Darms.*` / 送 `X-Trace-Id` 不回显 / 有到 80 端口连接）；④ `-Darms.*` 与环境变量 `ARMS_LICENSE_KEY`/`ARMS_APP_NAME` 两种形式都可用；⑤ `OTEL_JAVAAGENT_LOGGING=debug` 是非法值（日志变 no-op、连横幅都不打），要用 `-Dio.opentelemetry.javaagent.slf4j.simpleLogger.defaultLogLevel=debug` |

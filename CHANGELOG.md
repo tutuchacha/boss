@@ -6,6 +6,48 @@
 
 ---
 
+## [可观测性 · T-OBS2] 2026-10-19 — ARMS 链路打通（修 `-Background` 引号 bug，带探针 e2e 63/63）
+
+> 用户已从控制台取得 LicenseKey 并反馈「当前已经能够在阿里云控制台查看本服务了」。
+> 本轮目标从「骨架」转为**真实验收**：探针是否产生 span、上报是否连通、traceId 是否对齐、探针是否影响功能。
+
+### Fixed
+
+- **`backend/scripts/dev-with-arms.ps1 -Background` 的致命引号 bug**：原来用
+  `Start-Process -ArgumentList 'spring-boot:run', "-Dspring-boot.run.jvmArguments=$jvmArgs"`，
+  PowerShell 对数组只做**空格拼接**、不给含空格的元素补引号，命令行变成
+  `spring-boot:run -Dspring-boot.run.jvmArguments=-javaagent:… -Darms.appName=… -Darms.licenseKey=…`，
+  Maven 只把 `-javaagent:…` 收进 `jvmArguments`，其余 `-Darms.*` 成了 Maven 自己的系统属性。
+  表现为**探针横幅正常、health 正常，但控制台看不到应用、请求不产生 span**（极具误导性）。
+  改为先拼**单个带引号的参数字符串**再交给 `Start-Process`；已用 WMI 回读应用 JVM 命令行确认
+  `-javaagent` / `-Darms.appName` / `-Darms.licenseKey` 三者都在。
+
+### Added
+
+- `docs/arms-plan.md` §4 新增「**判活三条判据**」（本地自检，不必进控制台）：
+  ① 应用 JVM 命令行含 `-Darms.*`；② 送 `X-Trace-Id=mycustomtraceid123` 时包络**不回显**而是 32 位 hex；
+  ③ 应用 JVM 有到阿里云 **80** 端口的 Established 连接。并记录 `100.103.107.x:9990` 的 SynSent 属
+  EagleEye 配置通道被阻断，不影响链路数据。
+
+### Docs
+
+- `docs/arms-plan.md` v1.2：补「配好 LicenseKey 后」实测记录（控制台可见 / span 分支命中 / 上报连接 /
+  带探针 e2e 63/63 / `status` 文件不刷新 / 引号 bug）；任务板 T-OBS0、T-OBS2 标 ✅；
+  备选口径降级为「换环境时的兜底」；§7 增加第 6 步 traceId 对照自检。
+- `docs/AI-CONTINUE.md` §6.20 补 5 条坑（`-Background` 引号、`status` 不可信、判活三条判据、
+  两种传参形式、`OTEL_JAVAAGENT_LOGGING=debug` 非法值会让日志实现变 no-op 连横幅都不打）。
+- `backend/README.md`：ARMS 一节改为「已打通」口径 + 脚本表注明修复。
+- `PROGRESS.md` v1.23、`CHANGELOG.md` 本条、`worklog.md` Task 35。
+
+### Verified
+
+- 带探针 `db-reset.ps1` → 基线不变（`flyway=8 / companies=16 / jobs=51 / applications=9`）；
+  随后**带探针**跑真实后端 `npm run e2e` → **63/63**（零控制台错误、零 hydration 报错）。
+- 包络 traceId 样例：`18c2a41966c9f7e920b455c6fa4d1aa6`（GET `/api/v1/cities`）、
+  `dd907c79fe631ee168ddea44f8713311`（GET `/api/v1/jobs`）——可在控制台按 TraceId 反查同一条链路。
+
+---
+
 ## [可观测性 · T-OBS1] 2026-10-19 — 接入阿里云 ARMS 应用监控（探针骨架 + traceId 三级优先级，默认关闭）
 
 > 用户诉求：先把**链路检查**接上（比 AI 增量简单，也方便验收既有功能）；

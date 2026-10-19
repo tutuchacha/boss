@@ -112,7 +112,7 @@ A 拿不到应用监控那套能力，且 B 的配置**更简单**（一个 Lice
 
 不动：`pom.xml` 其余依赖、`dev-up.ps1` / `dev-down.ps1`、`db-reset.ps1` 的默认无探针行为、前端任何代码。
 
-**本轮实测记录（2026-10-19，无 LicenseKey）**：
+**本轮实测记录 A（2026-10-19，无 LicenseKey）**：
 
 | 项 | 结果 |
 |---|---|
@@ -125,13 +125,41 @@ A 拿不到应用监控那套能力，且 B 的配置**更简单**（一个 Lice
 | 未授权时的行为 | ⚠️ `status` 文件显示 `licenseKey=null / appId=null / applicationName=null`；**请求期间不产生 span**：日志 MDC 里只有本项目写的 `traceId`（无 `trace_id`/`EagleEye-TraceId`）；`traceparent` 与 `EagleEye-TraceId` 请求头均不被采纳 → 包络 traceId 落回透传/UUID 分支 |
 | 结论 | DoD 第 2 条（包络 traceId == ARMS TraceId）**必须配好 LicenseKey 后实测**；风险与备选见 §6 |
 
+**本轮实测记录 B（2026-10-19，配好 LicenseKey 后：链路已打通）**：
+
+| 项 | 结果 |
+|---|---|
+| 控制台可见应用 | ✅ 用户确认「应用监控 → 应用列表」已能看到本服务（上报的应用名为 `pinliao-backend`） |
+| **span 已产生（关键判据）** | ✅ 送 `X-Trace-Id=mycustomtraceid123` 时包络**不再回显**，而是返回探针的 32 位 traceId（如 `18c2a41966c9f7e920b455c6fa4d1aa6`）→ `Span.current()` 命中了活跃 span，`TraceIdFilter` 走的是**一级（span）分支**而非透传分支 |
+| 上报连接 | ✅ 应用 JVM 出现到阿里云 80 端口的 Established（`121.43.177.209:80`、`47.98.97.63:80`、`120.55.220.55:80`、`47.97.242.7:80`）；`100.103.107.x:9990` 是探针的 EagleEye 配置通道，本机网络 SynSent 属正常，不影响链路数据 |
+| 零影响回归（**带探针**） | ✅ `db-reset.ps1` 清库重迁基线不变（`flyway=8 / companies=16 / jobs=51 / applications=9`），随后**带探针**跑真实后端 `npm run e2e` **63/63**（零控制台错误、零 hydration 报错） |
+| `status` 文件 | ⚠️ **不可作为授权判据**：本机即使链路已通，`status` 仍停在首次运行的内容（`licenseKey=null`、`lastWriteTime` 不变）——判活请看下方「三条判据」 |
+| **脚本 bug（已修）** | ✅ `-Background` 原先用 `Start-Process -ArgumentList <数组>`：PowerShell 只用**空格**拼接数组、不给含空格的元素补引号 → `-Dspring-boot.run.jvmArguments="-javaagent:… -Darms.licenseKey=… -Darms.appName=…"` 被 Maven 拆成多个参数，**应用 JVM 只拿到 `-javaagent`**（探针加载但不产生 span、控制台看不到应用）。改为**单个带引号的参数字符串**后正常，已用 WMI 回读应用 JVM 命令行确认 `-javaagent` / `-Darms.appName` / `-Darms.licenseKey` 三者都在 |
+| 顺带确认 | ✅ 探针也支持**环境变量形式** `ARMS_LICENSE_KEY` / `ARMS_APP_NAME`（实测同样能产生 span）；脚本仍用控制台文档给的 `-Darms.*` 形式，两条路都通 |
+
+**判活三条判据（本地可自检，不需要进控制台）**：
+
+```powershell
+# ① 应用 JVM 命令行真的带了三个参数（不是只有 -javaagent）
+(Get-CimInstance Win32_Process -Filter "ProcessId=<监听 8080 的 pid>").CommandLine -match '-Darms\.'
+
+# ② span 分支命中：送一个明显非法的透传头，若包络不回显它、而是 32 位 hex → span 已生效
+(Invoke-WebRequest http://127.0.0.1:8080/api/v1/cities -Headers @{ 'X-Trace-Id' = 'mycustomtraceid123' }).Content -match 'mycustomtraceid123'
+#    false = 走 span 分支（好）；true = 未授权/未挂上探针
+
+# ③ 应用 JVM 有到阿里云 80 端口的 Established 连接（=正在上报）
+Get-NetTCPConnection -OwningProcess <pid> | Where-Object { $_.RemoteAddress -notmatch '^(127\.|::1)' -and $_.RemotePort -eq 80 }
+```
+
+> 只做 ①②③ 就够判断「探针是否真的在工作」，**不要**依赖 `.apsara-apm\java\<版本>\status`（该文件不刷新）。
+
 ## 5. 任务板
 
 | 编号 | 任务 | 产出与验收 | 依赖 | 状态 |
 |---|---|---|---|---|
-| **T-OBS0** | 控制台前置 | 取到 LicenseKey（+ 应用名 `pinliao-backend`）并写入用户级环境变量；`dev-with-arms.ps1 -DryRun` 自检通过（密钥打码） | 用户操作 | ⏳ 待用户 |
+| **T-OBS0** | 控制台前置 | 取到 LicenseKey（+ 应用名 `pinliao-backend`）并写入用户级环境变量；`dev-with-arms.ps1 -DryRun` 自检通过（密钥打码） | 用户操作 | ✅ 完成（2026-10-19） |
 | **T-OBS1** | 脚本 + 探针落地 | 探针就位；`fetch-arms-agent.ps1` / `dev-with-arms.ps1` / `_env.ps1` / README；无 LicenseKey 也能起后端且日志出现探针自述 | 可先做 | ✅ 完成 |
-| **T-OBS2** | traceId 打通 + 链路验收 | 包络 `traceId` == ARMS TraceId；ARMS 能看到 HTTP/SQL/Redis span 与错误链路；`npm run e2e` 63/63、`mvnw test` 182/182 | T-OBS0 | ⏳ 待 LicenseKey（代码与单测已就绪） |
+| **T-OBS2** | traceId 打通 + 链路验收 | 包络 `traceId` == ARMS TraceId；ARMS 能看到 HTTP/SQL/Redis span 与错误链路；`npm run e2e` 63/63、`mvnw test` 182/182 | T-OBS0 | ✅ 完成（2026-10-19）：span 分支命中 + 上报连接 + 控制台可见 + 带探针 e2e 63/63；`status` 文件不作判据（害人坑） |
 | **T-OBS3** | 可选深化 | ① metrics/JVM 开关 ② 慢 SQL / 异常分析 ③ 日志关联（SLS）④ 前端监控（Web SDK，注意 e2e「零控制台错误」门禁） | T-OBS2 | 待定 |
 
 估算：T-OBS1 ≈ 0.5 天（已完成）；T-OBS2 ≈ 0.5 天（拿到 LicenseKey 后）。
@@ -141,7 +169,7 @@ A 拿不到应用监控那套能力，且 B 的配置**更简单**（一个 Lice
 | 项 | 说明 |
 |---|---|
 | **费用** | ARMS **应用监控**按量计费（有免费额度），计费口径与「链路 OpenTelemetry 版」不同；**需用户确认已了解计费与额度** |
-| **DoD 第 2 条的备选口径** | 若拿到 LicenseKey 后 `Span.current()` 仍取不到活跃 span（应用类路径的 OTel API 与探针上下文未连通），按优先级降级：<br>① 读探针注入的 MDC 键（如 `EagleEye-TraceId` / `trace_id`）作为一级来源（改动仅几行）→ 仍满足「包络 traceId 可反查」；<br>② 用探针的 OTel/ARMS 自定义埋点把包络 traceId 作为 **span attribute** 上报，DoD 改为「链路详情里能看到该属性」；<br>③ 放弃自动化对齐，改为「按接口 + 时间 + 错误码在控制台定位」（最弱，不推荐） |
+| **DoD 第 2 条的备选口径（现在已用不上，留作换环境/换探针版本时的兜底）** | 本机配好 LicenseKey 后 `Span.current()` **已能取到活跃 span**（记录 B），无需降级。若换机器 / 换版本后失效，按优先级：<br>① 读探针注入的 MDC 键（如 `EagleEye-TraceId` / `trace_id`，观察前先用 `LOGGING_PATTERN_CONSOLE='%mdc | %msg%n'` 确认键名）作为一级来源；<br>② 用探针的 OTel/ARMS 自定义埋点把包络 traceId 作为 **span attribute** 上报，DoD 改为「链路详情里能看到该属性」；<br>③ 放弃自动化对齐，改为「按接口 + 时间 + 错误码在控制台定位」（最弱，不推荐） |
 | **地域** | 建议华东1-杭州（探针默认按此下载/上报）；换地域需 `-Region` + 控制台同地域 |
 | 探针写入用户目录 | 探针会在 `C:\Users\<你>\.apsara-apm\` 建工作目录（含 `logs/`、`status`），非仓库产物 |
 | **前端监控** | ARMS 前端监控会在浏览器发额外请求，**可能破坏 e2e「零控制台错误」门禁** → 若要做，最后做且加 env 开关 |
@@ -162,6 +190,9 @@ A 拿不到应用监控那套能力，且 B 的配置**更简单**（一个 Lice
 4. 新开终端执行 `.\backend\scripts\fetch-arms-agent.ps1`（若尚未下载）→
    `.\backend\scripts\dev-with-arms.ps1 -DryRun` 自检 → `.\backend\scripts\dev-with-arms.ps1 -Background` 启动。
 5. 约 1 分钟后在「应用列表」看到应用（语言列 Java 图标），点进去即可看调用链 / 慢 SQL / 异常。
+6. **对齐自检（T-OBS2）**：随便打一个后端接口，把响应包络里的 `traceId` 复制到控制台
+   「调用链查询 → TraceId」搜 —— 应能搜到同一条链路，且详情里含 HTTP 入口 span + MySQL / Redis 子调用
+   （若同时调过百炼，还会有 LLM 上下游 span）。搜不到时先按 §4 的「判活三条判据」在本地确认探针真的在工作。
 
 > 安全：LicenseKey 与 `PINLIAO_AI_API_KEY` 同级对待——只进用户级环境变量，仓库只留文档占位；
 > 落地后用 `git grep` / 未跟踪文件扫描 / `git log -S` 三连核查零命中（本轮已核查 `PINLIAO_ARMS` 相关零命中）。
@@ -172,3 +203,4 @@ A 拿不到应用监控那套能力，且 B 的配置**更简单**（一个 Lice
 |---|---|---|
 | v1.0 | 2026-10-19 | 首版。基于本机实况（无 Docker、Windows + mvnw、公网开发机、后端已有自研 traceId 与统一包络、e2e 63/63 门禁）制定 ARMS 链路接入方案：路径 A（OTel Java Agent，零代码）为起点，路径 B（ARMS 应用监控）为可选深化；traceId 打通作为验收硬指标；Token 走环境变量；默认开关关闭以保证既有基线不变。任务板 T-OBS0~T-OBS3 |
 | v1.1 | 2026-10-19 | **路径改选 B（阿里云 ARMS Java 探针 / 应用监控）**：A 只能进「可观测链路 OpenTelemetry 版」（语言列 `-`，无慢 SQL/JVM/异常分析），B 才是「引 jar 一配就看调用链」的完整体验且配置更简单（一个 LicenseKey）。T-OBS1 骨架落地（`fetch-arms-agent.ps1` / `dev-with-arms.ps1` / `_env.ps1` 共享函数 / `db-reset.ps1` 去重 / `TraceIdFilter` + 6 项单测 / README 一节）；补本轮实测记录（探针 5.1.2 = OTel 2.23.0 改名版、只挂应用 JVM、零影响回归 182/182 与 63/63、未授权时不产生 span）；DoD 第 2 条标注「待 LicenseKey 实测」并列出三级备选口径；环境变量由 `PINLIAO_OTEL_*` 改为 `PINLIAO_ARMS_*` |
+| v1.2 | 2026-10-19 | **链路打通（T-OBS0 / T-OBS2 ✅）**：LicenseKey 写入用户级环境变量后，控制台「应用监控 → 应用列表」可见 `pinliao-backend`；包络 traceId = 探针 32 位 traceId（span 分支命中），应用 JVM 出现到阿里云 80 端口的 Established 上报连接；带探针 `db-reset.ps1` + 真实后端 `npm run e2e` **63/63**。**修 `dev-with-arms.ps1 -Background` 真 bug**：`Start-Process -ArgumentList` 传数组会丢引号，导致 `-Darms.licenseKey/appName` 没进应用 JVM（探针加载但不产生 span、控制台看不到应用）→ 改为单个带引号参数字符串。新增「判活三条判据」，并明确 `status` 文件**不可**作为授权判据（不刷新） |

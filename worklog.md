@@ -1467,3 +1467,56 @@ Stage Summary:
 - 阻塞点（需用户操作 T-OBS0）：控制台「应用监控 → 应用列表 → 创建应用（无侵入 Java）」取 LicenseKey
   → 写入用户级环境变量 `PINLIAO_ARMS_LICENSE_KEY` → `dev-with-arms.ps1` 启动 → 核对链路与 traceId 对齐。
 - 仍待用户拍板：ARMS 计费口径与额度；`step4-ai-plan.md` §10 五项；备份分支是否删除。
+
+---
+
+Task ID: 35
+Agent: orchestrator (main)
+Title: 可观测性 T-OBS2 —— ARMS 链路打通 + 修 `-Background` 引号 bug（带探针 e2e 63/63）
+Status: 完成（2026-10-19）
+
+Context:
+- 用户从控制台取到 LicenseKey（形如 `a61t***(26 位)`，地域 cn-hangzhou），并提示了三行启动参数
+  （`-javaagent` + `-Darms.licenseKey` + `-Darms.appName=my-service`），又贴了「手动安装」页说明。
+- 选择：控制台**方法一**（`-javaagent` + `-Darms.*`）；方法二仅对 <4.0.0 有效（本机 5.1.2 不适用）。
+  应用名按控制台原话「请将 my-service 替换成您自己的应用名」定为 `pinliao-backend`。
+
+Root Cause（本轮最关键的发现）:
+- 首轮 `dev-with-arms.ps1 -Background` 起来后：探针横幅正常、health UP，但控制台看不到应用、请求不产生 span。
+  定位到 **`Start-Process -ArgumentList <数组>` 按空格拼接、丢掉元素内引号** →
+  `-Dspring-boot.run.jvmArguments="-javaagent:… -Darms.appName=… -Darms.licenseKey=…"` 被 Maven 拆开，
+  应用 JVM 只收到 `-javaagent`，`-Darms.*` 变成了 Maven 自己的系统属性 → 探针**无 LicenseKey = 不产生 span**。
+  修法：先拼成**单个带引号的参数字符串**再传给 `Start-Process`。
+- 另一处误导性证据：`.apsara-apm\java\<版本>\status` 文件**不刷新**——甚至链路已通、控制台已可见时它仍显示
+  `licenseKey=null`；因此明确「status 不可作授权判据」，改立**判活三条判据**。
+
+Work:
+- 环境变量（用户级）写入：`PINLIAO_ARMS_ENABLED=true` / `PINLIAO_ARMS_LICENSE_KEY=<key>` /
+  `PINLIAO_ARMS_APP_NAME=pinliao-backend`；`-DryRun` 自检通过（密钥打码 `a61t***(26 位)`）。
+- 修 `backend/scripts/dev-with-arms.ps1`（Background 分支的引号 bug，附注释说明为何不能传数组）。
+- 诊断过程中顺手排除两个假线索：
+  ① `OTEL_JAVAAGENT_LOGGING=debug` 是**非法值** → 探针打印 `The agent will use the no-op implementation.`，
+     之后连横幅都不打（容易被误判成「探针没加载」）；正确开关是
+     `-Dio.opentelemetry.javaagent.slf4j.simpleLogger.defaultLogLevel=debug`。
+  ② 早前「应用 JVM 零对外连接」是抓错 pid（WMI 匹配 `javaagent` 会同时命中 Maven JVM）；按「监听 8080 的 pid」
+     重查后能看到 MySQL/Redis 连接。
+- 验证：带探针重新启动后
+  ① 应用 JVM 命令行含 `-javaagent` + `-Darms.appName` + `-Darms.licenseKey`（WMI 回读）；
+  ② 送 `X-Trace-Id=mycustomtraceid123` → 包络**不回显**，返回探针 traceId（`18c2a41966c9f7e920b455c6fa4d1aa6`）→ span 分支命中；
+  ③ 应用 JVM 出现到阿里云 80 端口的 Established 连接（`121.43.177.209:80` / `47.98.97.63:80` / `120.55.220.55:80` / `47.97.242.7:80`），
+     `100.103.107.x:9990` 为 EagleEye 配置通道（SynSent，本机网络阻断，不影响链路数据）；
+  ④ 用户确认「当前已经能够在阿里云控制台查看本服务了」。
+- 回归（**带探针**）：`db-reset.ps1` → `flyway=8 / companies=16 / jobs=51 / applications=9` → `npm run e2e` **63/63**。
+- 出参加样：GET `/api/v1/cities` → `18c2a41966c9f7e920b455c6fa4d1aa6`；GET `/api/v1/jobs` → `dd907c79fe631ee168ddea44f8713311`。
+- 文档：`docs/arms-plan.md` v1.2（记录 B + 判活三条判据 + 任务板 T-OBS0/T-OBS2 ✅ + 备选口径降级）、
+  `docs/AI-CONTINUE.md` §6.20 补 5 条坑、`backend/README.md`（已打通口径 + 脚本表修复说明 + 带探针 e2e）、
+  `PROGRESS.md` v1.23、`CHANGELOG.md`、worklog 本条。
+
+Stage Summary:
+- ARMS 链路打通：控制台可见 `pinliao-backend`，包络 traceId 即链路 TraceId（span 分支命中），有实际上报连接；
+  带探针 e2e 63/63，确认对既有功能零影响。
+- 最有复用价值的坑：**PowerShell `Start-Process -ArgumentList` 数组会丢引号** —— 这是「javaagent 挂了却没数据」的头号原因；
+  排查入口永远是「回读应用 JVM 命令行」。次坑：`status` 文件不刷新，别拿它下结论。
+- 下一步（可选 T-OBS3）：慢 SQL / 异常分析 / JVM 大盘核对；前端监控（Web SDK）最后做并加开关（会碰 e2e 零控制台错误门禁）。
+- 仍待用户拍板：ARMS 计费与额度；`step4-ai-plan.md` §10 五项；备份分支是否删除；LicenseKey 已在本会话明文出现，
+  如介意可在控制台重置后重新写入环境变量。
