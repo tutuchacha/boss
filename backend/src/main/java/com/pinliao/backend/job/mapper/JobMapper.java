@@ -116,6 +116,33 @@ public interface JobMapper extends BaseMapper<JobEntity> {
     @ResultMap("jobResult")
     List<JobEntity> selectVisibleByCompany(@Param("companyId") String companyId);
 
+    /**
+     * §4.3 HR 职位列表（本公司；含 CLOSED / DRAFT，仅排除软删行）。
+     *
+     * <p>与 §6.1 的「公开浏览」口径不同：这是 HR 管理视角，必须看到已关闭职位；
+     * 租户注入仍生效（HR 登录上下文），显式 company_id 条件与之冗余但保证语义清晰。</p>
+     */
+    @Select("""
+            SELECT j.* FROM jobs j
+            WHERE j.company_id = #{companyId} AND j.deleted_at IS NULL
+            ORDER BY j.published_at DESC, j.id ASC
+            """)
+    @ResultMap("jobResult")
+    List<JobEntity> selectByCompanyAnyStatus(@Param("companyId") String companyId);
+
+    /**
+     * §4.3 HR 职位详情（本公司；含 CLOSED / DRAFT，仅排除软删行）。
+     *
+     * <p>公开详情 {@code selectVisibleById} 只认 OPEN，已关闭职位会 40410；
+     * HR 编辑页需要读到关闭后的内容，故单独提供（契约外读取，参照 T6 的会话详情先例）。</p>
+     */
+    @Select("""
+            SELECT j.* FROM jobs j
+            WHERE j.id = #{jobId} AND j.company_id = #{companyId} AND j.deleted_at IS NULL
+            """)
+    @ResultMap("jobResult")
+    JobEntity selectForCompany(@Param("jobId") String jobId, @Param("companyId") String companyId);
+
     /** §6.9 浏览数 +1（防重复窗口在 service 层用 Redis 控制）。 */
     @InterceptorIgnore(tenantLine = "true")
     @Update("UPDATE jobs SET view_count = view_count + 1 WHERE id = #{jobId} AND deleted_at IS NULL")

@@ -298,17 +298,7 @@ public class JobCommandService {
 
     private JobViews.HrRecord toRecord(JobEntity job) {
         CompanyEntity company = job.getCompanyId() == null ? null : companyMapper.selectById(job.getCompanyId());
-        JobViews.CompanyBrief companyBrief = company == null
-                ? new JobViews.CompanyBrief(job.getCompanyId(), null, null, null)
-                : new JobViews.CompanyBrief(company.getId(), company.getName(), company.getStage(), company.getSize());
-        return new JobViews.HrRecord(
-                job.getId(), job.getTitle(), intOf(job.getSalaryMin()), intOf(job.getSalaryMax()), salaryText(job),
-                job.getCity(), job.getArea(), job.getExp(), job.getEdu(), job.getCat(), job.getSub(),
-                listOf(job.getTags()), companyBrief, new JobViews.HrBrief(job.getHrId(), job.getHrName(), job.getHrTitle()),
-                days(job.getPublishedAt()), instantOf(job.getPublishedAt()),
-                intOf(job.getViewCount()), intOf(job.getApplyCount()),
-                job.getStatus(), job.getResponsibilities(), job.getRequirements(), listOf(job.getWelfare()),
-                job.getDeletedAt() != null, job.getCompanyId());
+        return JobViews.HrRecord.of(job, company);
     }
 
     private static BusinessException invalid(String message) {
@@ -343,28 +333,5 @@ public class JobCommandService {
         }
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
-    }
-
-    private static long days(LocalDateTime publishedAt) {
-        if (publishedAt == null) {
-            return 0;
-        }
-        return Math.max(0, ChronoUnit.DAYS.between(publishedAt, LocalDateTime.now(ZoneOffset.UTC)));
-    }
-
-    private static Instant instantOf(LocalDateTime time) {
-        return time == null ? null : time.toInstant(ZoneOffset.UTC);
-    }
-
-    private static int intOf(Integer value) {
-        return value == null ? 0 : value;
-    }
-
-    private static List<String> listOf(List<String> value) {
-        return value == null ? List.of() : value;
-    }
-
-    private static String salaryText(JobEntity job) {
-        return intOf(job.getSalaryMin()) + "-" + intOf(job.getSalaryMax()) + "K";
     }
 }

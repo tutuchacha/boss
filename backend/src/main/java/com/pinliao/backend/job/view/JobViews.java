@@ -1,8 +1,13 @@
 package com.pinliao.backend.job.view;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.pinliao.backend.auth.entity.CompanyEntity;
+import com.pinliao.backend.job.entity.JobEntity;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 /**
@@ -110,6 +115,49 @@ public final class JobViews {
             List<String> welfare,
             boolean deleted,
             String companyId) {
+
+        /**
+         * 由职位行装配 HR 记录（§6.5~§6.8 写响应、§4.3 列表 / 详情共用；单一映射来源）。
+         *
+         * <p>{@code company} 允许为 null（公司行缺失时仍返回 companyId，避免空指针）。</p>
+         */
+        public static HrRecord of(JobEntity job, CompanyEntity company) {
+            CompanyBrief companyBrief = company == null
+                    ? new CompanyBrief(job.getCompanyId(), null, null, null)
+                    : new CompanyBrief(company.getId(), company.getName(), company.getStage(), company.getSize());
+            return new HrRecord(
+                    job.getId(), job.getTitle(), intOf(job.getSalaryMin()), intOf(job.getSalaryMax()),
+                    salaryText(job), job.getCity(), job.getArea(), job.getExp(), job.getEdu(),
+                    job.getCat(), job.getSub(), listOf(job.getTags()), companyBrief,
+                    new HrBrief(job.getHrId(), job.getHrName(), job.getHrTitle()),
+                    days(job.getPublishedAt()), instantOf(job.getPublishedAt()),
+                    intOf(job.getViewCount()), intOf(job.getApplyCount()),
+                    job.getStatus(), job.getResponsibilities(), job.getRequirements(), listOf(job.getWelfare()),
+                    job.getDeletedAt() != null, job.getCompanyId());
+        }
+
+        private static long days(LocalDateTime publishedAt) {
+            if (publishedAt == null) {
+                return 0;
+            }
+            return Math.max(0, ChronoUnit.DAYS.between(publishedAt, LocalDateTime.now(ZoneOffset.UTC)));
+        }
+
+        private static Instant instantOf(LocalDateTime time) {
+            return time == null ? null : time.toInstant(ZoneOffset.UTC);
+        }
+
+        private static int intOf(Integer value) {
+            return value == null ? 0 : value;
+        }
+
+        private static List<String> listOf(List<String> value) {
+            return value == null ? List.of() : value;
+        }
+
+        private static String salaryText(JobEntity job) {
+            return intOf(job.getSalaryMin()) + "-" + intOf(job.getSalaryMax()) + "K";
+        }
     }
 
     /** 游标分页响应（契约 §4.2）。 */
