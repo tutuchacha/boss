@@ -1259,3 +1259,38 @@ Stage Summary:
 - 遗留（**待用户拍板**）：求职者端「职位列表 / 分类字典 / 消息会话」仍读 mock（`jobs.ts#listJobs` /
   `categories.ts` / `conversations.ts` 真实分支无调用方），HR「发消息」入口仍为 mock 专用；切换前需评估
   e2e 跨端断言（依赖前端「关闭 / 新建职位联动」的 mock 合成逻辑）。
+
+---
+
+Task ID: 31
+Agent: orchestrator (main)
+Task: T9 追加 — 求职者职位列表切真实后端（用户选方案 A）
+
+Work Log:
+- 背景：T9 后求职者职位**列表**仍走 `filterJobsSync()`（`src/api/mock/filter.ts`，纯同步 mock 过滤），
+  `jobs.ts#listJobs` 的真实分支无人调用 → 真实模式下 HR「发布 / 编辑 / 关闭职位」对求职者**不生效**
+  （详情页已走 `getJobDetail()`，所以是「点进去 404 / 列表还在」的割裂）。用户拍板选 A：只切职位读路径。
+- 改动（2 个文件）：
+  - `JobsView.tsx`：`useMemo + filterJobsSync` → `useQuery(['jobs','list',filters], () => listJobs({...}))`；
+    `limit: 100` 单页取全（后端 `DEFAULT_LIMIT=20 / MAX_LIMIT=100`，可见 38 条），
+    「共 N 个职位」改用 `data.pagination.total`（Mock 分支同样返回 total，两模式等价）；
+    `isPending` 时渲染「加载中…」，避免首帧误显示「没有符合条件的职位」。
+  - 删除 `src/api/mock/filter.ts`（仅 `JobsView` 引用，grep 确认零残留）。
+- 可行性依据（读码确认，未改后端）：`GET /jobs` 的 `q` 同时 LIKE `title / 公司名 / cat / sub / tags / area`，
+  `city/cat/sub/exp/sal` 与 mock 同名同义，`sort=recommend` 同样「期望二级=2 / 期望一级=1」加权；
+  service 层透传 `Pagination.total`，故前端无需任何口径适配。
+- 实测：
+  - 真实后端：`db-reset.ps1` 后 `npm run e2e` **63/63**（「可按公司搜索到职位 → 7 条」现为真实数据；
+    「已关闭职位对求职者不可见」由弱断言变为真断言）。
+  - Mock 基线：临时把 `.env.local` 改名并重启 dev server，`npm run e2e` 仍 **63/63**（证明 mock 分支等价），
+    随后恢复 `.env.local` 并重启（**`NEXT_PUBLIC_*` 构建期内联，改完必须重启**）。
+  - `npx tsc --noEmit` 仍仅 3 个既有错误；`eslint src/components/pinliao/JobsView.tsx` 零告警。
+- 文档：PROGRESS v1.19（§0/§1/§4/§6.3/§8）、step3-plan v1.14（状态行 / §4 T9 追加 / §7）、
+  AI-CONTINUE v1.21（§2、§6.18 改写末条 + 新增切真实条目、§9、§10）、ARCHITECTURE v1.4
+  （§3 目录树去 `filter.ts`、§6.4 改为「取数方式已基本统一」、§7.7）、README、AGENTS §0、CHANGELOG（T9 追加）、worklog。
+
+Stage Summary:
+- 求职者「职位列表 / 详情」现全链路真实：HR 发布 / 编辑 / 关闭职位对求职者立即生效，Mock 与真实后端
+  两套模式 `npm run e2e` 均 63/63。
+- 仍待拍板（建议独立一轮 T10）：求职者分类字典、求职者消息会话、HR「发消息」入口；其中消息页
+  目前 e2e **零覆盖**，应先补断言再切。

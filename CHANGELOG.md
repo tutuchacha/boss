@@ -6,6 +6,39 @@
 
 ---
 
+## [T9 追加] 2026-10-19 — 求职者职位列表切真实（HR 发布 / 关闭对求职者生效）
+
+> 用户选方案 A：只切「职位读路径」，分类字典与消息会话留 T10。
+
+### Changed
+
+- `src/components/pinliao/JobsView.tsx`：列表取数由 `filterJobsSync`（同步 Mock）改为
+  `useQuery(['jobs','list',filters,expectCat,expectSub], () => listJobs({...}))` —— 走 `src/api/jobs.ts` 的双分支
+  （真实模式 `GET /jobs`）。`limit=100` 单页取全（后端默认 20、上限 100），
+  「共 N 个职位」改用后端 `pagination.total`；首帧加载显示「加载中…」，避免误显示空态。
+- 删除 `src/api/mock/filter.ts`（其注释本就写着「Step 3 联调阶段此文件不再被调用」，且仅 `JobsView` 引用）。
+
+### Why
+
+- 后端 `GET /jobs` 的筛选口径与 mock 完全一致：`q` 匹配 `title / 公司名 / cat / sub / tags / area`；
+  `city/cat/sub/exp/sal` 同名同义；`sort=recommend` 同样按「期望二级=2 / 期望一级=1」加权。
+  因此切换后无行为回退，但**HR 端发布 / 编辑 / 关闭职位在真实模式下对求职者立即生效**
+  （此前列表读 mock，跨端联动只是「看起来生效」）。
+
+### Verification
+
+- 真实后端（`USE_MOCK=false`）：`db-reset.ps1` 后 `npm run e2e` **63/63**（「可按公司搜索到职位 → 7 条」
+  现在真的来自后端）；`npx tsc --noEmit` 仍仅 3 个既有错误；改动文件 `eslint` 零告警。
+- Mock 基线（临时移开 `.env.local` 重启 dev server）：`npm run e2e` **63/63**（确认 mock 分支等价）。
+
+### Docs
+
+- `PROGRESS.md` v1.19（§0/§1/§4/§6.3/§8）、`docs/step3-plan.md` v1.14、`docs/AI-CONTINUE.md` v1.21
+  （§2、§6.18、§9、§10）、`ARCHITECTURE.md` v1.4（§3 目录树、§6.4、§7.7）、`README.md`、`AGENTS.md` §0、
+  `worklog.md` Task 31。
+
+---
+
 ## [T9] 2026-10-19 — Step 3 T9：全量联调（`USE_MOCK=false`，e2e 63/63）
 
 > 前端切真实后端并逐项修差异；新增清库重迁脚本。`npm run e2e` **63/63（连续两轮）**。
