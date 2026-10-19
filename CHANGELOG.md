@@ -6,6 +6,51 @@
 
 ---
 
+## [9cf3ae0] 2026-10-19 — Step 3 T8：招聘者 / 候选人 / 人才筛选（§4）
+
+> 契约 §4 共 6 条；补齐 HR 画像、我发布的职位、我收到的投递与人才筛选（关键词版）。
+> 提交 hash：`9cf3ae0`（结算见紧后 docs 提交）。
+
+### Added
+
+- 招聘者模块（`recruiter/`）：`GET|PATCH /api/v1/hr/profile`（§4.1/§4.2，按 `user_id` 归属，
+  缺失 40410，PATCH 部分更新、空姓名 42201）、`GET /api/v1/hr/applications`（§4.4，
+  公司维度 + `status/jobId`/扩展 `q`、更新倒序、`HrApplicationView` 超集卡片）、
+  `POST /api/v1/hr/candidates/match`（§4.5，关键词匹配，空条件 42210）、
+  `GET /api/v1/hr/candidates/match/tags`（§4.6，20 条词表）。
+- 职位模块新增 `HrJobQueryService` + `GET /api/v1/hr/jobs`（§4.3，HR 视角可见 CLOSED、`status` 筛选、
+  扩展 `q`/`hrId`、`limit` 上限保护）与契约外 `GET /api/v1/hr/jobs/{jobId}`（编辑页需读已关闭职位，
+  不存在 / 非本公司 / 已软删统一 40410）。
+- `TalentMatchService`：逐条移植 `src/api/mock/talentMatch.ts`（词典长词优先并空格占位、
+  英文技术词 `[A-Za-z][A-Za-z0-9+#.-]*` 去尾 `[.-]+`、中文先去停用词再取 `[\u4e00-\u9fa5]{2,}`、
+  大小写不敏感去重、技能 3 / 文本 2、证据 ≤3/词与 ≤6/人、score 倒序后按完善度倒序）。
+- 新增单元测试 22 项：`HrProfileServiceTest` 4、`HrJobQueryServiceTest` 3、
+  `HrApplicationQueryServiceTest` 4、`TalentMatchServiceTest` 11（含关键词提取与片段纯函数用例）。
+- 新增 `backend/scripts/smoke-recruiter.mjs` **50 项**：§4.1~§4.6 主链路 + 错误分支，
+  只读为主；§4.2 改后还原、§4.3 临时 `job-new-*` 在 finally 软删。
+
+### Changed
+
+- `JobViews.HrRecord.of(job, company)` 抽出为唯一映射源，`JobCommandService.toRecord` 改为委托，
+  删除重复的私有薪资 / 时间格式化方法；`JobMapper` 增加 `selectByCompanyAnyStatus` 与
+  `selectForCompany(jobId, companyId)`（均排除软删、含 CLOSED/DRAFT、保留租户注入）。
+- **出参口径（用户拍板）**：§4.3 返回 `HrJobRecord[]`、§4.4 返回 `HrApplicationView[]`（前端超集），
+  而非契约文字的 `Job[]` / `ApplicationWithJob[]`；`cursor` 保留但未启用（演示规模全量返回）。
+- 契约外扩展参数接受为可选：§4.3 的 `q` / `hrId`、§4.4 的 `q`（对齐前端 mock 行为）。
+- `docs/api-endpoints.md` v0.3.7：§4.3/§4.4 出参与参数口径、新增 `GET /hr/jobs/{jobId}` 说明。
+
+### Fixed
+
+- 无（T8 为新增功能；既有六项冒烟与 `verify-seed` 16/16 复跑无回归）。
+
+### Docs
+
+- 同步 `PROGRESS.md` v1.17、`docs/step3-plan.md` v1.12、`docs/AI-CONTINUE.md` v1.19
+  （新增 §6.17 招聘者模块踩坑：`hr_profiles` 非租户注入表、超集出参、扩展参数、CLOSED 口径差异、
+  关键词引擎移植保真、e2e 证据文案、85 完善度基线、演示库历史残留）、`docs/api-endpoints.md` v0.3.7。
+
+---
+
 ## [docs] 2026-10-18 — 文档结算：接口账目 70 条 / T9 重置策略 / T8→T9 顺序
 
 > 三项决策均由用户拍板；本次提交只改文档，无代码变更。

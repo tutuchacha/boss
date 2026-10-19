@@ -1,6 +1,6 @@
 # 聘聊 · API 接口清单
 
-> 版本：v0.3.6 · 最后更新：2026-10-18
+> 版本：v0.3.7 · 最后更新：2026-10-19
 > 通用规范见 `docs/api-contract.md`。本文件列出全部业务接口。
 > 类型定义见 `src/types/api.ts`。
 >
@@ -11,6 +11,13 @@
 
 > T6 另实现契约外读取 `GET /api/v1/conversations/{conversationId}`（HR 聊天顶栏），
 > 仅作扩展、不改变 8 条消息接口的计账。
+>
+> T8 另实现契约外读取 `GET /api/v1/hr/jobs/{jobId}`（HR 职位编辑页需打开已关闭职位，
+> 公开详情 §6.3 只认 `OPEN`），同样仅作扩展、不改变 6 条招聘者接口的计账。
+>
+> **T8 出参口径（2026-10-18 用户拍板）**：§4.3 / §4.4 直接返回前端 service 使用的
+> **超集**结构（`HrJobRecord[]` / `HrApplicationView[]`），而非契约文字的 `Job[]` /
+> `ApplicationWithJob[]`；目的是让 T9 切换真实后端时前端真实分支零改动。
 
 ---
 
@@ -192,14 +199,24 @@
 ### 4.3 我发布的职位
 `GET /api/v1/hr/jobs`
 - 鉴权：HR / COMPANY_ADMIN
-- 查询：`cursor, limit, status`
-- 出参：分页 `Job[]`
+- 查询：`status?, q?, hrId?, limit?, cursor?`
+  （`q` 标题模糊、`hrId` 只看某招聘官，为契约外扩展参数；`cursor` 契约保留但演示规模未启用游标分页）
+- 出参：`HrJobRecord[]`（契约超集：`JobSummary` + `status` + `responsibilities` /
+  `requirements` / `welfare` + `deleted` + `companyId`；含已关闭职位，`limit` 作 1~100 上限保护）
+- 错误：`42201` 状态筛选值非法
+
+`GET /api/v1/hr/jobs/{jobId}`（契约外扩展，配合 HR 编辑页）
+- 鉴权：HR / COMPANY_ADMIN（仅本公司，越权 / 不存在 / 已软删统一 `40410`）
+- 出参：`HrJobRecord`（可读取已关闭职位；公开详情 §6.3 只认 `OPEN`）
 
 ### 4.4 我收到的投递
 `GET /api/v1/hr/applications`
-- 鉴权：HR / COMPANY_ADMIN
-- 查询：`cursor, limit, status, jobId`
-- 出参：分页 `ApplicationWithJob[]`
+- 鉴权：HR / COMPANY_ADMIN（公司维度，`companyId` 取自登录上下文）
+- 查询：`status?, jobId?, q?, limit?, cursor?`
+  （`q` 按「候选人姓名 + 职位名称」模糊，为契约外扩展参数；`cursor` 同上保留未启用）
+- 出参：`HrApplicationView[]`（契约超集：`application` + `candidate` 摘要 + 职位摘要
+  + `conversationId` + 最近面试；更新倒序；`limit` 作 1~100 上限保护）
+- 错误：`42201` 状态筛选值非法
 
 ### 4.5 候选人匹配（按技能需求筛选）
 `POST /api/v1/hr/candidates/match`
