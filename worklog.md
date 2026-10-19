@@ -1520,3 +1520,26 @@ Stage Summary:
 - 下一步（可选 T-OBS3）：慢 SQL / 异常分析 / JVM 大盘核对；前端监控（Web SDK）最后做并加开关（会碰 e2e 零控制台错误门禁）。
 - 仍待用户拍板：ARMS 计费与额度；`step4-ai-plan.md` §10 五项；备份分支是否删除；LicenseKey 已在本会话明文出现，
   如介意可在控制台重置后重新写入环境变量。
+
+---
+
+Task ID: 36
+Agent: orchestrator (main)
+Title: 进度存档 + README 展示更新（方便后续接续）
+Status: 完成（2026-10-19）
+
+Work:
+- `README.md`（仓库根）：头部改为真实状态（Step 2/3 完成、T-AI0 ✅、T-OBS1+T-OBS2 ✅）；新增「进度速览」表；
+  技术栈行补 ARMS 已打通；后端命令区基线 176/176 → **182/182**，并补 `dev-up.ps1` 首次初始化提示；
+  新增「可观测性（阿里云 ARMS，可选）」小节（fetch / DryRun / Background 三步 + 控制台反查 + 默认关闭 + 判活提示）；
+  项目结构补 `backend/` 目录树；文档索引与「开发路线」表更新到 T-OBS2 完成；新增「接下来的推进建议」；
+  接续提示词改为当前真实状态。
+- `PROGRESS.md`：新增 §0.1「接续即用」（HEAD/远端、运行态、已验基线、环境变量、恢复干净环境命令、
+  下一步推荐序、判活自检入口）；修订记录 v1.24。
+- `CHANGELOG.md`：T-OBS2 条目的 Docs 分组补 README / PROGRESS §0.1。
+- 说明：本轮只改文档，无代码变更，不重跑测试（上一轮刚跑过 `mvnw test` 182/182、带探针 e2e 63/63）。
+
+Stage Summary:
+- 进度已落盘到「换个人/换个 AI 打开仓库就能续做」的程度：README 负责展示，PROGRESS §0.1 负责交接，
+  arms-plan §4 与 AI-CONTINUE §6.20 负责防重复踩坑。
+- 下一步仍是 Step 4 T-AI1 索引入库（主线）或 T-OBS3（可观测性深化，可选）。

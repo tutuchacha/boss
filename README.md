@@ -3,18 +3,33 @@
 参考 Boss 直聘模式的招聘平台原型：**C 端求职者 + 多 B 端企业客户共存**。
 求职者跨企业共享（同一份简历可投多家），每个注册企业即一个「租户」（Tenant）。
 
-> **当前阶段**：Step 2 前端验收版（e2e 63/63）· Step 3 后端 **T0~T9 全部完成**（T0 ✅、T1 ✅、T2a ✅、T2b ✅、
-> T3a ✅、T3b ✅、T4 ✅、T5 ✅、T6 ✅、T7 ✅、T8 ✅、T9 ✅，2026-10-19；任务板见 `docs/step3-plan.md`）。
+> **当前阶段**：Step 2 前端验收版（e2e 63/63）· Step 3 后端 **T0~T9 全部完成**（鉴权 / 职位 / 投递 / 面试 /
+> 公司 / 消息 + WebSocket / 用户·简历·收藏·上传 / 招聘者与人才筛选 / 全量联调，2026-10-19；任务板见 `docs/step3-plan.md`）。
 > 前端可继续走本地 Mock（无需后端即可运行），也可切真实后端联调：`.env.local` 置
 > `NEXT_PUBLIC_USE_MOCK=false`（`next.config.ts` 已有 `/api/v1` 代理），真实后端下 e2e 同为 63/63。
 >
 > **进行中（Step 4）**：接入 AI / RAG——HR 基于候选人简历问答（带原文引用）与语义人才检索；
-> 方案与任务板见 `docs/step4-ai-plan.md`（**T-AI0 已完成**：Spring AI 1.1.8 + 百炼 DashScope 兼容模式
+> 方案与任务板见 `docs/step4-ai-plan.md`（**T-AI0 ✅**：Spring AI 1.1.8 + 百炼 DashScope 兼容模式
 > 打通，密钥走本机环境变量；下一步 T-AI1 索引入库）。
 >
-> **并行增量（可观测性）**：接入阿里云 ARMS **应用监控**（Java 探针，`backend/scripts/dev-with-arms.ps1`）
-> ——**T-OBS1 已完成**（探针骨架 + traceId 三级优先级，默认关闭、对既有基线零影响；
-> `mvnw test` 182/182、真实后端 e2e 63/63）；T-OBS2（链路验收）待取得 LicenseKey，方案见 `docs/arms-plan.md`。
+> **可观测性（T-OBS）✅ 链路已打通**：接入阿里云 ARMS **应用监控**（Java 探针）——
+> 控制台「应用监控 → 应用列表」可见 `pinliao-backend`，响应包络里的 `traceId` **就是**链路 TraceId
+> （可到控制台按 TraceId 反查 HTTP + MySQL/Redis 子调用）；带探针 `mvnw test` 182/182、真实后端 e2e 63/63。
+> 方案与踩坑见 `docs/arms-plan.md`、`docs/AI-CONTINUE.md` §6.20。
+
+### 进度速览
+
+| 阶段 | 状态 | 关键证据 |
+|---|---|---|
+| Step 0 架构 + 契约 | ✅ | `docs/architecture.md`、`data-model.md`、`api-*.md` |
+| Step 1 前端开发 | ✅ | 求职者端 + HR 端 + 登录/注册（单页 SPA） |
+| Step 2 前端验收 | ✅ 五项验收功能 + 人才筛选增量 | `npm run e2e` **63/63**（Mock 与真实后端一致） |
+| Step 3 后端 + 联调 | ✅ T0~T9 | `backend/` Spring Boot 3.5 + MySQL 3307 + Redis 6379；`mvnw test` **182/182** |
+| Step 4 AI / RAG | 🔄 T-AI0 ✅ | `GET /api/v1/ai/status\|ping` 实测 chat + embedding（1024 维） |
+| 可观测性 T-OBS | ✅ T-OBS1 + T-OBS2 | ARMS 应用监控可见、traceId 对齐、带探针 e2e 63/63 |
+
+> 每一步的「为什么 / 踩过的坑 / 下一步」以 [`PROGRESS.md`](./PROGRESS.md) 为唯一定稿；
+> 换人/换 AI 接手先读 [`docs/AI-CONTINUE.md`](./docs/AI-CONTINUE.md)。
 
 ---
 
@@ -55,7 +70,7 @@ npm run dev
 | 状态 | Zustand（含 persist） | 客户端状态 |
 | 数据 | TanStack Query | 服务端状态（两端新模块均走 Query，旧模块部分同步 Mock） |
 | ORM | Prisma | **当前未接入业务**，见下文 |
-| 后端 | Spring Boot 3.5 + MySQL 8 + Redis（`backend/`） | Step 3 **T0~T9 已完成**（鉴权 / 职位 / 投递 / 面试 / 公司 / 消息 + WebSocket / 用户简历收藏上传 / 招聘者与人才筛选 / 全量联调；`mvnw test` 182/182，真实后端下前端 e2e 63/63）；计划见 `docs/step3-plan.md`；**Step 4 AI：T-AI0 ✅**（Spring AI + 百炼 DashScope 打通）；**可观测性 T-OBS1 ✅**（阿里云 ARMS 应用监控探针，见 `docs/arms-plan.md`） |
+| 后端 | Spring Boot 3.5 + MySQL 8 + Redis（`backend/`） | Step 3 **T0~T9 已完成**（鉴权 / 职位 / 投递 / 面试 / 公司 / 消息 + WebSocket / 用户简历收藏上传 / 招聘者与人才筛选 / 全量联调；`mvnw test` **182/182**，真实后端下前端 e2e 63/63）；计划见 `docs/step3-plan.md`；**Step 4 AI：T-AI0 ✅**（Spring AI + 百炼 DashScope 打通）；**可观测性 T-OBS1 + T-OBS2 ✅**（阿里云 ARMS 应用监控，链路已打通，见 `docs/arms-plan.md`） |
 
 > `zod`、`react-hook-form` 等已随模板装好但**当前代码尚未使用**，故不列入上表。
 
@@ -127,6 +142,13 @@ src/
 ├─ hooks/                    通用 hooks（含水合守卫）
 ├─ lib/                      工具函数
 └─ types/api.ts              与 API 契约同步的类型定义
+
+backend/                     Spring Boot 后端（Step 3 T0~T9 + Step 4 T-AI0 + 可观测性）
+├─ src/main/java/com/pinliao/backend/
+│  ├─ auth/ user/ job/ application/ company/ message/ recruiter/ ai/   业务模块
+│  └─ common/                包络 / 异常 / 租户拦截 / traceId 过滤器 / WebSocket
+├─ src/main/resources/db/migration/   Flyway V1~V8（建表 + 演示种子）
+└─ scripts/                  起停、清库重迁、冒烟、ARMS 探针（fetch/dev-with-arms）
 ```
 
 ### 架构约定
@@ -171,10 +193,10 @@ npx tsc --noEmit   # 类型检查
 ```powershell
 cd backend
 $env:JAVA_HOME='C:\Program Files\JetBrains\IntelliJ IDEA Community Edition 2025.2.6.2\jbr'  # 必设（本机仅 JDK 1.8）
-.\scripts\dev-up.ps1         # 起 MySQL 3307 + Redis 6379
+.\scripts\dev-up.ps1         # 起 MySQL 3307 + Redis 6379（首次先 .\scripts\db-init.ps1）
 .\scripts\db-reset.ps1       # 清库重迁（每轮前端 e2e 前必跑）
-.\mvnw.cmd spring-boot:run   # 后端服务 :8080
-.\mvnw.cmd test              # 单元测试（基线 176/176）
+.\mvnw.cmd spring-boot:run   # 后端服务 :8080（无探针）
+.\mvnw.cmd test              # 单元测试（基线 182/182）
 node scripts\smoke-auth.mjs  # 鉴权接口冒烟（T2a/T2b，20 项含注册）
 node scripts\smoke-jobs.mjs  # 职位与字典冒烟（T3a/T3b，49 项）
 node scripts\smoke-applications.mjs  # 投递与面试冒烟（T4，51 项）
@@ -183,6 +205,24 @@ node scripts\smoke-messages.mjs  # 消息与 WebSocket 冒烟（T6，40 项）
 node scripts\smoke-user.mjs  # 用户 / 简历 / 收藏 / 上传冒烟（T7，64 项）
 node scripts\smoke-recruiter.mjs  # 招聘者模块冒烟（T8，50 项）
 ```
+
+### 可观测性（阿里云 ARMS，可选）
+
+想在本机看到调用链（HTTP → MySQL / Redis → 百炼），用带探针的方式起后端：
+
+```powershell
+.\scripts\fetch-arms-agent.ps1      # 首次：下载 ARMS 探针到 .local\arms\（≈51MB，已 gitignore）
+.\scripts\dev-with-arms.ps1 -DryRun # 配置自检（LicenseKey 打码）
+.\scripts\dev-with-arms.ps1 -Background   # 后台启动 + 等 health UP，日志 .local\backend-arms.log
+```
+
+凭据只走**用户级环境变量**（`PINLIAO_ARMS_ENABLED` / `_LICENSE_KEY` / `_APP_NAME`），仓库零命中。
+启动后控制台「应用监控 → 应用列表」可见 `pinliao-backend`，把任意接口响应里的 `traceId`
+粘到「调用链查询」即可反查。**默认关闭**：不设开关时一切行为与未接入完全一致；收工跑
+`db-reset.ps1` 自动恢复无探针实例。判活三条判据与踩坑见 `docs/arms-plan.md` §4。
+
+> 小提示：探针只挂 `spring-boot:run` **fork 出的应用 JVM**，不要用 `JAVA_TOOL_OPTIONS`（否则 Maven 也挂，
+> 控制台会出现两个同名应用）；`.apsara-apm\java\<版本>\status` 文件不刷新，不能当作是否授权的判据。
 
 前端联调（Step 3 T9）：仓库根目录 `.env.local`（不提交）置 `NEXT_PUBLIC_USE_MOCK=false` +
 `NEXT_PUBLIC_API_BASE_URL=/api/v1`，`next.config.ts` 已把 `/api/v1` 与 `/uploads` 代理到
@@ -230,7 +270,7 @@ node scripts\smoke-recruiter.mjs  # 招聘者模块冒烟（T8，50 项）
 | `api-endpoints.md` | 全部业务接口清单（13 个模块，按模块标注方法与鉴权角色） |
 | `step3-plan.md` | Step 3 后端分块开发计划与任务板（T0~T9 进度、每块规格、交接协议） |
 | `step4-ai-plan.md` | **Step 4 AI / RAG 增量计划**（HR 简历问答 → 语义人才检索；选型、数据流、多租户红线、T-AI0~T-AI7 任务板、测试策略；**T-AI0 已完成**，配置与实测见 §6.2/§7） |
-| `arms-plan.md` | **可观测性增量计划（阿里云 ARMS 应用监控）**：路径选型（开源 OTel Agent vs 阿里云 ARMS 探针）、环境变量、脚本用法、T-OBS0~T-OBS3 任务板与本机实测记录；**T-OBS1 已完成**，T-OBS2 待 LicenseKey |
+| `arms-plan.md` | **可观测性增量计划（阿里云 ARMS 应用监控）**：路径选型（开源 OTel Agent vs 阿里云 ARMS 探针）、环境变量、脚本用法、**判活三条判据**、T-OBS0~T-OBS3 任务板与本机实测记录；**T-OBS1 + T-OBS2 已完成（链路已打通）** |
 | `dev-notes.md` | 决策记录与路线图 |
 | `HANDOFF.md` | ⚠️ 已降级为「Step 0 决策历史」，当前状态以 `AI-CONTINUE.md` 为准 |
 | `legacy/` | 原始 HTML 原型与 v0.2 开发笔记 |
@@ -239,11 +279,16 @@ node scripts\smoke-recruiter.mjs  # 招聘者模块冒烟（T8，50 项）
 ### 给接续开发者 / AI 的启动提示词
 
 ```
-我有一个招聘平台项目「聘聊」，当前是前端验收版（Next.js 16 + Mock）+ Step 3 后端进行中（Spring Boot，鉴权已落地）。
-请先读 docs/AI-CONTINUE.md —— 它包含项目全貌、当前状态、架构约定、
-已踩过的坑与协作规范，读完即可开工，无需再问我背景问题。
+我有一个招聘平台项目「聘聊」，当前状态是：
+- 前端（Next.js 16 + Zustand + TanStack Query）已完成 Step 2 验收，e2e 63/63；
+- 后端（backend/，Spring Boot 3.5 + MySQL 8 + Redis）已完成 Step 3 全部 T0~T9，`mvnw test` 182/182，
+  真实后端下前端 e2e 63/63；
+- Step 4 AI/RAG 已开工（T-AI0 打通 Spring AI + 百炼），可观测性已接阿里云 ARMS 应用监控（链路已打通）。
 
-本次我想做的是：<你的需求，例如"开发候选人管理页"或"开始 Step 3 后端">
+请先读 docs/AI-CONTINUE.md（全貌 + 约定 + 踩坑），再看 PROGRESS.md（当前状态唯一定稿），
+读完即可开工，无需再问我背景问题。
+
+本次我想做的是：<你的需求，例如"T-AI1 索引入库"或"核对 ARMS 慢 SQL 大盘">
 ```
 
 ---
@@ -254,11 +299,21 @@ node scripts\smoke-recruiter.mjs  # 招聘者模块冒烟（T8，50 项）
 |---|---|---|
 | Step 0 | 框架无关的架构、数据模型、API 契约 | ✅ |
 | Step 1 | 前端开发（Next.js + Mock） | ✅ |
-| Step 2 | 前端验收（五项验收功能 + 人才筛选演示增量已完成，`npm run e2e` 63/63） | ⏳ 进行中 |
-| Step 3 | 后端开发 + 全量联调（Spring Boot 3.5 + MySQL/Redis；`USE_MOCK=false` 下真实接口；分块计划 `docs/step3-plan.md`） | ✅ 完成（T0 ✅ / T1 ✅ / T2a ✅ / T2b ✅ / T3a ✅ / T3b ✅ / T4 ✅ / T5 ✅ / T6 ✅ / T7 ✅ / T8 ✅ / T9 ✅，2026-10-19；`mvnw test` 176/176，真实后端下前端 e2e 63/63；遗留见 `PROGRESS.md` §6.3） |
+| Step 2 | 前端验收（五项验收功能 + 人才筛选演示增量） | ✅ 完成（`npm run e2e` 63/63；用户人工验收初步通过 2026-10-16，遗留待拍板项见 `PROGRESS.md` §6.3） |
+| Step 3 | 后端开发 + 全量联调（Spring Boot 3.5 + MySQL/Redis；`USE_MOCK=false` 下真实接口；分块计划 `docs/step3-plan.md`） | ✅ 完成（T0 ✅ / T1 ✅ / T2a ✅ / T2b ✅ / T3a ✅ / T3b ✅ / T4 ✅ / T5 ✅ / T6 ✅ / T7 ✅ / T8 ✅ / T9 ✅，2026-10-19；`mvnw test` 182/182，真实后端下前端 e2e 63/63；遗留见 `PROGRESS.md` §6.3） |
 | Step 4 | **AI / RAG 增量**（HR 简历问答带引用 → 语义人才检索；计划 `docs/step4-ai-plan.md`） | 🔄 T-AI0 ✅（2026-10-19：Spring AI 1.1.8 + 百炼 DashScope 打通、`/api/v1/ai/*` 自检、密钥走环境变量）；下一步 T-AI1 索引入库 |
-| 可观测性 | **阿里云 ARMS 应用监控接入**（计划 `docs/arms-plan.md`；任务号 T-OBS0~T-OBS3） | 🔄 T-OBS1 ✅（2026-10-19：探针字脚本 + `TraceIdFilter` 三级 traceId + 6 项单测；`mvnw test` 182/182、e2e 63/63）；T-OBS2 待 LicenseKey |
+| 可观测性 | **阿里云 ARMS 应用监控接入**（计划 `docs/arms-plan.md`；任务号 T-OBS0~T-OBS3） | ✅ T-OBS1 + T-OBS2 完成（2026-10-19：控制台可见 `pinliao-backend`、包络 traceId 即链路 TraceId、有上报连接；带探针 `mvnw test` 182/182、e2e 63/63）；T-OBS3（慢 SQL/异常分析/前端监控）可选 |
 | 未来 | App / 小程序（若决定多端，复用 API 契约） | — |
+
+### 接下来的推进建议
+
+1. **Step 4 主线（推荐）**：T-AI1 索引入库（`ResumeChunker` 结构化分块 + V9 `resume_chunks` + 重建接口，
+   用假向量模型做单测），之后 T-AI2 语义人才检索、T-AI3 HR 简历问答（带引用）。
+2. **可观测性可选深化（T-OBS3）**：控制台核对慢 SQL / 异常分析 / JVM 大盘；前端监控（Web SDK）
+   建议最后做且加开关（会碰 e2e「零控制台错误」门禁）。
+3. **待用户拍板**（不替用户决定）：`docs/step4-ai-plan.md` §10 五项（向量维度 1024/1536、是否接 Ollama、
+   配额策略、是否含求职者侧、Boot 4 + Spring AI 2.0 迁移时机）；求职者端分类字典 / 消息会话是否切真实；
+   HR「发消息」入口是否补齐。
 
 ---
 

@@ -37,7 +37,10 @@
 - `docs/AI-CONTINUE.md` §6.20 补 5 条坑（`-Background` 引号、`status` 不可信、判活三条判据、
   两种传参形式、`OTEL_JAVAAGENT_LOGGING=debug` 非法值会让日志实现变 no-op 连横幅都不打）。
 - `backend/README.md`：ARMS 一节改为「已打通」口径 + 脚本表注明修复。
-- `PROGRESS.md` v1.23、`CHANGELOG.md` 本条、`worklog.md` Task 35。
+- `README.md`（仓库根）：改为真实状态展示 —— Step 2/3 已完成、T-AI0 ✅、T-OBS1+T-OBS2 ✅；
+  新增「进度速览」表、可观测性快捷用法小节、基线 `mvnw test` 182/182、下一步推进建议、接续提示词更新。
+- `PROGRESS.md` v1.23/v1.24（新增 §0.1「接续即用」：HEAD / 运行态 / 基线 / 环境变量 / 恢复命令 / 下一步）。
+- `CHANGELOG.md` 本条、`worklog.md` Task 35 / Task 36。
 
 ### Verified
 
