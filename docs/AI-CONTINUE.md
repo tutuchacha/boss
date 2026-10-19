@@ -8,7 +8,7 @@
 > （2026-10-16 起另有交接四件套：`PROJECT.md` / `ARCHITECTURE.md` / `PROGRESS.md` / `CHANGELOG.md`）。
 > 开工顺序：先 `PROGRESS.md`，再本文件；需要细节时再按下文索引深入 `docs/` 的专项文档。
 >
-> 最后更新：2026-10-19 · 对应本轮提交（**Step 4 T-AI0：AI 依赖 + 环境变量配置 + `/api/v1/ai/*` 连通性自检**，`mvnw test` 176/176、`smoke-*` 与 `verify-seed` 16/16、前端 e2e 63/63 无回归）；**下一步 T-AI1 索引入库**
+> 最后更新：2026-10-19 · 对应本轮提交（**可观测性 T-OBS1：阿里云 ARMS 应用监控探针骨架 + traceId 三级优先级**，`mvnw test` 182/182、前端 e2e 63/63 无回归；**T-OBS2 待用户提供 LicenseKey**）；Step 4 侧**下一步 T-AI1 索引入库**
 > 维护要求：**每次改变项目状态（新增功能、改架构、修坑）后，必须回来更新本文件**，
 > 否则它会像之前的 `HANDOFF.md` 一样过期并误导后来者。
 
@@ -772,6 +772,44 @@ const { data, isPending } = useQuery({
 - **单测不联网**：`AiConnectivityServiceTest` 用 Mockito 假模型断言「关闭 → 42220 且不调上游」
   「开启 → 关闭思考模式 + token 上限」「回显模型 / 向量维度」，符合 §8「假模型优先」。
 
+### 6.20 可观测性 / 阿里云 ARMS 接入（T-OBS1 起）
+
+- **两个产品入口别选错**：开源 `opentelemetry-javaagent.jar` 接进的是 ARMS「**可观测链路 OpenTelemetry 版**」
+  （应用列表语言列显示 `-`，只有调用链 / 大盘 / Trace Explorer）；阿里云自研 **ARMS Java 探针**接进的是
+  「**应用监控**」（Java 图标，含慢 SQL、异常分析、JVM/线程、接口大盘、拓扑）。用户要「引个 jar 一配就能看调用链」
+  → 选**阿里云探针**，且它的配置更简单（一个 LicenseKey，无需 endpoint/token/protocol）。
+- **探针下载地址随地域变化**：`http://arms-apm-<region>.oss-<region>.aliyuncs.com/AliyunJavaAgent.zip`
+  （华东1-杭州 = `arms-apm-cn-hangzhou.oss-cn-hangzhou.aliyuncs.com`，约 51 MB），解压得
+  `AliyunJavaAgent/aliyun-java-agent.jar`。**它其实是 OpenTelemetry javaagent 的阿里云改名版**
+  （`META-INF/MANIFEST.MF` 里 `Implementation-Version: apsara-java-agent-5.1.2-otel-2.23.0`；
+  jar 内 `inst/` 3.3 万条、`io/opentelemetry/` 1600+ 条），所以 OTel API 埋点方式可以复用。
+- **`-javaagent` 只能挂到应用 JVM**：用 `-Dspring-boot.run.jvmArguments=-javaagent:...`（`spring-boot:run`
+  默认 fork；实测 WMI 命令行确认 application JVM 有、Maven JVM 没有）。**千万不要**用 `JAVA_TOOL_OPTIONS`——
+  Maven 自身也会挂上探针，控制台会出现同名的第二个「应用」且数据双份（还费钱）。
+- **`jvmArguments` 是按空格切分的字符串**：探针路径与参数值不能含空格，否则参数会被切坏（脚本已加显式检查与提示）。
+- **探针工作目录在用户目录**：`%USERPROFILE%\.apsara-apm\java\<探针版本>\`，其中 `status` 文件能直接看出
+  是否生效（`licenseKey= / appId= / applicationName=` 全为 `null` 即**未授权**）。日志在该目录 `logs/`。
+- **未配 LicenseKey 时探针不产生 span**（本机实测，2026-10-19）：此时 `traceparent`（W3C）与
+  `EagleEye-TraceId` 请求头**都不会被采纳**，请求期间日志 MDC 里也没有探针注入的键（只有本项目
+  `TraceIdFilter` 写的 `traceId`）。→ 凡是要证明「响应包络 traceId == ARMS 链路 TraceId」的验证，
+  **必须先有 LicenseKey**；无 key 时只能验证「探针能加载 + 应用不受影响」。
+- **探测「探针到底注入了什么」的零代码手法**：临时用环境变量 `LOGGING_PATTERN_CONSOLE` 覆盖日志格式为
+  `%mdc | %msg%n`（或加 `%X{trace_id:-} %X{span_id:-}`），打一个请求后看请求内的日志行——比读探针文档更快。
+- **OTel API 读活跃 span 是安全降级写法**：`io.opentelemetry:opentelemetry-api`（版本由 Boot BOM 管，
+  3.5.16 → 1.49.0，**不要自己定版本**）；`Span.current().getSpanContext().isValid()` 判断，无 agent / 无 SDK 时
+  返回 invalid span **且不抛异常**，可放心作为「有则用、无则退回」的一级来源。
+- **Windows + PowerShell 的 JDK 探测**：`Resolve-PinliaoJavaHome` / `Get-JavaMajor` 已提到 `scripts/_env.ps1`
+  作为共享函数（坑见 §6.19 那条 `$ErrorActionPreference='Stop'` 与 `java -version` 走 stderr）。
+  新增服务端脚本时**直接复用**，别再复制一份。
+- **新增 `.ps1` 必须存成 UTF-8 带 BOM（本增量实际踩中）**：Windows PowerShell 5.1 对**无 BOM** 的脚本
+  按系统 ANSI（本机 GBK）解码中文注释与全角标点，会把引号/括号配对搞乱，报
+  `The string is missing the terminator` 或 `Missing closing ')' in subexpression`（PowerShell 7 不受影响，
+  所以「pwsh 下能跑」不代表交付可用）。仓库内 `backend/scripts/*.ps1` 一律 **UTF-8 with BOM + LF**；
+  用工具写文件后检查首三字节是否 `EF BB BF`，没有就补上。
+- **费用与边界**：应用监控按量计费（口径与「链路 OpenTelemetry 版」不同，以控制台为准）。探针只在
+  本机开发环境挂，且 SQL 文本默认脱敏（本项目 SQL 带手机号，**不要**关脱敏）；前端监控（Web SDK）
+  会往浏览器注入请求，**可能破坏 e2e「零控制台错误」门禁**，要做必须最后做并加开关。
+
 ---
 
 ## 7. 数据与契约
@@ -889,3 +927,4 @@ HR 新建 → 追加。
 | v1.21 | 2026-10-19 | T9 追加（用户选 A）：**求职者职位列表切真实**——`JobsView` 改 `useQuery + listJobs()`（`GET /jobs`，`limit=100` 单页取全、计数用 `pagination.total`），删除 `src/api/mock/filter.ts`；HR 发布 / 编辑 / 关闭职位在真实模式下对求职者立即生效。§6.18 新增该条坑（limit 默认 20 / 计数用 total / q 已含公司名），遗留清单更新为「分类字典 / 消息会话 / HR 发消息」；§9 改为「部分已定」 |
 | v1.22 | 2026-10-19 | 新增 Step 4 AI / RAG 增量方案文档 [`step4-ai-plan.md`](./step4-ai-plan.md) v1.0（选型 / 数据流 / 多租户红线 §5.3 / 代码结构 / V9 表草案 / T-AI0~T-AI7 / 假模型测试策略 / 风险与未决 6 项）；§2 状态表新增该行（原「Step 4 联调」更名「Step 3-T9 联调」）；§9 新增「Step 4 方案（已定 / 待确认子项）」。**本轮只落文档，未改代码** |
 | v1.23 | 2026-10-19 | **Step 4 T-AI0 落地**：Spring AI 1.1.8（BOM + OpenAI starter）接入百炼 DashScope 兼容模式；`ai/` 包（`AiCodes` / `AiProperties` / `AiConnectivityService` / `AiController` → `/api/v1/ai/status|ping`）；密钥与模型全部走用户级环境变量 `PINLIAO_AI_*`（`api-key` 占位，无 key 也能启动）。**新增 §6.19（AI 接入 10 条坑）**：`sk-ws-` key 可用性与 coding 域名 401、`enable_thinking=false`（思考型模型 10s+ → 1.0s）、空 `api-key` 会导致启动失败、错误码不能用 `43xxx`、AI 自检端点须鉴权、PowerShell 5.1 下 `java -version` NativeCommandError 吞掉 JDK 探测、key 泄露三连核查法。实测 ping chat 1005ms/44 tokens、embedding 1024 维/538ms；`mvnw test` 176/176、e2e 63/63 无回归；§2 状态行与 §9 同步 |
+| v1.24 | 2026-10-19 | **可观测性 T-OBS1 落地（选型由开源 OTel Agent 改为阿里云 ARMS 应用监控探针）**：新增 `scripts/fetch-arms-agent.ps1`（下载探针到 `.local/arms/`）与 `scripts/dev-with-arms.ps1`（`-DryRun` 配置自检含密钥打码 / `-Background` / `-AllowMissingLicenseKey`；`-javaagent` 只挂 fork 出的应用 JVM）；`scripts/_env.ps1` 新增 `PINLIAO_ARMS_*` 与共享函数（`Wait-BackendUp` / `Get-JavaMajor` / `Resolve-PinliaoJavaHome` / `Format-Secret`），`db-reset.ps1` 去重改用它；`common/web/TraceIdFilter` 取值改为「活跃 OTel span 的 traceId → 透传 `X-Trace-Id` → UUID」（契约不变）+ 6 项 `TraceIdFilterTest`；新增 `docs/arms-plan.md` v1.1 与 `backend/README.md`「ARMS 链路」一节。**新增 §6.20（ARMS 接入 12 条坑）**：两产品入口区别（应用监控 vs 链路 OTel 版）、探针实为 OTel javaagent 2.23.0 改名版、只能挂应用 JVM、`jvmArguments` 空格坑、探针工作目录与 `status` 文件、**未配 LicenseKey 时不产生 span**、`%mdc` 探针法、OTel API 安全降级写法、计费与前端监控门禁。实测 `mvnw test` 182/182、真实后端 e2e 63/63（零影响） |

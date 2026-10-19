@@ -140,6 +140,56 @@ Invoke-RestMethod http://localhost:8080/api/v1/ai/ping   -Headers @{ Authorizati
 - `pinliao.ai.enabled=false` 时 `/ai/ping` 返回 **42220**，`/ai/status` 仍可读（enabled=false），
   不影响任何既有接口。
 
+## ARMS 链路（可选，T-OBS1）
+
+把本机后端的请求链路接入**阿里云 ARMS「应用监控」**（Java 探针，无侵入），用于按接口 / 耗时 / 错误筛调用链。
+**默认关闭**：不设 `PINLIAO_ARMS_ENABLED=true` 时，启动方式、`mvnw test`、`npm run e2e` 与未接入时完全一致
+（本增量实测：`mvnw test` **182/182**、真实后端 `npm run e2e` **63/63**）。
+
+为什么用**阿里云自研探针**而不是开源 `opentelemetry-javaagent.jar`：两者都能被 ARMS 接收，但落在不同产品里 ——
+开源 Agent 进「可观测链路 OpenTelemetry 版」（应用列表语言列显示 `-`，只有调用链 / 大盘 / Trace Explorer）；
+阿里云探针进「应用监控」（Java 图标，含慢 SQL、异常分析、JVM / 线程、接口大盘、拓扑）。
+选型对比与踩坑记录见 `docs/arms-plan.md`。
+
+一次设置（**用户级**环境变量；LicenseKey 同 AI key 一样只进环境变量，绝不进仓库）：
+
+```powershell
+.\scripts\fetch-arms-agent.ps1                     # 下载探针到 .local\arms\AliyunJavaAgent\（≈51MB，已 gitignore）
+.\scripts\fetch-arms-agent.ps1 -Region cn-beijing  # 换地域（默认 cn-hangzhou）
+
+# LicenseKey 来自 ARMS 控制台 → 应用监控 → 应用列表 → 创建应用（无侵入接入 / Java）
+[Environment]::SetEnvironmentVariable('PINLIAO_ARMS_ENABLED',     'true',            'User')
+[Environment]::SetEnvironmentVariable('PINLIAO_ARMS_LICENSE_KEY', '<控制台 LicenseKey>', 'User')
+[Environment]::SetEnvironmentVariable('PINLIAO_ARMS_APP_NAME',    'pinliao-backend', 'User')   # 可选，默认即此值
+```
+
+改完**新开终端**（`setx` / 用户级变量只对新进程生效），然后：
+
+```powershell
+.\scripts\dev-with-arms.ps1 -DryRun       # 只做配置自检（密钥打码），不启动
+.\scripts\dev-with-arms.ps1               # 前台启动（Ctrl+C 停）
+.\scripts\dev-with-arms.ps1 -Background   # 后台启动 + 日志 .local\backend-arms.log + 等 health UP
+```
+
+启动后日志应出现探针自述：`Load Apsara Java Agent version: 5.1.2.` /
+`report to region: cn-hangzhou`。约 1 分钟后在控制台「应用监控 → 应用列表」能看到应用。
+
+已知要点（本机实测 2026-10-19）：
+
+- 探针版本 `apsara-java-agent-5.1.2-otel-2.23.0` —— 是 **opentelemetry-javaagent 的阿里云改名版**，
+  所以后续想让链路带自定义埋点可以直接用 OTel API；jar 解压在 `.local/arms/AliyunJavaAgent/`。
+- 探针**只挂在 `spring-boot:run` fork 出的应用 JVM** 上（脚本用 `-Dspring-boot.run.jvmArguments=-javaagent:……`）；
+  **不要**用 `JAVA_TOOL_OPTIONS`，否则 Maven 自身也会挂探针，控制台里会出现同名的第二个应用、数据双份。
+- 探针工作目录：`C:\Users\<你>\.apsara-apm\java\<版本>\`，其中 `status` 文件可直接看出是否生效
+  （未配置 LicenseKey 时 `licenseKey=null / appId=null / applicationName=null`）。
+- **未配置 LicenseKey 时探针不会产生 span**：此时
+  `traceparent` / `EagleEye-TraceId` 请求头都不会被采纳（ARMS 用自己的 EagleEye 传播），
+  请求期间的日志 MDC 里只有本项目 `TraceIdFilter` 写的 `traceId`。
+  因此 `common/web/TraceIdFilter` 的「包络 traceId == ARMS 链路 TraceId」这一条**必须在配好 LicenseKey 后实测确认**，
+  若届时仍取不到活跃 span，按 `docs/arms-plan.md` §6 的备选口径处理。
+- SQL 文本报警默认脱敏（含手机号），**不要**为看清 SQL 关掉探针的脱敏开关。
+- 收工用 `.\scripts\db-reset.ps1`（无探针，自动恢复干净环境）。
+
 ## 本地账号（仅演示用）
 
 - MySQL：`127.0.0.1:3307`，用户 `root` / 密码 `123456`，库 `pinliao`（utf8mb4）
@@ -164,18 +214,23 @@ Invoke-RestMethod http://localhost:8080/api/v1/ai/ping   -Headers @{ Authorizati
 | `smoke-user.mjs` | 用户 / 简历 / 收藏 / 上传冒烟（T7；画像 / 密码 / 手机号 / 偏好 / 注销 / 简历默认切换 / 收藏分页 / 预签名直传与静态读回，64 项断言，可重复执行） |
 | `smoke-recruiter.mjs` | 招聘者模块冒烟（T8；HR 画像读改 / 我发布的职位（含 CLOSED 可见）/ 我收到的投递超集 / 人才筛选关键词与证据 / 词表，50 项断言，可重复执行） |
 | `verify-seed.ps1` | 种子行数抽查（16 项断言，对齐 step3-plan §3 数字；须先完成迁移；已排除冒烟 / 注册产物前缀、T7 软删简历） |
+| `fetch-arms-agent.ps1` | **T-OBS1**：下载阿里云 ARMS Java 探针到 `.local/arms/AliyunJavaAgent/`（默认华东1-杭州公网，`-Region` 换地域、`-ZipPath` 用控制台下载的包、`-Force` 重下） |
+| `dev-with-arms.ps1` | **T-OBS1**：带 ARMS 探针启动后端（只挂应用 JVM）。`-DryRun` 配置自检（密钥打码）、`-Background` 后台起 + 等 health UP、`-AllowMissingLicenseKey` 仅验证探针能加载。默认关闭时请用 `db-reset.ps1` / `mvnw spring-boot:run` |
 
-当前验收基线（2026-10-19）：`mvnw test` **176/176**（T-AI0 新增 3 项：AI 自检开关 / 调用参数 + AI 端点非公开）；
+当前验收基线（2026-10-19）：`mvnw test` **182/182**（T-AI0 新增 3 项：AI 自检开关 / 调用参数 + AI 端点非公开；
+T-OBS2 新增 6 项：traceId 三级优先级 `TraceIdFilterTest`）；
 `smoke-auth` 20/20；`smoke-jobs` 49/49；
 `smoke-applications` 51/51；`smoke-company` 26/26；`smoke-messages` 40/40（连续两次）；
 `smoke-user` 64/64（连续两次）；`smoke-recruiter` 50/50（可重复执行）；`verify-seed` 16/16；
-前端 `npm run e2e` 在**真实后端**下 **63/63**（T9，连续两轮，每轮前先 `db-reset.ps1`）。
+前端 `npm run e2e` 在**真实后端**下 **63/63**（T9，连续两轮，每轮前先 `db-reset.ps1`；
+T-OBS1 后又复跑一轮 63/63，确认接入 ARMS 对既有功能零影响）。
 
 另有 `scripts/seed-gen/`（开发期工具）：从仓库 `src/api/mock/*` 生成 `V4~V8` 种子迁移，
 杜绝手抄漂移；**勿手改 `V4~V8` 迁移文件**，改演示数据请改 mock 后重跑生成脚本（用法见脚本头部注释）。
 
 可用环境变量覆盖：`PINLIAO_MYSQL_HOME`（MySQL 二进制目录）、`PINLIAO_REDIS_HOME`（Redis 目录）、
-`PINLIAO_UPLOAD_DIR`（上传目录，默认 `target/uploads`）。
+`PINLIAO_UPLOAD_DIR`（上传目录，默认 `target/uploads`）、`PINLIAO_JAVA_HOME`（编译用 JDK，需 ≥17）、
+`PINLIAO_ARMS_*`（ARMS 探针，见「ARMS 链路（可选）」一节）。
 
 ## 目录结构
 
@@ -184,7 +239,7 @@ backend/
 ├─ scripts/            本地环境脚本（见上表）
 ├─ src/main/java/com/pinliao/backend/
 │  ├─ common/api/      统一包络 ApiResponse + 错误码表 ApiCodes
-│  ├─ common/web/      traceId 过滤器 + 包络装配 ResponseAdvice
+│  ├─ common/web/      traceId 过滤器（优先取活跃 OTel/ARMS span 的 traceId，T-OBS2）+ 包络装配 ResponseAdvice
 │  ├─ common/exception/ 业务异常 + 全局异常处理
 │  ├─ auth/            鉴权模块（JWT / Redis 令牌 / 验证码 / 登录接口，T2a）
 │  ├─ job/             职位公开读 + 分类字典 + HR 职位写（T3a/T3b）
@@ -202,5 +257,5 @@ backend/
 │  ├─ application.yml          通用配置（含 `spring.ai.openai.*` + `pinliao.ai.enabled`，key 走环境变量）
 │  ├─ application-local.yml    本地环境（MySQL 3307 / Redis 6379）
 │  └─ db/migration/            Flyway 迁移（V1 鉴权建表 / V2 演示账号 / V3 业务建表 / V4~V8 演示种子）
-└─ src/test/java/...           包络 / JWT / 种子密码 / 租户策略 / 注册 / 职位 / 投递面试 / 公司 / 消息 / 用户 / 简历 / 收藏 / 上传 / AI 自检测试（不依赖数据库与网络）
+└─ src/test/java/...           包络 / JWT / 种子密码 / 租户策略 / 注册 / 职位 / 投递面试 / 公司 / 消息 / 用户 / 简历 / 收藏 / 上传 / AI 自检 / traceId 优先级测试（不依赖数据库与网络）
 ```

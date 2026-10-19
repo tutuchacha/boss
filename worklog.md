@@ -1403,3 +1403,67 @@ Stage Summary:
 - 待用户拍板：`step4-ai-plan.md` §10 其余五项（向量维度 1024 vs 1536 / 是否接 Ollama / 配额策略 /
   是否含求职者侧能力 / Boot 4 + Spring AI 2.0 迁移时机）。下一步为 **T-AI1 索引入库**
   （`ResumeChunker` + V9 `resume_chunks` + 重建接口，用假向量模型做单测）。
+
+---
+Task ID: 34
+Agent: orchestrator (main)
+Task: 可观测性 T-OBS1 —— 接入阿里云 ARMS 应用监控探针（骨架落地 + traceId 三级优先级），默认关闭
+
+背景/需求：用户希望先把「链路检查」接上（认为比 AI 增量简单，且方便验收既有功能），
+并明确诉求是「像阿里云那样引个 jar、控制台一配就能看调用链」，因此追问「OpenTelemetry Java Agent
+是不是阿里云提供的、会不会把后台界面弄得不好看」。
+
+Work Log:
+- 选型澄清（先查官方文档再定，避免想当然）：
+  - 开源 OTel Java Agent **不是**阿里云提供，是 CNCF/OpenTelemetry 社区产物；接入 ARMS 后落在
+    「**可观测链路 OpenTelemetry 版**」——应用列表语言列显示 `-`，只有调用链 / 大盘 / Trace Explorer，
+    **没有**慢 SQL / 异常分析 / JVM / 接口大盘。
+  - 阿里云自研 **ARMS Java 探针**落在「**应用监控**」——语言列 Java 图标，功能完整。
+  - 结论：用户要的体验对应**阿里云探针**（路径 B），且配置更简单（一个 LicenseKey，无需 endpoint/token）。
+    方案文档 `docs/arms-plan.md` 升 v1.1，把 v1.0 的「A 为主、B 备选」改为「**B 为主**」。
+- 探针落地与事实核验（不猜、实测）：
+  - 下载 `http://arms-apm-cn-hangzhou.oss-cn-hangzhou.aliyuncs.com/AliyunJavaAgent.zip`（51 MB）→
+    `.local/arms/AliyunJavaAgent/aliyun-java-agent.jar`（57.9 MB），版本
+    `5.1.2_dc814b7_20260721082345`；`META-INF/MANIFEST.MF` 显示
+    `Implementation-Version: apsara-java-agent-5.1.2-otel-2.23.0` → **实为 opentelemetry-javaagent 2.23.0
+    的阿里云改名版**（jar 内 `inst/` 33697 条、`io/opentelemetry/` 1627 条）。
+  - 挂载方式核验：`spring-boot:run` 默认 fork，用
+    `-Dspring-boot.run.jvmArguments=-javaagent:...` 后 WMI 命令行确认 application JVM 有 `-javaagent`、
+    Maven JVM 没有；**不用** `JAVA_TOOL_OPTIONS`（否则 Maven 也挂，控制台出现同名重复应用、数据双份）。
+- 代码与脚本：
+  - 新增 `scripts/fetch-arms-agent.ps1`（`-Region` / `-ZipPath` / `-Force` / `-KeepZip`）、
+    `scripts/dev-with-arms.ps1`（`-DryRun` 密钥打码自检 / `-Background` 等 health / `-AllowMissingLicenseKey`；
+    校验开关、jar、LicenseKey、8080 占用、路径含空格）。
+  - `scripts/_env.ps1` 新增 `PINLIAO_ARMS_*` 与共享函数 `Wait-BackendUp` / `Get-JavaMajor` /
+    `Resolve-PinliaoJavaHome` / `Format-Secret`；`db-reset.ps1` 删掉重复实现改用它（行为不变）。
+  - `TraceIdFilter` 取值改为三级优先级「活跃 OTel span → 透传 `X-Trace-Id` ≤64 → UUID」；
+    新增依赖 `io.opentelemetry:opentelemetry-api`（版本由 Boot BOM 管，3.5.16 → 1.49.0）；
+    新增 `TraceIdFilterTest` 6 项（用 `Span.wrap(...).makeCurrent()` 模拟挂了 agent，不联网）。
+- 验证：
+  - `mvnw test` **182/182**（176 + 6）；`db-reset.ps1`（重构后）基线不变
+    `flyway=8 / companies=16 / jobs=51 / applications=9`；真实后端 `npm run e2e` **63/63**（零影响）。
+  - 探针加载态启动：日志 `Load Apsara Java Agent version: 5.1.2.` / `report to region: cn-hangzhou` /
+    `Picked up [...\.apsara-apm\java\5.1.2_dc814b7\] as Agent Workspace.`，`/actuator/health` UP、接口正常。
+  - **重要负面结论（诚实记录）**：未配 LicenseKey 时探针**不产生 span** ——
+    ① 探针 `status` 文件 `licenseKey=null / appId=null / applicationName=null`；
+    ② 送 W3C `traceparent` 包络不回显（ARMS 用 EagleEye 协议）；
+    ③ 送 `EagleEye-TraceId` 头也不被采纳；
+    ④ 用 `%mdc` / `%X{trace_id:-}` 临时日志格式（环境变量 `LOGGING_PATTERN_CONSOLE` 覆盖，零代码改动）
+    打请求，发现 MDC 里**只有本项目写的 `traceId`**，探针没注入任何键；
+    ⑤ 送 `X-Trace-Id=mycustomtraceid123` 包络原样回显 → 证明 span 分支未命中（走的是透传分支）。
+    → 故 DoD「包络 traceId == ARMS TraceId」**必须等 T-OBS0 拿到 LicenseKey 后实测**；已在方案 §6
+    列出三级备选口径（读探针 MDC 键 / 用自定义埋点把包络 traceId 作 span attribute 上报 / 退化为按接口+时间定位）。
+  - 泄露核查：探针静置在 `.local/`（gitignore）；`PINLIAO_ARMS` 相关在仓库零命中。
+- 文档：`docs/arms-plan.md` v1.1、`backend/README.md`「ARMS 链路（可选）」+ 脚本表 2 行 + 基线 182/182、
+  `PROGRESS.md` v1.22（快照 / 阶段表 / 下一步第 5 条 / §7.2 实测表 / 修订记录）、
+  `docs/AI-CONTINUE.md` v1.24（新增 §6.20「可观测性 / ARMS 接入」12 条坑）、`CHANGELOG.md`、worklog 本条。
+
+Stage Summary:
+- 可观测性 T-OBS1 完成：ARMS 应用监控探针骨架（下载 + 启动脚本 + 环境变量 + traceId 打通代码 + 单测 + 文档），
+  默认关闭且对既有基线零影响（`mvnw test` 182/182、真实后端 e2e 63/63）。
+- 三条最有复用价值的结论：①「引 jar 看调用链」= ARMS 应用监控 = 阿里云探针（开源 OTel Agent 会落链路 OTel 版）；
+  ② `-javaagent` 只能挂应用 JVM（`spring-boot.run.jvmArguments`，绝不用 `JAVA_TOOL_OPTIONS`）；
+  ③ 无 LicenseKey 时探针不产生 span，`EagleEye-TraceId` / `traceparent` 都不认。
+- 阻塞点（需用户操作 T-OBS0）：控制台「应用监控 → 应用列表 → 创建应用（无侵入 Java）」取 LicenseKey
+  → 写入用户级环境变量 `PINLIAO_ARMS_LICENSE_KEY` → `dev-with-arms.ps1` 启动 → 核对链路与 traceId 对齐。
+- 仍待用户拍板：ARMS 计费口径与额度；`step4-ai-plan.md` §10 五项；备份分支是否删除。

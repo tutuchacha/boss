@@ -41,20 +41,6 @@ function Wait-BackendDown([int]$Port, [int]$TimeoutSec) {
     return $false
 }
 
-function Wait-BackendUp([string]$Url, [int]$TimeoutSec) {
-    $deadline = (Get-Date).AddSeconds($TimeoutSec)
-    while ((Get-Date) -lt $deadline) {
-        try {
-            $r = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 3
-            # PowerShell 7 在无 charset 时 Content 可能是 byte[]，需自行解码
-            $body = if ($r.Content -is [byte[]]) { [Text.Encoding]::UTF8.GetString($r.Content) } else { [string]$r.Content }
-            if ($r.StatusCode -eq 200 -and $body -match '"status"\s*:\s*"UP"') { return $true }
-        } catch { }
-        Start-Sleep -Milliseconds 1500
-    }
-    return $false
-}
-
 function Invoke-RedisFlushAll([string]$Target, [int]$Port) {
     $client = New-Object Net.Sockets.TcpClient
     try {
@@ -117,37 +103,8 @@ if ($NoRestart) {
 }
 
 # 本机系统 PATH 上的 JAVA_HOME 是 1.8，必须显式挑一个 ≥17 的 JDK（否则 maven-shade-plugin 会炸）
-function Get-JavaMajor([string]$JavaExe) {
-    # Windows PowerShell 5.1 注意：`java -version` 输出走 stderr，在 $ErrorActionPreference='Stop'
-    # （由 _env.ps1 设置）下 `2>&1` 会抛终止性 NativeCommandError 并被下面的 catch 吞掉 → 恒返回 0，
-    # 导致脚本误报「未找到 JDK 17+」（PS 7 不触发）。此处局部降级为 Continue。
-    $prevEap = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
-    try {
-        $out = & $JavaExe -version 2>&1 | Out-String
-        if ($out -match 'version "(\d+)(\.(\d+))?') {
-            $major = [int]$Matches[1]
-            if ($major -eq 1 -and $Matches[3]) { return [int]$Matches[3] }   # 1.8 -> 8
-            return $major
-        }
-    } catch { } finally { $ErrorActionPreference = $prevEap }
-    return 0
-}
-
-$javaCandidates = @($env:PINLIAO_JAVA_HOME)
-$jbrDirs = Get-ChildItem 'C:\Program Files\JetBrains' -Directory -ErrorAction SilentlyContinue |
-    ForEach-Object { Join-Path $_.FullName 'jbr' } | Where-Object { Test-Path $_ }
-if ($jbrDirs) { $javaCandidates += $jbrDirs }
-$javaCandidates += @($env:JAVA_HOME)
-
-$javaHome = $null
-foreach ($cand in ($javaCandidates | Where-Object { $_ })) {
-    $javaExe = Join-Path $cand 'bin\java.exe'
-    if (-not (Test-Path $javaExe)) { continue }
-    $major = Get-JavaMajor $javaExe
-    Write-Host "[db-reset] 探测 JDK：$cand（major=$major）"
-    if ($major -ge 17) { $javaHome = $cand; break }
-}
+# 探测逻辑（含 PS 5.1 下 java -version 走 stderr 的坑）统一在 _env.ps1 的 Resolve-PinliaoJavaHome
+$javaHome = Resolve-PinliaoJavaHome -LogPrefix '[db-reset]'
 if (-not $javaHome) {
     throw "未找到 JDK 17+。请设 PINLIAO_JAVA_HOME 指向 JDK（本机系统 JAVA_HOME=D:\JDK1.8 不可用，需用 IDEA 自带 JBR）"
 }

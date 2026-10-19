@@ -11,6 +11,10 @@
 > **进行中（Step 4）**：接入 AI / RAG——HR 基于候选人简历问答（带原文引用）与语义人才检索；
 > 方案与任务板见 `docs/step4-ai-plan.md`（**T-AI0 已完成**：Spring AI 1.1.8 + 百炼 DashScope 兼容模式
 > 打通，密钥走本机环境变量；下一步 T-AI1 索引入库）。
+>
+> **并行增量（可观测性）**：接入阿里云 ARMS **应用监控**（Java 探针，`backend/scripts/dev-with-arms.ps1`）
+> ——**T-OBS1 已完成**（探针骨架 + traceId 三级优先级，默认关闭、对既有基线零影响；
+> `mvnw test` 182/182、真实后端 e2e 63/63）；T-OBS2（链路验收）待取得 LicenseKey，方案见 `docs/arms-plan.md`。
 
 ---
 
@@ -51,7 +55,7 @@ npm run dev
 | 状态 | Zustand（含 persist） | 客户端状态 |
 | 数据 | TanStack Query | 服务端状态（两端新模块均走 Query，旧模块部分同步 Mock） |
 | ORM | Prisma | **当前未接入业务**，见下文 |
-| 后端 | Spring Boot 3.5 + MySQL 8 + Redis（`backend/`） | Step 3 **T0~T9 已完成**（鉴权 / 职位 / 投递 / 面试 / 公司 / 消息 + WebSocket / 用户简历收藏上传 / 招聘者与人才筛选 / 全量联调；`mvnw test` 176/176，真实后端下前端 e2e 63/63）；计划见 `docs/step3-plan.md`；**Step 4 AI：T-AI0 ✅**（Spring AI + 百炼 DashScope 打通） |
+| 后端 | Spring Boot 3.5 + MySQL 8 + Redis（`backend/`） | Step 3 **T0~T9 已完成**（鉴权 / 职位 / 投递 / 面试 / 公司 / 消息 + WebSocket / 用户简历收藏上传 / 招聘者与人才筛选 / 全量联调；`mvnw test` 182/182，真实后端下前端 e2e 63/63）；计划见 `docs/step3-plan.md`；**Step 4 AI：T-AI0 ✅**（Spring AI + 百炼 DashScope 打通）；**可观测性 T-OBS1 ✅**（阿里云 ARMS 应用监控探针，见 `docs/arms-plan.md`） |
 
 > `zod`、`react-hook-form` 等已随模板装好但**当前代码尚未使用**，故不列入上表。
 
@@ -226,6 +230,7 @@ node scripts\smoke-recruiter.mjs  # 招聘者模块冒烟（T8，50 项）
 | `api-endpoints.md` | 全部业务接口清单（13 个模块，按模块标注方法与鉴权角色） |
 | `step3-plan.md` | Step 3 后端分块开发计划与任务板（T0~T9 进度、每块规格、交接协议） |
 | `step4-ai-plan.md` | **Step 4 AI / RAG 增量计划**（HR 简历问答 → 语义人才检索；选型、数据流、多租户红线、T-AI0~T-AI7 任务板、测试策略；**T-AI0 已完成**，配置与实测见 §6.2/§7） |
+| `arms-plan.md` | **可观测性增量计划（阿里云 ARMS 应用监控）**：路径选型（开源 OTel Agent vs 阿里云 ARMS 探针）、环境变量、脚本用法、T-OBS0~T-OBS3 任务板与本机实测记录；**T-OBS1 已完成**，T-OBS2 待 LicenseKey |
 | `dev-notes.md` | 决策记录与路线图 |
 | `HANDOFF.md` | ⚠️ 已降级为「Step 0 决策历史」，当前状态以 `AI-CONTINUE.md` 为准 |
 | `legacy/` | 原始 HTML 原型与 v0.2 开发笔记 |
@@ -252,6 +257,7 @@ node scripts\smoke-recruiter.mjs  # 招聘者模块冒烟（T8，50 项）
 | Step 2 | 前端验收（五项验收功能 + 人才筛选演示增量已完成，`npm run e2e` 63/63） | ⏳ 进行中 |
 | Step 3 | 后端开发 + 全量联调（Spring Boot 3.5 + MySQL/Redis；`USE_MOCK=false` 下真实接口；分块计划 `docs/step3-plan.md`） | ✅ 完成（T0 ✅ / T1 ✅ / T2a ✅ / T2b ✅ / T3a ✅ / T3b ✅ / T4 ✅ / T5 ✅ / T6 ✅ / T7 ✅ / T8 ✅ / T9 ✅，2026-10-19；`mvnw test` 176/176，真实后端下前端 e2e 63/63；遗留见 `PROGRESS.md` §6.3） |
 | Step 4 | **AI / RAG 增量**（HR 简历问答带引用 → 语义人才检索；计划 `docs/step4-ai-plan.md`） | 🔄 T-AI0 ✅（2026-10-19：Spring AI 1.1.8 + 百炼 DashScope 打通、`/api/v1/ai/*` 自检、密钥走环境变量）；下一步 T-AI1 索引入库 |
+| 可观测性 | **阿里云 ARMS 应用监控接入**（计划 `docs/arms-plan.md`；任务号 T-OBS0~T-OBS3） | 🔄 T-OBS1 ✅（2026-10-19：探针字脚本 + `TraceIdFilter` 三级 traceId + 6 项单测；`mvnw test` 182/182、e2e 63/63）；T-OBS2 待 LicenseKey |
 | 未来 | App / 小程序（若决定多端，复用 API 契约） | — |
 
 ---
