@@ -1294,3 +1294,43 @@ Stage Summary:
   两套模式 `npm run e2e` 均 63/63。
 - 仍待拍板（建议独立一轮 T10）：求职者分类字典、求职者消息会话、HR「发消息」入口；其中消息页
   目前 e2e **零覆盖**，应先补断言再切。
+
+---
+
+Task ID: 32
+Agent: orchestrator (main)
+Task: Step 4 AI / RAG 增量方案定稿（只落文档，不改代码）
+
+Work Log:
+- 需求：把招聘平台与 AI 应用结合（RAG），让 HR 能基于候选人简历问答/查询，并借此学习 Spring AI / LangChain4j。
+- 先做仓库侦察（结论直接决定方案形态）：
+  - 依赖：Spring Boot **3.5.16**（Java 17 target / JBR 21 运行）、MyBatis-Plus、Flyway（已到 V8）、
+    Redis、STOMP WebSocket；**无** spring-ai / langchain4j。
+  - 基础设施：**无 Docker、无 Ollama**；Redis 为原生 `redis-server.exe`（**无 RediSearch/向量模块**）；
+    i5-1135G7 / 16G / 无独显 → 本地跑对话模型不可行，向量可用 API 或小模型。
+  - 数据：`resumes.content` 是**结构化 JSON**（basics/educations/experiences/projects/skills）→ 天然
+    可做结构化分块；`applications` 带 `company_id` 而 `resumes` 只有 `user_id` → **向量检索必须显式
+    做可见性过滤**（不能依赖 `PinliaoTenantLineHandler`）。
+  - 复用点：`TalentMatchService`（关键词/权重/证据）= 混合检索的关键词侧与 A/B 基准；
+    `usage_logs` = AI 用量埋点；`tenant_configs.features` = 租户级开关；STOMP = 流式备选通道。
+  - 门禁：前端 `USE_MOCK` 全局开关 + e2e「零控制台错误」63/63 → AI 必须沿用双分支 + 独立开关。
+- 版本核对（2026-10-19）：Spring AI **1.1.x**（1.1.8）对齐 Boot 3.5；Spring AI 2.0（2026-06 GA）需
+  **Boot 4 + Jackson 3**，故 AI 增量不与 Boot 4 迁移混做；Boot 3.5 已于 **2026-06-30 EOL**，
+  迁移单独开一轮。LangChain4j `spring-boot-starter` 亦支持 Boot 3.5（社区模块含 DashScope）。
+- 用户拍板（五问）：① 模型 **通义千问一站式**（对话 + `text-embedding-v4` 1024 维，OpenAI 兼容）；
+  ② 向量库 **先 `SimpleVectorStore` 后 MySQL 自建表**；③ **Spring AI 主线 + 事后补 LangChain4j 对照**；
+  ④ 第一个能力 **单简历问答**（检索层可复用）；⑤ **先落文档，不动代码**。
+- 产出：[`docs/step4-ai-plan.md`](./docs/step4-ai-plan.md) v1.0 —— 目标与 DoD（5 条，含「关开关不影响
+  e2e」）、现状约束表、选型（含 Redis 不能当向量库的说明）、能力清单 A~F、入库/查询两条管道与
+  结构化分块规则、**多租户与隐私红线 §5.3**、开关/降级/成本、`ai/` 包结构与 SPI 隔离层、
+  配置草案（key 走环境变量）、接口草案（43xxx 错误码 / SSE vs STOMP）、V9 表草案、
+  T-AI0~T-AI7 任务板（含「是否需要真实 key」列）、**假模型测试策略**、学习路线的六组对比实验、
+  风险表与 6 项待确认。
+- 登记：`PROGRESS.md` v1.20（§0 快照 + §1 阶段表 + §4 下一步第 4 条 + §8；原「Step 4 联调」更名
+  「Step 3-T9 联调」，AI 编号定为 Step 4）；`docs/AI-CONTINUE.md` v1.22（§1 状态一句话、§1 前端开关
+  表述、§2 状态表、§9 待确认、§10）；`README.md`（阶段提示 + 文档索引 + 开发路线表）；worklog 本条。
+- 未改任何业务代码 / 依赖 / 迁移：`git status` 仅文档变更，故 e2e 与 `mvnw test` 无需重跑。
+
+Stage Summary:
+- Step 4 AI / RAG 方案定稿：路线（通义一站式 + 先内存后 MySQL + Spring AI 主线 + 问答先行）与
+  T-AI0~T-AI7 任务板、测试策略、租户红线均已书面化；**未开工**，等用户选 T-AI0 或先确认 §10 六项。

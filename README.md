@@ -7,6 +7,9 @@
 > T3a ✅、T3b ✅、T4 ✅、T5 ✅、T6 ✅、T7 ✅、T8 ✅、T9 ✅，2026-10-19；任务板见 `docs/step3-plan.md`）。
 > 前端可继续走本地 Mock（无需后端即可运行），也可切真实后端联调：`.env.local` 置
 > `NEXT_PUBLIC_USE_MOCK=false`（`next.config.ts` 已有 `/api/v1` 代理），真实后端下 e2e 同为 63/63。
+>
+> **下一步（Step 4）**：接入 AI / RAG——HR 基于候选人简历问答（带原文引用）与语义人才检索；
+> 方案与任务板见 `docs/step4-ai-plan.md`（**已定稿、未开工**：通义千问一站式 + 先内存后 MySQL + Spring AI 主线）。
 
 ---
 
@@ -221,6 +224,7 @@ node scripts\smoke-recruiter.mjs  # 招聘者模块冒烟（T8，50 项）
 | `api-contract.md` | API 通用规范（包络 / 错误码 / 分页 / 限流 / WebSocket / 安全） |
 | `api-endpoints.md` | 全部业务接口清单（13 个模块，按模块标注方法与鉴权角色） |
 | `step3-plan.md` | Step 3 后端分块开发计划与任务板（T0~T9 进度、每块规格、交接协议） |
+| `step4-ai-plan.md` | **Step 4 AI / RAG 增量计划**（HR 简历问答 → 语义人才检索；选型、数据流、多租户红线、T-AI0~T-AI7 任务板、测试策略；方案定稿未开工） |
 | `dev-notes.md` | 决策记录与路线图 |
 | `HANDOFF.md` | ⚠️ 已降级为「Step 0 决策历史」，当前状态以 `AI-CONTINUE.md` 为准 |
 | `legacy/` | 原始 HTML 原型与 v0.2 开发笔记 |
@@ -245,8 +249,8 @@ node scripts\smoke-recruiter.mjs  # 招聘者模块冒烟（T8，50 项）
 | Step 0 | 框架无关的架构、数据模型、API 契约 | ✅ |
 | Step 1 | 前端开发（Next.js + Mock） | ✅ |
 | Step 2 | 前端验收（五项验收功能 + 人才筛选演示增量已完成，`npm run e2e` 63/63） | ⏳ 进行中 |
-| Step 3 | 后端开发（Spring Boot 3.5 + MySQL/Redis；分块计划 `docs/step3-plan.md`） | ✅ 完成（T0 ✅ / T1 ✅ / T2a ✅ / T2b ✅ / T3a ✅ / T3b ✅ / T4 ✅ / T5 ✅ / T6 ✅ / T7 ✅ / T8 ✅ / T9 ✅，2026-10-19；`mvnw test` 173/173） |
-| Step 4 | 联调（`USE_MOCK=false`，Mock → 真实接口） | ✅ 基本完成（真实后端下 `npm run e2e` 63/63；遗留见 `PROGRESS.md` §6.3） |
+| Step 3 | 后端开发 + 全量联调（Spring Boot 3.5 + MySQL/Redis；`USE_MOCK=false` 下真实接口；分块计划 `docs/step3-plan.md`） | ✅ 完成（T0 ✅ / T1 ✅ / T2a ✅ / T2b ✅ / T3a ✅ / T3b ✅ / T4 ✅ / T5 ✅ / T6 ✅ / T7 ✅ / T8 ✅ / T9 ✅，2026-10-19；`mvnw test` 173/173，真实后端下前端 e2e 63/63；遗留见 `PROGRESS.md` §6.3） |
+| Step 4 | **AI / RAG 增量**（HR 简历问答带引用 → 语义人才检索；计划 `docs/step4-ai-plan.md`） | ⬜ 方案已定稿，未开工（选型：通义千问一站式 / 先内存后 MySQL / Spring AI 主线） |
 | 未来 | App / 小程序（若决定多端，复用 API 契约） | — |
 
 ---

@@ -30,9 +30,10 @@ npm run dev          # 端口 3000
 
 **无需数据库、无需后端**：全部数据来自前端 Mock，开箱即跑。
 
-> **当前状态一句话**：Step 3 后端 T7 已完成（用户 / 简历 / 收藏 / 上传，`mvnw test` 151/151、
-> `smoke-user` 64/64）；前端 Step 2 五项验收功能 + 人才筛选演示增量保持
-> `npm run e2e` 63/63 基线不变；下一步 T8（§4；顺序已定：T8 先、T9 后），当前任务与下一步先看
+> **当前状态一句话**：Step 3 后端 **T0~T9 全部完成**（含全量联调：`USE_MOCK=false` 下 `npm run e2e`
+> 63/63 连续两轮，`mvnw test` 173/173）；前端五项验收 + 人才筛选演示增量保持 63/63 基线；遗留
+> 求职者「分类字典 / 消息会话」与 HR「发消息」入口仍读 mock；**Step 4 AI / RAG 方案已定稿未开工**
+> （[`step4-ai-plan.md`](./step4-ai-plan.md)）。当前任务与下一步先看
 > [`../PROGRESS.md`](../PROGRESS.md)（状态唯一定稿）。
 
 ### 环境注意（换环境时最先检查这四条）
@@ -57,7 +58,9 @@ npm run dev          # 端口 3000
 - **C 端求职者 + 多 B 端企业客户共存**。求职者跨企业共享（一份简历可投多家）。
 - **每个注册企业即一个「租户」**，主键 `companyId`；求职者账号不属于任何租户。
 - **首发只做 H5/Web**（不含 App、小程序）。
-- **前端仍是 Mock 验收版**（Step 3 后端并行推进，T9 才切 `NEXT_PUBLIC_USE_MOCK=false`）。
+- **前端已切真实后端**（Step 3 T9 起）：`.env.local` 置 `NEXT_PUBLIC_USE_MOCK=false` +
+  `NEXT_PUBLIC_API_BASE_URL=/api/v1`，由 `next.config.ts` rewrites 代理到 `:8080`；改后须重启 dev server。
+  仍读 mock 的只剩求职者「分类字典 / 消息会话」与 HR「发消息」入口（见 §6.18 末尾）。
 
 ---
 
@@ -69,7 +72,8 @@ npm run dev          # 端口 3000
 | Step 1 前端开发（Next.js + Mock） | ✅ 完成 | `src/components/pinliao/`、`src/api/`、`src/store/` |
 | Step 2 前端验收 | ⏳ 进行中 | 五项验收功能已完成，并新增人才筛选演示增量；e2e 63/63 通过；**用户人工验收初步通过（2026-10-16）**；待确认 §9 待决事项 |
 | Step 3 后端（Spring Boot） | 🔄 进行中 | `backend/`（Spring Boot 3.5.16）：T0 骨架 ✅、T2a 鉴权 ✅（2026-10-17）、T1 全量表 + 演示种子 ✅、T2b 注册 ✅、T3a 职位公开读 + 分类字典 ✅、T3b HR 职位写 ✅、T4 投递与面试闭环 ✅、T5 公司模块 + 企业认证 ✅、T6 消息 + WebSocket ✅、T7 用户 / 简历 / 收藏 / 上传 ✅（2026-10-18）、T8 招聘者 / 候选人 / 人才筛选 ✅（2026-10-19）、**T9 全量联调 ✅（2026-10-19，`USE_MOCK=false` 下 `npm run e2e` 63/63，连续两轮通过）**；进度与实测以 `../PROGRESS.md` §7.2 为准 |
-| Step 4 联调 | ✅ 基本完成 | 前端已切真实后端（`.env.local`：`NEXT_PUBLIC_USE_MOCK=false`，`API_BASE_URL=/api/v1` 经 Next rewrites 代理到 :8080）；**求职者职位列表 / 详情已切真实**（`listJobs` → `GET /jobs`）；遗留：求职者端「分类字典 / 消息会话」仍读 mock，HR「发消息」入口仍为 mock 专用（详见 §6.18 末尾与 §9） |
+| Step 3-T9 联调 | ✅ 基本完成 | 前端已切真实后端（`.env.local`：`NEXT_PUBLIC_USE_MOCK=false`，`API_BASE_URL=/api/v1` 经 Next rewrites 代理到 :8080）；**求职者职位列表 / 详情已切真实**（`listJobs` → `GET /jobs`）；遗留：求职者端「分类字典 / 消息会话」仍读 mock，HR「发消息」入口仍为 mock 专用（详见 §6.18 末尾与 §9） |
+| Step 4 AI / RAG 增量 | ⬜ 方案定稿，未开工 | [`step4-ai-plan.md`](./step4-ai-plan.md) v1.0：HR 简历问答（带引用）→ 语义人才检索；通义千问一站式 + 先内存后 MySQL + Spring AI 主线（LangChain4j 后补）；**本轮只落文档**，开工待拍板 |
 
 > ⚠️ **状态快照（2026-10-16）**：五项功能（投递 / 候选人 / 面试、验证码登录 /
 > 注册、公司资料 / 企业认证）已全部接入 UI，并新增人才筛选（演示版）增量；自动化验收
@@ -818,6 +822,7 @@ HR 新建 → 追加。
 | 是否自托管字体摆脱 Google Fonts 构建依赖 | `next/font/local` |
 | 是否清除 `next-themes` 的 script 告警 | 无害，但刷屏 |
 | 两个历史压缩包是否清理 | `files.zip`、`workspace-*.tar` |
+| Step 4 AI / RAG 方案（**已定 / 待确认子项**） | **已定**（2026-10-19 用户拍板）：通义千问一站式（`qwen-plus` + `text-embedding-v4` 1024 维）、向量库先 `SimpleVectorStore` 后 MySQL 自建表、Spring AI 1.1.x 主线 + 事后补 LangChain4j、**单简历问答先行**、本轮只落文档。**待确认**：见 [`step4-ai-plan.md`](./step4-ai-plan.md) §10 六项（模型档位 / 向量维度 / 是否接 Ollama / 配额策略 / 是否含求职者侧能力 / Boot 4 + Spring AI 2.0 迁移时机） |
 
 ---
 
@@ -847,3 +852,4 @@ HR 新建 → 追加。
 | v1.19 | 2026-10-19 | Step 3 T8：招聘者 / 候选人 / 人才筛选（§4.1~§4.6）落地——HR 画像读改（`hr_profiles` 非租户注入表，按 `user_id` 归属）、我发布的职位（HR 可见 CLOSED + 契约外 `GET /hr/jobs/{jobId}`）、我收到的投递（超集卡片 + 最近面试）、人才筛选（移植 mock 关键词引擎）；补 §6.17，§9 补两条已定口径（超集出参 / 扩展参数），§2 状态推进到「下一步 T9」 |
 | v1.20 | 2026-10-19 | Step 3 T9：全量联调打通（`USE_MOCK=false`，`npm run e2e` **63/63**，连续两轮通过）——`next.config.ts` 加 `/api/v1` `/uploads` rewrites、`.env.local` 切开关、演示账号一键填入不再被 `USE_MOCK` 隐藏、真实登录分支补身份校验、列表统一解包 `.list`、HR 详情改走 §4.4、约面试补 `conversationId`、自动回复改定时重取、e2e 精确豁免 1 条预期 401；新增 `backend/scripts/db-reset.ps1`（清库重迁 + 清 Redis + 重启后端 + 等 health）；补 §6.18（14 条联调坑）、§6.11/§6.13 更新、§9 增「T9 遗留真实分支」待确认项 |
 | v1.21 | 2026-10-19 | T9 追加（用户选 A）：**求职者职位列表切真实**——`JobsView` 改 `useQuery + listJobs()`（`GET /jobs`，`limit=100` 单页取全、计数用 `pagination.total`），删除 `src/api/mock/filter.ts`；HR 发布 / 编辑 / 关闭职位在真实模式下对求职者立即生效。§6.18 新增该条坑（limit 默认 20 / 计数用 total / q 已含公司名），遗留清单更新为「分类字典 / 消息会话 / HR 发消息」；§9 改为「部分已定」 |
+| v1.22 | 2026-10-19 | 新增 Step 4 AI / RAG 增量方案文档 [`step4-ai-plan.md`](./step4-ai-plan.md) v1.0（选型 / 数据流 / 多租户红线 §5.3 / 代码结构 / V9 表草案 / T-AI0~T-AI7 / 假模型测试策略 / 风险与未决 6 项）；§2 状态表新增该行（原「Step 4 联调」更名「Step 3-T9 联调」）；§9 新增「Step 4 方案（已定 / 待确认子项）」。**本轮只落文档，未改代码** |

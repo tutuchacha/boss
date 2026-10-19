@@ -21,6 +21,7 @@
 | 环境 | Windows（`D:\boss`）+ PowerShell；Node 实测 v24 可跑；**无 bun，统一用 npm**；后端 JDK 用 IDEA 自带 **JBR 21**（跑 `mvnw` 必设 `JAVA_HOME`，见 §7.2） |
 | 远端仓库 | `origin` → GitHub `tutuchacha/boss`（SSH）；接手前先 `git pull` 与远端对齐 |
 | Step 3 计划 | [`docs/step3-plan.md`](./docs/step3-plan.md)（分块 T0~T9 + 上下文交接协议）；**T0 ✅、T2a ✅（2026-10-17 登录/退出先行）、T1 ✅（2026-10-18 全量表 + 演示种子）、T2b ✅（2026-10-18 注册 §1.2）、T3a ✅（2026-10-18 职位公开读 + 分类字典）、T3b ✅（2026-10-18 HR 职位写）、T4 ✅（2026-10-18 投递与面试闭环）、T5 ✅（2026-10-18 公司模块 + 企业认证）、T6 ✅（2026-10-18 消息 + WebSocket）、T7 ✅（2026-10-18 求职者 / 简历 / 收藏 / 上传）、T8 ✅（2026-10-19 招聘者 / 候选人 / 人才筛选 §4）、T9 ✅（2026-10-19 全量联调：`USE_MOCK=false` 下 `npm run e2e` 63/63，连续两轮）**；遗留：求职者端「分类字典 / 消息会话」仍读 mock（职位列表已于 T9 追加切真实，见 §6.3 / `docs/AI-CONTINUE.md` §6.18） |
+| Step 4 AI 计划 | [`docs/step4-ai-plan.md`](./docs/step4-ai-plan.md)（AI / RAG 增量任务板 T-AI0~T-AI7）；**方案已定稿、未开工**：通义千问一站式（`qwen-plus` + `text-embedding-v4` 1024 维）、向量库先内存后 MySQL、Spring AI 主线 + 事后补 LangChain4j、**单简历问答先行**；本轮只落文档不改代码，开工待用户指示（决策见该文件 §1，待确认子项见 §10） |
 
 > 接手时先跑一次 `git status --porcelain` 与 `npx tsc --noEmit` 核对本表是否仍然成立。
 
@@ -34,7 +35,8 @@
 | Step 1 双端前端开发 | ✅ 完成 | `src/components/pinliao/`（求职者端 + HR 端 + 登录） |
 | Step 2 前端验收 | ⏳ 进行中 | 验收五项功能已全部完成，并新增**人才筛选（演示版）**增量；`npm run e2e` 63/63 通过（见 §2/§5）；**用户人工验收初步通过（2026-10-16）**；待确认 `docs/AI-CONTINUE.md` §9 待决事项 |
 | Step 3 后端（Spring Boot） | ✅ 完成（T0~T9） | `backend/` Spring Boot 3.5.16 骨架 + MySQL 专用实例 3307 / Redis 6379；**T0 ✅、T2a 鉴权 ✅（2026-10-17）、T1 数据库迁移与演示种子 ✅、T2b 注册 ✅、T3a 职位公开读 + 分类字典 ✅、T3b HR 职位写 ✅、T4 投递与面试闭环 ✅、T5 公司模块 + 企业认证 ✅、T6 消息 + WebSocket ✅、T7 求职者 / 简历 / 收藏 / 上传 ✅（2026-10-18）、T8 招聘者 / 候选人 / 人才筛选 ✅、T9 全量联调 ✅（2026-10-19，实测见 §7.2）** |
-| Step 4 联调 | ✅ 基本完成 | `NEXT_PUBLIC_USE_MOCK=false` 已切；`npm run e2e` 在真实后端上 **63/63**；**求职者职位列表 / 详情已切真实**（`listJobs` → `GET /jobs`，HR 发布 / 关闭对求职者立即生效）；遗留：求职者端「分类字典 / 消息会话」与 HR「发消息」入口仍为 mock 驱动（见 §6.3） |
+| Step 3-T9 联调 | ✅ 基本完成 | `NEXT_PUBLIC_USE_MOCK=false` 已切；`npm run e2e` 在真实后端上 **63/63**；**求职者职位列表 / 详情已切真实**（`listJobs` → `GET /jobs`，HR 发布 / 关闭对求职者立即生效）；遗留：求职者端「分类字典 / 消息会话」与 HR「发消息」入口仍为 mock 驱动（见 §6.3） |
+| Step 4 AI / RAG 增量 | ⬜ 方案定稿，未开工 | [`docs/step4-ai-plan.md`](./docs/step4-ai-plan.md)：HR 简历问答（带引用）→ 语义人才检索；选型与里程碑已定（通义一站式 / 先内存后 MySQL / Spring AI 主线）；**本轮只落文档**，开工时机待拍板（§10 未决 6 项） |
 
 ---
 
@@ -208,6 +210,13 @@
       HR「发消息」入口仍为 mock 专用；建议独立一轮（T10）处理，且先补求职者消息页的 e2e / 人工验收清单
       （现在 e2e 对该页零覆盖）。另：接口账目口径、前端最终框架仍在 `docs/AI-CONTINUE.md` §9 待确认清单里。
 3. 可选增量（未被本轮涵盖）：招聘者端桌面 Web 后台、HR 上传外部简历库、人才筛选语义检索升级（接口不变）等。
+4. **Step 4 AI / RAG 增量（方案已定稿，未开工）**：完整方案与任务板见
+   [`docs/step4-ai-plan.md`](./docs/step4-ai-plan.md)（T-AI0 依赖连通 → T-AI1 索引 → T-AI2 单简历问答
+   MVP → T-AI3 流式 → T-AI4 语义检索 → T-AI5 面试题生成 → T-AI6 工程化 → T-AI7 LangChain4j 对照）。
+   用户已拍板：通义千问一站式（对话 `qwen-plus` + 向量 `text-embedding-v4` 1024 维）、向量库先内存
+   后 MySQL、Spring AI 主线 + 事后补 LangChain4j、**问答先行**；**本轮只落文档，不改代码**。
+   开工前需用户确认该文件 §10 的 6 项（模型档位 / 维度 / 是否接 Ollama / 配额 / 是否含求职者侧 /
+   Boot 4 迁移时机），并按 §8 的「假模型 + 不变量断言」策略保证 e2e 63/63 与 `mvnw test` 不被破坏。
 
 ---
 
@@ -422,3 +431,4 @@ node scripts\smoke-recruiter.mjs  # 招聘者模块冒烟（50 项；需后端�
 | v1.17 | 2026-10-19 | Step 3 T8 完成：§4 招聘者模块（§4.1~§4.6，6 条）——HR 画像读改（按 `user_id` 归属，非租户注入表）、我发布的职位（HR 可见 CLOSED + 契约外 `GET /hr/jobs/{jobId}`）、我收到的投递（超集卡片 + 最近面试）、人才筛选（移植 mock 关键词引擎）；出参取「前端超集」口径；`mvnw test` 173/173（151→173）、`smoke-recruiter` 50/50（新增，可重复）、既有六项冒烟与 `verify-seed` 16/16 无回归；下一步 T9 全量联调（切 `USE_MOCK=false`，先落实清库重迁重置脚本） |
 | v1.18 | 2026-10-19 | Step 3 T9 完成：全量联调打通（`USE_MOCK=false`，`npm run e2e` **63/63**，连续两轮）——Next rewrites 代理 `/api/v1`+`/uploads`、`.env.local` 切开关、演示账号一键填入不再被 `USE_MOCK` 隐藏、真实登录补身份校验、列表统一解包 `.list`、HR 详情改走 §4.4、约面试补 `conversationId`、自动回复改定时重取、e2e 精确豁免 1 条预期 401；新增 `db-reset.ps1`（清库重迁 + 清 Redis + 起后端 + 等 health）；§6.3 更新（新增 T9 联调 / 重置脚本 / 遗留清单四条）；遗留：求职者端职位列表 / 分类字典 / 消息会话仍读 mock，待用户拍板是否本轮切换 |
 | v1.19 | 2026-10-19 | T9 追加（用户选 A）：**求职者职位列表切真实**——`JobsView` 改 `useQuery + listJobs()`（`GET /jobs`，`limit=100` + 后端 `total`），删除 `src/api/mock/filter.ts`；HR 发布 / 编辑 / 关闭职位从此在真实模式下对求职者立即生效。回归：真实后端 e2e **63/63**、Mock 基线 **63/63**、`tsc` 仍 3 个既有错误。§6.3 遗留清单更新为「分类字典 / 消息会话 / HR 发消息」三项 |
+| v1.20 | 2026-10-19 | 新增 Step 4 AI / RAG 增量方案：[`docs/step4-ai-plan.md`](./docs/step4-ai-plan.md) v1.0（目标与 DoD、选型、数据流、代码结构、V9 表草案、T-AI0~T-AI7 任务板、测试策略、风险与未决 6 项）。§0 快照 / §1 阶段表新增该行（原「Step 4 联调」更名为「Step 3-T9 联调」）、§4 下一步新增第 4 条；用户拍板：通义千问一站式、先内存后 MySQL、Spring AI 主线 + 事后补 LangChain4j、问答先行、**本轮只落文档不改代码** |
