@@ -1153,3 +1153,53 @@ Work Log:
 Stage Summary:
 - 三项待决事项全部定稿并入库，无代码变更；工作区回到干净状态（除自动维护的 AGENTS/CLAUDE 区块）。
 - 下一步：T8 开工——先核对 §4.3/§4.4 现状，再补 §4.1/§4.2 HR 画像与 §4.5/§4.6 人才筛选移植。
+
+---
+
+Task ID: 29
+Agent: orchestrator (main)
+Task: Step 3 T8 — 招聘者 / 候选人 / 人才筛选（§4.1~§4.6）
+
+Work Log:
+- 侦察（先读后写）：
+  - §4.1/§4.2/§4.5/§4.6 后端完全缺失；§4.3/§4.4 只有可复用能力（T3b 职位写、T4 面试、
+    §9.5 状态、`/hr/interviews`），未按 §4 出参组装。
+  - 关键发现：`hr_profiles` 带 `company_id` 但**不在** `PinliaoTenantLineHandler` 的租户注入表集合内
+    （该表按 `user_id` 唯一），§4.1/§4.2 必须显式按 `user_id` 归属，否则会读错人 / 读不到。
+  - `GET /hr/jobs/{jobId}` 为契约外但必需：公开详情 §6.3 只服务 `OPEN`，HR 编辑页要打开 CLOSED。
+- 实现（遵用户拍板的两条口径）：
+  - §4.3/§4.4 出参给前端**超集**（`HrJobRecord[]` / `HrApplicationView[]`），换取 T9 前端零适配；
+    `cursor` 保留未启用，`limit` 作 1~100 上限保护。
+  - 契约外参数接受为可选：§4.3 的 `q`/`hrId`、§4.4 的 `q`（对齐前端 mock 筛选行为）。
+  - `recruiter/`：`RecruiterCodes`（40410 / 42210）、`RecruiterRequests`（`HrProfilePatch` /
+    `CandidateMatchInput`）、`RecruiterViews`（`ApplicationCard` / `Candidate` / `JobBrief` /
+    `CandidateMatch` / `Evidence`）、`HrProfileService`、`HrApplicationQueryService`、
+    `CandidateSummaryService`（与 T6 `ConversationQueryService.candidateOf` 同口径、完善度 85 基线）、
+    `TalentMatchService`、`RecruiterController`。
+  - `HrJobQueryService`（§4.3 列表 + 详情）；`JobViews.HrRecord.of` 抽出唯一映射源并让
+    `JobCommandService.toRecord` 委托（删掉重复的私有格式化方法）；`JobMapper` 增加
+    `selectByCompanyAnyStatus` / `selectForCompany`（含 CLOSED、排除软删、保留租户注入）。
+  - `TalentMatchService` 逐条移植 `src/api/mock/talentMatch.ts`：词典长词优先 + 空格占位防子词重复、
+    英文技术词 `[A-Za-z][A-Za-z0-9+#.-]*` 去尾 `[.-]+`、中文先去停用词再取 `[\u4e00-\u9fa5]{2,}`、
+    大小写不敏感去重保留首次大小写、技能 3 / 文本 2 取最大、证据 ≤3/词与 ≤6/人、score 倒序后按
+    完善度倒序；空条件 42210，条件非空但提不出关键词则返回空数组（对齐 mock）。
+- 测试：
+  - 新增单测 22 项（招聘者 22 = 画像 4 + 我发布的职位 3 + 收到的投递 4 + 人才筛选 11）。
+  - 新增 `smoke-recruiter.mjs` 50 项：§4.1~§4.6 主链路 + 错误分支；§4.2 改后按原值还原；
+    §4.3 现场创建 `job-new-*` → close → 验证「HR 可见 CLOSED 而公开详情 40410」→ 软删并回到基线。
+- 实测：`mvnw test` **173/173**（151→173）；`smoke-recruiter` **50/50**（重复执行通过）；
+  `smoke-auth` 20/20、`smoke-jobs` 49/49、`smoke-applications` 51/51、`smoke-company` 26/26、
+  `smoke-messages` 40/40、`smoke-user` 64/64、`verify-seed` 16/16 无回归。
+- 踩坑（已写入 AI-CONTINUE §6.17 / PROGRESS §6.3）：
+  - 本机演示库存在历史冒烟残留：早期 T4 留下一条**可见**的 `app-new-*` 投递（`u-seeker-1` 投云杉），
+    使 §4.4/§4.5 结果多一位候选人。因此计数类断言改为「种子齐备 + 容忍残留」；T9 e2e 前必须按
+    §6.10 清库重迁，否则候选人数与 mock 基线不一致。
+  - `smoke-auth` 在 60 秒内连跑会因验证码冷却 429 而失败（脚本自身语义，非回归）。
+- 文档：PROGRESS v1.17、step3-plan v1.12、api-endpoints v0.3.7、AI-CONTINUE v1.19（§6.17）、
+  CHANGELOG、worklog。
+- 提交：`9cf3ae0`（feat: Step 3 T8 招聘者模块）+ 紧后 docs 结算。
+
+Stage Summary:
+- T8 完成：§4.1~§4.6 六条全部落地，「HR 可见已关闭职位」「超集出参」「关键词匹配与证据片段」均已实证；
+  单测 173/173、招聘者冒烟 50/50，其余冒烟与种子 16/16 无回归；前端 e2e 63/63 基线未动。
+- 下一步：T9 全量联调——先落地「清库重迁」重置脚本，再切 `USE_MOCK=false`，逐项修差异至 e2e 63/63。
