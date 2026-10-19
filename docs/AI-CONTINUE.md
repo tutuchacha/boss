@@ -68,8 +68,8 @@ npm run dev          # 端口 3000
 | Step 0 架构 + 数据模型 + API 契约 | ✅ 完成 | `docs/architecture.md`、`data-model.md`、`api-contract.md`、`api-endpoints.md`、`prisma/schema.prisma`、`src/types/api.ts` |
 | Step 1 前端开发（Next.js + Mock） | ✅ 完成 | `src/components/pinliao/`、`src/api/`、`src/store/` |
 | Step 2 前端验收 | ⏳ 进行中 | 五项验收功能已完成，并新增人才筛选演示增量；e2e 63/63 通过；**用户人工验收初步通过（2026-10-16）**；待确认 §9 待决事项 |
-| Step 3 后端（Spring Boot） | 🔄 进行中 | `backend/`（Spring Boot 3.5.16）：T0 骨架 ✅、T2a 鉴权 ✅（2026-10-17）、T1 全量表 + 演示种子 ✅、T2b 注册 ✅、T3a 职位公开读 + 分类字典 ✅、T3b HR 职位写 ✅、T4 投递与面试闭环 ✅、T5 公司模块 + 企业认证 ✅、T6 消息 + WebSocket ✅、T7 用户 / 简历 / 收藏 / 上传 ✅（2026-10-18）、**T8 招聘者 / 候选人 / 人才筛选 ✅（2026-10-19）**；§4 后端已补齐，下一步 **T9 全量联调**（`USE_MOCK=false`）；进度与实测以 `../PROGRESS.md` §7.2 为准 |
-| Step 4 联调 | ⏸ 未开始 | `USE_MOCK=false` 切真实接口 |
+| Step 3 后端（Spring Boot） | 🔄 进行中 | `backend/`（Spring Boot 3.5.16）：T0 骨架 ✅、T2a 鉴权 ✅（2026-10-17）、T1 全量表 + 演示种子 ✅、T2b 注册 ✅、T3a 职位公开读 + 分类字典 ✅、T3b HR 职位写 ✅、T4 投递与面试闭环 ✅、T5 公司模块 + 企业认证 ✅、T6 消息 + WebSocket ✅、T7 用户 / 简历 / 收藏 / 上传 ✅（2026-10-18）、T8 招聘者 / 候选人 / 人才筛选 ✅（2026-10-19）、**T9 全量联调 ✅（2026-10-19，`USE_MOCK=false` 下 `npm run e2e` 63/63，连续两轮通过）**；进度与实测以 `../PROGRESS.md` §7.2 为准 |
+| Step 4 联调 | ✅ 基本完成 | 前端已切真实后端（`.env.local`：`NEXT_PUBLIC_USE_MOCK=false`，`API_BASE_URL=/api/v1` 经 Next rewrites 代理到 :8080）；**遗留**：求职者端「职位列表 / 分类字典 / 消息会话」仍读 mock，HR「发消息」入口仍为 mock 专用（详见 §6.18 末尾与 §9） |
 
 > ⚠️ **状态快照（2026-10-16）**：五项功能（投递 / 候选人 / 面试、验证码登录 /
 > 注册、公司资料 / 企业认证）已全部接入 UI，并新增人才筛选（演示版）增量；自动化验收
@@ -102,7 +102,7 @@ npm run dev          # 端口 3000
 | 功能 | 备注 |
 |---|---|
 | 招聘者端桌面 Web 后台 | 当前仅移动端布局 |
-| 真实后端（其余模块） | Step 3 进行中：T0~T8（鉴权 / 注册 / 职位 / 投递面试 / 公司 / 消息 WebSocket / 用户简历收藏上传 / 招聘者与人才筛选）已落地；**T9 全量联调**按 `docs/step3-plan.md` 任务板推进 |
+| 真实后端（其余模块） | Step 3 进行中：T0~T9 已落地（鉴权 / 注册 / 职位 / 投递面试 / 公司 / 消息 WebSocket / 用户简历收藏上传 / 招聘者与人才筛选 / **全量联调**）；§6.18 末尾列出仍需从 mock 切到真实的前端路径 |
 
 ---
 
@@ -515,10 +515,11 @@ const { data, isPending } = useQuery({
 - **游标格式**：`base64(JSON {"s":得分,"k":发布时间毫秒,"id":"job-1"})`——排序键三元组（得分 DESC / 时间
   DESC / id ASC），匿名与登录同格式；非法游标 40001；演示规模全量取回后内存切片，上量后把条件推 SQL
   （游标格式不变）。
-- **⚠️ T9 联调前必须先在 `next.config.ts` 加 rewrites**（T3a 侦察发现）：`src/api/client.ts` 的 `buildUrl`
-  **只返回相对路径**（避免跨域），而 `next.config.ts` 目前没有 `/api/v1` 代理 → `USE_MOCK=false` 后前端请求
-  会打到 :3000 自身 404。T9 需加 `/api/v1/:path*` → `http://localhost:8080/api/v1/:path*` 的 rewrite
-  （或改 client 支持绝对地址）；涉及联调方案，动手前与用户确认。
+- **T9 联调代理已落地（2026-10-19）**：`src/api/client.ts` 的 `buildUrl` **只返回相对路径**（避免跨域），
+  故在 `next.config.ts` 加了 rewrites：`/api/v1/:path*` → `${API_PROXY_TARGET ?? 'http://localhost:8080'}/api/v1/:path*`，
+  以及 `/uploads/:path*` → 后端（简历附件 / 上传文件回显靠它，**不需要**前端拼绝对地址）。
+  `.env.local` 设 `NEXT_PUBLIC_USE_MOCK=false`、`NEXT_PUBLIC_API_BASE_URL=/api/v1`（`.env*` 已 gitignore，不提交）。
+  改 `.env.local` 后必须重启 dev server（`NEXT_PUBLIC_*` 构建期内联）。
 
 ### 6.12 职位写与配额（Step 3 T3b 起）
 
@@ -554,15 +555,12 @@ const { data, isPending } = useQuery({
   `@InterceptorIgnore(tenantLine="true")`（全局主键）；时间字段落库前截毫秒（同 T3b 的 DATETIME(3) 坑）。
 - **冒烟可重复**：`smoke-applications.mjs` 每次选「云杉下未投递或已撤回」的职位，结尾撤回为 WITHDRAWN；
   中途失败可能留下非终态记录，重跑会换下一个职位，全部用完时需人工处理 `app-new-%`。
-- **T9 已知契约差异（先记录，联调时处理）**：
-  1. `GET /applications` / `GET /interviews` / `GET /hr/interviews` 返回分页对象 `{list,pagination}`，
-     前端 service 目前按数组解包（mock 分支），真实分支需要 `.list`；
-  2. `GET /hr/applications`（§4.4）尚未实现（T8），HR 候选人列表在 T9 前仍会 404；
-  3. §9.3 返回 `ApplicationDetail`（含 job/resume/interviews），前端 HR 详情页使用 `HrApplicationView`，
-     T9 需做字段适配；
-  4. §8.7 按契约返回 `Message`，前端 `inviteInterview` 类型声明为 `Interview`，但调用方未使用返回值，
-     T9 改类型或统一返回即可；
-  5. 前端 `listMyApplications` 真实分支把 `interview` 固定为 `null`，如需列表显示最近面试要再补。
+- **T9 已知契约差异（2026-10-19 已全部处理，实现细节见 §6.18）**：
+  1. 列表分页对象 `{list,pagination}` → 前端真实分支统一解包 `.list`（§9.2 / §10.1 / §8.1 / §8.2）；
+  2. `GET /hr/applications`（§4.4）T8 已实现，出参直接是 `HrApplicationView` 超集；
+  3. §9.3 返回 `ApplicationDetail` 与 HR 详情页所需形状不同 → 详情页改走 §4.4 列表按 id 定位；
+  4. §8.7 真实返回 `Message` → `inviteInterview` 返回类型改为 `Interview | Message`；
+  5. `listMyApplications` 真实分支已按 `applicationId` 合并 §10.1 面试列表。
 
 ### 6.14 公司模块与企业认证（Step 3 T5 起）
 
@@ -678,6 +676,57 @@ const { data, isPending } = useQuery({
 
 ---
 
+### 6.18 T9 全量联调（`USE_MOCK=false`，Step 3 T9 起）
+
+- **`USE_MOCK` 会隐藏「演示专用 UI」→ e2e 会成片失败**：`LoginPage` 的「演示账号（一键填入）」
+  曾用 `USE_MOCK &&` 包住，切真实后端后整块消失，e2e 点不到账号 → 登录失败 → 61 项连锁 FAIL
+  （试跑一度 6/61）。排查同类问题时**先看演示用的 UI 是否被开关隐藏**。结论：原型演示所需的
+  一键填入 / 固定验证码提示在联调模式下**同样保留**（只改 `USE_MOCK` 判断，不删内容）。
+- **真实分支必须自己补「身份校验先于写登录态」**：`loginWithPassword` / `loginWithSms` 的
+  `expectRole` 校验原来只在 mock 分支里，真实分支直接 `persistTokens` → 用 HR 手机号选「求职者」
+  能直接进 HR 工作台。现抽出 `assertRoleMatches(result, expectRole)`，在 `persistTokens` **之前**
+  调用（角色取 `result.user.role === HR ? HR : JOB_SEEKER`，`COMPANY_ADMIN` 归 HR）。
+- **分页包络统一解包 `.list`**：后端列表一律 `{list, pagination:{nextCursor,hasMore,total}}`
+  （`PageViews.Page`）。T9 已解包：§9.2 我的投递、§10.1 面试、§8.1 会话、§8.2 消息
+  （`listHrConversations` / `listHrMessages` / `listMyApplications`）。新增真实分支时**先确认
+  返回是数组还是 Page**；`JobViews.Pagination` 未加 `NON_NULL`，`nextCursor: null` 会显式下发。
+- **HR「候选人详情」不要用 §9.3**：§9.3 `GET /applications/{id}` 返回 `ApplicationDetail`
+  （`job`/`resume`/`interviews[]`，**没有** `candidate`、没有单个 `interview`），HR 页需要的是
+  §4.4 的 `HrApplicationView` 超集。现 `getHrApplication` 走 `GET /hr/applications` 后按
+  `application.id` 定位（演示规模可接受；上量再补一条 §4.4 单条详情）。
+- **§8.7 约面试必须带 `conversationId`**：真实端点是
+  `POST /conversations/{conversationId}/actions/invite-interview`，缺会话直接 42210。
+  `conversationId` 由 §4.4 投递卡片带出（`view.conversationId`），`HrInterviewInvitePage` 已透传；
+  返回类型是 `Message`（不是 `Interview`），故 `inviteInterview` 标注 `Promise<Interview | Message>`。
+- **真实模式不要调「Mock 专用」函数**：`replyAsCandidate` 在真实分支抛错，会让 HR 聊天页的
+  `setCandidateTyping(false)` / `invalidateQueries` 被跳过（UI 卡在「正在输入」）。
+  正确做法：真实模式不本地追加，改为定时重取消息（后端
+  `ConversationAutoReplyService` 在 ~1.2s 后写入自动回复；前端**没有 WS 连接**，故
+  1200ms + 2600ms 各 refetch 一次）。
+- **e2e「零控制台错误」需要一条精确豁免**：真实后端下「错误密码被拒绝」用例必然触发 1 次
+  HTTP 401（契约行为），浏览器必然记一条 `Failed to load resource: 401`。`tests/e2e-verify.cjs`
+  的末段质量门禁**只豁免 1 条**该形态的 401（`exempt401`），其余 401 仍会失败；Mock 模式无此日志，
+  行为不变（仍是 63 项）。
+- **清库重迁脚本 `backend/scripts/db-reset.ps1`**（T9 落地，`npm run e2e` 前必跑）：
+  按 **8080 端口**定位并结束后端 PID（勿按进程名杀 java）→ `DROP + CREATE pinliao` → Redis
+  `FLUSHALL`（清验证码 60s 冷却 / refresh token）→ 起后端 → 等 `/actuator/health` UP → 回读
+  `flyway=8 / companies=16 / jobs=51 / applications=9`。`-NoRestart` 只清库，`-KeepRedis` 保留缓存。
+  **注册用的固定手机号 `13900004321` 只有清库后才能重复注册**，所以「每轮 e2e 前重迁」是硬前提。
+- **脚本本身的三个坑**：① JDK 探测必须**校验 major ≥ 17**——本机 `JAVA_HOME=D:\JDK1.8` 存在但会让
+  `maven-shade-plugin` 直接炸，故候选顺序为 `PINLIAO_JAVA_HOME` → IDEA `jbr` → `JAVA_HOME`，
+  并用 `java -version` 解析版本；② PowerShell 7 的 `Invoke-WebRequest` 在响应无 charset 时
+  `Content` 是 `byte[]`，`-match '"status":"UP"'` 会永远失败，需 `[Text.Encoding]::UTF8.GetString` 解码；
+  ③ 脚本需 **UTF-8 with BOM**（仓库内 `.ps1` 均为 BOM，否则 PS 5.1 下中文输出乱码）。
+- **仍是 Mock 驱动的真实分支（T9 遗留，e2e 通过但不等于全链路真实）**：
+  ① 求职者职位列表 / 详情（`JobsView` 用 `filterJobsSync`，`jobs.ts#listJobs` 真实分支无人调用）；
+  ② 分类字典（组件直接用 `mock/categories`，`categories.ts` 真实分支无人调用）；
+  ③ 求职者消息 / 会话（`store/pinliao.ts` 读 mock，`conversations.ts` 真实分支无人调用）；
+  ④ HR 侧 `ensureConversationForApplication`（真实分支直接抛 42210，后端在投递时已自动建会话，
+  HR「发消息」入口需改用它）。
+  切这些路径前先评估 e2e 的跨端断言（依赖前端「关闭 / 新建职位联动」的 mock 合成逻辑）。
+
+---
+
 ## 7. 数据与契约
 
 ### 7.1 API 契约（框架无关，是最重要的资产）
@@ -753,7 +802,8 @@ HR 新建 → 追加。
 | 最终上线前端框架 | Next.js / Vue / uni-app，当前 Next.js 仅沙箱验收 |
 | 招聘者端桌面 Web 后台布局 | 当前仅移动端布局 |
 | T8 / T9 先后（已定） | **先 T8 后 T9**（2026-10-18 用户拍板）：先补齐 §4 再整体切 `USE_MOCK=false`；`USE_MOCK` 无模块级粒度，先 T8 可避免二次返工 |
-| T9 演示库重置策略（已定） | 每轮 e2e 前清库重迁（重建 + Flyway V1~V8），固定手机号 `13900004321` 可反复使用；重置脚本在 T9 落地 |
+| T9 演示库重置策略（已定，已落地） | 每轮 e2e 前清库重迁（重建 + Flyway V1~V8），固定手机号 `13900004321` 可反复使用；脚本 **`backend/scripts/db-reset.ps1` 已落地并实测**（2026-10-19，含停后端 / 清 Redis / 等 health） |
+| T9 遗留的真实分支（**待确认**） | 求职者端「职位列表 / 分类字典 / 消息会话」仍读 mock（`jobs.ts#listJobs`、`categories.ts`、`conversations.ts` 真实分支无调用方），HR「发消息」入口仍走 mock 专用 `ensureConversationForApplication`。e2e 63/63 不依赖它们，是否本轮切真实、以及优先级，请用户拍板（详见 §6.18 末尾） |
 | §4.3 / §4.4 出参口径（已定） | **给前端超集**（2026-10-18 用户拍板）：`HrJobRecord[]` / `HrApplicationView[]`，而非契约文字的 `Job[]` / `ApplicationWithJob[]`，换取 T9 前端零适配 |
 | §4.3 / §4.4 契约外参数（已定） | **接受为可选扩展参数**（2026-10-18 用户拍板）：§4.3 的 `q` / `hrId`、§4.4 的 `q`；`cursor` 保留但未启用 |
 | 是否自托管字体摆脱 Google Fonts 构建依赖 | `next/font/local` |
@@ -786,3 +836,4 @@ HR 新建 → 追加。
 | v1.17 | 2026-10-18 | 决策结算：接口账目以正文 70 条定稿（总览表已校正）；T9 固定手机号重置策略定为每轮 e2e 前清库重迁；§9 拆为「待确认 / 已定」 |
 | v1.18 | 2026-10-18 | 顺序拍板：**T8 先、T9 后**（§9 记为已定，§6.16 同步）；`USE_MOCK` 为全局开关，T9 前必须补齐 §4 |
 | v1.19 | 2026-10-19 | Step 3 T8：招聘者 / 候选人 / 人才筛选（§4.1~§4.6）落地——HR 画像读改（`hr_profiles` 非租户注入表，按 `user_id` 归属）、我发布的职位（HR 可见 CLOSED + 契约外 `GET /hr/jobs/{jobId}`）、我收到的投递（超集卡片 + 最近面试）、人才筛选（移植 mock 关键词引擎）；补 §6.17，§9 补两条已定口径（超集出参 / 扩展参数），§2 状态推进到「下一步 T9」 |
+| v1.20 | 2026-10-19 | Step 3 T9：全量联调打通（`USE_MOCK=false`，`npm run e2e` **63/63**，连续两轮通过）——`next.config.ts` 加 `/api/v1` `/uploads` rewrites、`.env.local` 切开关、演示账号一键填入不再被 `USE_MOCK` 隐藏、真实登录分支补身份校验、列表统一解包 `.list`、HR 详情改走 §4.4、约面试补 `conversationId`、自动回复改定时重取、e2e 精确豁免 1 条预期 401；新增 `backend/scripts/db-reset.ps1`（清库重迁 + 清 Redis + 重启后端 + 等 health）；补 §6.18（14 条联调坑）、§6.11/§6.13 更新、§9 增「T9 遗留真实分支」待确认项 |

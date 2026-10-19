@@ -24,6 +24,7 @@ import {
   sendHrMessage,
 } from '@/api/hrConversations'
 import { INTERVIEW_FORMAT_TEXT } from '@/api/mock/applications'
+import { USE_MOCK } from '@/config/env'
 import { useAuthStore } from '@/store/auth'
 import { useHrStore } from '@/store/hr'
 import { formatDateTime } from '@/lib/time'
@@ -100,18 +101,30 @@ export function HrChatPage({ conversationId }: Props) {
       await queryClient.invalidateQueries({ queryKey: ['hr', 'messages', conversationId] })
       await queryClient.invalidateQueries({ queryKey: ['hr', 'conversations'] })
 
-      // 模拟候选人回复：先显示"正在输入"，再追加消息
+      // 候选人回复：
+      //  - Mock：本地追加一条模拟回复
+      //  - 真实后端：ConversationAutoReplyService 已在 ~1.2s 后写入自动回复并推送 WS，
+      //    前端未建立 WS 连接，因此这里定时重取消息（1200ms / 2600ms 两次覆盖延迟）
       setCandidateTyping(true)
+      const refetch = async () => {
+        await queryClient.invalidateQueries({ queryKey: ['hr', 'messages', conversationId] })
+        await queryClient.invalidateQueries({ queryKey: ['hr', 'conversations'] })
+      }
       setTimeout(() => {
         void (async () => {
-          await replyAsCandidate(conversationId, content)
-          setCandidateTyping(false)
-          await queryClient.invalidateQueries({
-            queryKey: ['hr', 'messages', conversationId],
-          })
-          await queryClient.invalidateQueries({ queryKey: ['hr', 'conversations'] })
+          try {
+            if (USE_MOCK) await replyAsCandidate(conversationId, content)
+          } catch {
+            /* 真实模式没有本地回复，忽略 */
+          } finally {
+            setCandidateTyping(false)
+            await refetch()
+          }
         })()
       }, 1200)
+      if (!USE_MOCK) {
+        setTimeout(() => void refetch(), 2600)
+      }
     } catch {
       toast('发送失败，请重试')
       setCandidateTyping(false)

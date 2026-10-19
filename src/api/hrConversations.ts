@@ -11,7 +11,7 @@
  * =====================================================================
  */
 
-import type { Message } from '@/types/api'
+import type { Message, PaginatedData } from '@/types/api'
 import { USE_MOCK } from '@/config/env'
 import { request } from './client'
 import type { HrConversationView } from './mock/hrConversations'
@@ -32,7 +32,8 @@ export async function listHrConversations(
   companyId: string,
 ): Promise<HrConversationView[]> {
   if (USE_MOCK) return hrConversationsOf(companyId)
-  return request<HrConversationView[]>('/conversations', { method: 'GET' })
+  const page = await request<PaginatedData<HrConversationView>>('/conversations', { method: 'GET' })
+  return page.list
 }
 
 /** 单个会话 */
@@ -46,7 +47,8 @@ export async function getHrConversation(
 /** 消息列表 */
 export async function listHrMessages(conversationId: string): Promise<Message[]> {
   if (USE_MOCK) return hrMessagesOf(conversationId)
-  return request<Message[]>(`/conversations/${conversationId}/messages`)
+  const page = await request<PaginatedData<Message>>(`/conversations/${conversationId}/messages`)
+  return page.list
 }
 
 /**

@@ -3,8 +3,10 @@
 参考 Boss 直聘模式的招聘平台原型：**C 端求职者 + 多 B 端企业客户共存**。
 求职者跨企业共享（同一份简历可投多家），每个注册企业即一个「租户」（Tenant）。
 
-> **当前阶段**：Step 2 前端验收版（e2e 63/63）· Step 3 后端进行中（**T0 ✅、T1 ✅、T2a ✅、T2b ✅、T3a ✅、T3b ✅、T4 ✅、T5 ✅、T6 ✅、T7 ✅**，
-> 2026-10-18；任务板见 `docs/step3-plan.md`）。前端仍走本地 Mock，无需后端即可运行；T9 再切 `USE_MOCK=false` 联调。
+> **当前阶段**：Step 2 前端验收版（e2e 63/63）· Step 3 后端 **T0~T9 全部完成**（T0 ✅、T1 ✅、T2a ✅、T2b ✅、
+> T3a ✅、T3b ✅、T4 ✅、T5 ✅、T6 ✅、T7 ✅、T8 ✅、T9 ✅，2026-10-19；任务板见 `docs/step3-plan.md`）。
+> 前端可继续走本地 Mock（无需后端即可运行），也可切真实后端联调：`.env.local` 置
+> `NEXT_PUBLIC_USE_MOCK=false`（`next.config.ts` 已有 `/api/v1` 代理），真实后端下 e2e 同为 63/63。
 
 ---
 
@@ -45,7 +47,7 @@ npm run dev
 | 状态 | Zustand（含 persist） | 客户端状态 |
 | 数据 | TanStack Query | 服务端状态（两端新模块均走 Query，旧模块部分同步 Mock） |
 | ORM | Prisma | **当前未接入业务**，见下文 |
-| 后端 | Spring Boot 3.5 + MySQL 8 + Redis（`backend/`） | Step 3 进行中：T0~T7 ✅（鉴权 / 职位 / 投递 / 面试 / 公司 / 消息 + WebSocket / 用户简历收藏上传；`mvnw test` 151/151）；计划见 `docs/step3-plan.md` |
+| 后端 | Spring Boot 3.5 + MySQL 8 + Redis（`backend/`） | Step 3 **T0~T9 已完成**（鉴权 / 职位 / 投递 / 面试 / 公司 / 消息 + WebSocket / 用户简历收藏上传 / 招聘者与人才筛选 / 全量联调；`mvnw test` 173/173，真实后端下前端 e2e 63/63）；计划见 `docs/step3-plan.md` |
 
 > `zod`、`react-hook-form` 等已随模板装好但**当前代码尚未使用**，故不列入上表。
 
@@ -89,7 +91,7 @@ npm run dev
 | 功能 | 状态 |
 |---|---|
 | 招聘者端桌面 Web 后台 | 未实现（当前仅移动端布局） |
-| 真实后端（其余模块） | Step 3 进行中：鉴权（§1）/ 职位（§6/§7）/ 投递与面试（§9/§10）/ 公司（§5）/ 消息与 WebSocket（§8）已落地；其余按 `docs/step3-plan.md` 任务板推进（接口契约见 `docs/api-endpoints.md`） |
+| 真实后端（其余模块） | Step 3 **T0~T9 已完成**：鉴权（§1）/ 职位（§6/§7）/ 投递与面试（§9/§10）/ 公司（§5）/ 消息与 WebSocket（§8）/ 用户·简历·收藏·上传（§2/§3/§11/§12）/ 招聘者与人才筛选（§4）全部落地，前端已可切 `USE_MOCK=false`（真实后端下 e2e 63/63）；**遗留**：求职者端职位列表 / 分类字典 / 消息会话仍读 mock（待拍板，见 `PROGRESS.md` §6.3） |
 
 ---
 
@@ -153,7 +155,7 @@ npx tsc --noEmit   # 类型检查
 >
 > 端口请按本机实际代理填写。彻底解决可改为自托管字体（`next/font/local`）。
 
-### 后端（Step 3，进行中）
+### 后端（Step 3，T0~T9 已完成）
 
 `backend/` 为 Spring Boot 3.5 工程（MySQL 专用实例 3307 + Redis 6379，运行数据在 `.local/`，
 环境要求与完整说明见 `backend/README.md`）：
@@ -162,15 +164,21 @@ npx tsc --noEmit   # 类型检查
 cd backend
 $env:JAVA_HOME='C:\Program Files\JetBrains\IntelliJ IDEA Community Edition 2025.2.6.2\jbr'  # 必设（本机仅 JDK 1.8）
 .\scripts\dev-up.ps1         # 起 MySQL 3307 + Redis 6379
+.\scripts\db-reset.ps1       # 清库重迁（每轮前端 e2e 前必跑）
 .\mvnw.cmd spring-boot:run   # 后端服务 :8080
-.\mvnw.cmd test              # 单元测试（基线 151/151）
+.\mvnw.cmd test              # 单元测试（基线 173/173）
 node scripts\smoke-auth.mjs  # 鉴权接口冒烟（T2a/T2b，20 项含注册）
 node scripts\smoke-jobs.mjs  # 职位与字典冒烟（T3a/T3b，49 项）
 node scripts\smoke-applications.mjs  # 投递与面试冒烟（T4，51 项）
 node scripts\smoke-company.mjs  # 公司模块冒烟（T5，26 项）
 node scripts\smoke-messages.mjs  # 消息与 WebSocket 冒烟（T6，40 项）
 node scripts\smoke-user.mjs  # 用户 / 简历 / 收藏 / 上传冒烟（T7，64 项）
+node scripts\smoke-recruiter.mjs  # 招聘者模块冒烟（T8，50 项）
 ```
+
+前端联调（Step 3 T9）：仓库根目录 `.env.local`（不提交）置 `NEXT_PUBLIC_USE_MOCK=false` +
+`NEXT_PUBLIC_API_BASE_URL=/api/v1`，`next.config.ts` 已把 `/api/v1` 与 `/uploads` 代理到
+`http://localhost:8080`；改后重启 dev server，`npm run e2e` 在真实后端下同为 63/63。
 
 ### 数据库说明
 
@@ -237,8 +245,8 @@ node scripts\smoke-user.mjs  # 用户 / 简历 / 收藏 / 上传冒烟（T7，64
 | Step 0 | 框架无关的架构、数据模型、API 契约 | ✅ |
 | Step 1 | 前端开发（Next.js + Mock） | ✅ |
 | Step 2 | 前端验收（五项验收功能 + 人才筛选演示增量已完成，`npm run e2e` 63/63） | ⏳ 进行中 |
-| Step 3 | 后端开发（Spring Boot 3.5 + MySQL/Redis；分块计划 `docs/step3-plan.md`） | 🔄 进行中（T0 ✅ / T1 ✅ / T2a ✅ / T2b ✅ / T3a ✅ / T3b ✅ / T4 ✅ / T5 ✅ / T6 ✅ / T7 ✅，2026-10-18；下一步 T8） |
-| Step 4 | 联调（`USE_MOCK=false`，Mock → 真实接口） | ⏸ 待开始 |
+| Step 3 | 后端开发（Spring Boot 3.5 + MySQL/Redis；分块计划 `docs/step3-plan.md`） | ✅ 完成（T0 ✅ / T1 ✅ / T2a ✅ / T2b ✅ / T3a ✅ / T3b ✅ / T4 ✅ / T5 ✅ / T6 ✅ / T7 ✅ / T8 ✅ / T9 ✅，2026-10-19；`mvnw test` 173/173） |
+| Step 4 | 联调（`USE_MOCK=false`，Mock → 真实接口） | ✅ 基本完成（真实后端下 `npm run e2e` 63/63；遗留见 `PROGRESS.md` §6.3） |
 | 未来 | App / 小程序（若决定多端，复用 API 契约） | — |
 
 ---

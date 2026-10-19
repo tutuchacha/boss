@@ -13,14 +13,14 @@
 
 | 项 | 值 |
 | --- | --- |
-| 上一提交（历史基线） | `9f25fa9`（docs: 决策结算（接口账目 70 条 / T9 重置策略 / T8→T9 顺序）） |
-| 本轮提交 | `9cf3ae0`（feat(backend): Step 3 T8 招聘者模块）+ 本轮 docs 结算（PROGRESS v1.17 / 计划 v1.12 / CHANGELOG / AI-CONTINUE v1.19）；若 `git status` 仍有未提交文件，以工作区现状为准 |
-| dev server（前端） | 端口 3000；未运行时用 `npm run dev` 启动（本会话未复测） |
-| 后端（Step 3） | `backend/`（Spring Boot 3.5.16，:8080）；MySQL 专用实例 **3307** + Redis **6379** 运行中，**后端 :8080 本会话保持运行**（停止按端口 8080 定位 PID 精确处理，勿按名杀 java）；起停脚本 `backend/scripts/` |
-| 测试账号 | 求职者 `13800000001` / HR `13800000002`，密码均 `123456`；短信验证码固定 `123456` |
+| 上一提交（历史基线） | `9cf3ae0`（feat(backend): Step 3 T8 招聘者模块）+ `690e438`（docs: T8 结算） |
+| 本轮提交 | T9 全量联调（前端代理/解包/身份校验 + `db-reset.ps1` + e2e 豁免 + docs 结算）；若 `git status` 仍有未提交文件，以工作区现状为准 |
+| dev server（前端） | 端口 3000；`npm run dev`（**已切真实后端**：`.env.local` 的 `NEXT_PUBLIC_USE_MOCK=false` + `API_BASE_URL=/api/v1`，由 `next.config.ts` rewrites 代理到 :8080） |
+| 后端（Step 3） | `backend/`（Spring Boot 3.5.16，:8080）；MySQL 专用实例 **3307** + Redis **6379** 运行中，**后端 :8080 本会话保持运行**（停止按端口 8080 定位 PID 精确处理，勿按名杀 java）；起停脚本 `backend/scripts/`（新增 `db-reset.ps1`） |
+| 测试账号 | 求职者 `13800000001` / HR `13800000002`，密码均 `123456`；短信验证码固定 `123456`；e2e 注册专用 `13900004321`（**必须清库后才能重复注册**） |
 | 环境 | Windows（`D:\boss`）+ PowerShell；Node 实测 v24 可跑；**无 bun，统一用 npm**；后端 JDK 用 IDEA 自带 **JBR 21**（跑 `mvnw` 必设 `JAVA_HOME`，见 §7.2） |
 | 远端仓库 | `origin` → GitHub `tutuchacha/boss`（SSH）；接手前先 `git pull` 与远端对齐 |
-| Step 3 计划 | [`docs/step3-plan.md`](./docs/step3-plan.md)（分块 T0~T9 + 上下文交接协议）；**T0 ✅、T2a ✅（2026-10-17 登录/退出先行）、T1 ✅（2026-10-18 全量表 + 演示种子）、T2b ✅（2026-10-18 注册 §1.2）、T3a ✅（2026-10-18 职位公开读 + 分类字典 §6.1~§6.4/§6.9 + §7）、T3b ✅（2026-10-18 HR 职位写 §6.5~§6.8）、T4 ✅（2026-10-18 投递与面试闭环 §9/§10 + §8.7）、T5 ✅（2026-10-18 公司模块 + 企业认证 §5）、T6 ✅（2026-10-18 消息 + WebSocket §8）、T7 ✅（2026-10-18 求职者 / 简历 / 收藏 / 上传 §2/§3/§11/§12）**，当前：**T8 招聘者 / 候选人 / 人才筛选（§4）**，随后 T9 全量联调（顺序已定：T8 先、T9 后，2026-10-18 用户拍板） |
+| Step 3 计划 | [`docs/step3-plan.md`](./docs/step3-plan.md)（分块 T0~T9 + 上下文交接协议）；**T0 ✅、T2a ✅（2026-10-17 登录/退出先行）、T1 ✅（2026-10-18 全量表 + 演示种子）、T2b ✅（2026-10-18 注册 §1.2）、T3a ✅（2026-10-18 职位公开读 + 分类字典）、T3b ✅（2026-10-18 HR 职位写）、T4 ✅（2026-10-18 投递与面试闭环）、T5 ✅（2026-10-18 公司模块 + 企业认证）、T6 ✅（2026-10-18 消息 + WebSocket）、T7 ✅（2026-10-18 求职者 / 简历 / 收藏 / 上传）、T8 ✅（2026-10-19 招聘者 / 候选人 / 人才筛选 §4）、T9 ✅（2026-10-19 全量联调：`USE_MOCK=false` 下 `npm run e2e` 63/63，连续两轮）**；遗留：求职者端「职位列表 / 分类字典 / 消息会话」仍读 mock（见 §6.3 / `docs/AI-CONTINUE.md` §6.18） |
 
 > 接手时先跑一次 `git status --porcelain` 与 `npx tsc --noEmit` 核对本表是否仍然成立。
 
@@ -33,8 +33,8 @@
 | Step 0 架构 + 契约 | ✅ 完成 | `docs/architecture.md`、`data-model.md`、`api-*.md`、`prisma/schema.prisma` |
 | Step 1 双端前端开发 | ✅ 完成 | `src/components/pinliao/`（求职者端 + HR 端 + 登录） |
 | Step 2 前端验收 | ⏳ 进行中 | 验收五项功能已全部完成，并新增**人才筛选（演示版）**增量；`npm run e2e` 63/63 通过（见 §2/§5）；**用户人工验收初步通过（2026-10-16）**；待确认 `docs/AI-CONTINUE.md` §9 待决事项 |
-| Step 3 后端（Spring Boot） | 🔄 进行中（T8 ✅ → T9） | `backend/` Spring Boot 3.5.16 骨架 + MySQL 专用实例 3307 / Redis 6379；**T0 ✅、T2a 鉴权 ✅（2026-10-17）、T1 数据库迁移与演示种子 ✅、T2b 注册 ✅、T3a 职位公开读 + 分类字典 ✅、T3b HR 职位写 ✅、T4 投递与面试闭环 ✅、T5 公司模块 + 企业认证 ✅、T6 消息 + WebSocket ✅、T7 求职者 / 简历 / 收藏 / 上传 ✅（2026-10-18）、T8 招聘者 / 候选人 / 人才筛选 ✅（2026-10-19，实测见 §7.2）**；§4 后端已补齐，下一步 **T9 全量联调**（切 `USE_MOCK=false`） |
-| Step 4 联调 | ⏸ 未开始 | `NEXT_PUBLIC_USE_MOCK=false` |
+| Step 3 后端（Spring Boot） | ✅ 完成（T0~T9） | `backend/` Spring Boot 3.5.16 骨架 + MySQL 专用实例 3307 / Redis 6379；**T0 ✅、T2a 鉴权 ✅（2026-10-17）、T1 数据库迁移与演示种子 ✅、T2b 注册 ✅、T3a 职位公开读 + 分类字典 ✅、T3b HR 职位写 ✅、T4 投递与面试闭环 ✅、T5 公司模块 + 企业认证 ✅、T6 消息 + WebSocket ✅、T7 求职者 / 简历 / 收藏 / 上传 ✅（2026-10-18）、T8 招聘者 / 候选人 / 人才筛选 ✅、T9 全量联调 ✅（2026-10-19，实测见 §7.2）** |
+| Step 4 联调 | ✅ 基本完成 | `NEXT_PUBLIC_USE_MOCK=false` 已切；`npm run e2e` 在真实后端上 **63/63**；遗留：求职者端「职位列表 / 分类字典 / 消息会话」与 HR「发消息」入口仍为 mock 驱动（见 §6.3） |
 
 ---
 
@@ -124,7 +124,8 @@
    （前端最终框架、接口账目口径等），并按用户后续反馈补齐。
 2. **Step 3 后端（Spring Boot）**：按 [`docs/step3-plan.md`](./docs/step3-plan.md) 分块推进
    （T0 → T9，契约正文 70 条；每会话一块，按计划内「收工 checklist」交接）。
-   **T0 ✅、T2a ✅（2026-10-17）、T1 ✅、T2b ✅、T3a ✅、T3b ✅、T4 ✅、T5 ✅、T6 ✅（2026-10-18）**：
+   **T0 ✅、T2a ✅（2026-10-17）、T1 ✅、T2b ✅、T3a ✅、T3b ✅、T4 ✅、T5 ✅、T6 ✅、T7 ✅（2026-10-18）、
+   T8 ✅、T9 ✅（2026-10-19）**：
    - **T2a 已交付**：§1.1 验证码 / §1.3 短信登录 / §1.4 密码登录 / §1.5 刷新 / §1.6 退出 / §1.7 me；
      JWT（access 2h，HS256）+ Redis（refresh 30d 白名单一次性轮换、退出吊销 jti、验证码 60s 限流）；
      鉴权拦截器默认保护 `/api/v1/**`（白名单：`auth/sms|login|refresh|register`、`_demo`）；
@@ -186,10 +187,22 @@
       技能 3 / 文本 2 权重、证据文案与上限、分值倒序；空条件 42210）。实测 `mvnw test` **173/173**、
       新增 `smoke-recruiter.mjs` **50/50**（可重复执行，临时职位自清理）、既有六项冒烟与
       `verify-seed` 16/16 无回归。
-    - 下一个动作：**T9 全量联调**（顺序已定：T8 先、T9 后）——前端 `.env.local` 置 `USE_MOCK=false`
-      + `API_BASE_URL`，随后按 `AI-CONTINUE.md` §6.15 / §6.16 逐项修差异（列表形状 / 时间格式 /
-      枚举 / 相对 URL 拼接 / §9.3 与 §8.7 出参口径），并落实**每轮 e2e 前清库重迁**的重置脚本；
-      目标 `npm run e2e` 63/63。
+    - **T9 已交付（全量联调）**：前端切真实后端（`.env.local`：`NEXT_PUBLIC_USE_MOCK=false` +
+      `API_BASE_URL=/api/v1`；`next.config.ts` 加 `/api/v1` `/uploads` rewrites 代理到 :8080，
+      避免跨域、也不需前端拼绝对地址）。修通 7 类差异：①「演示账号一键填入」不再被 `USE_MOCK`
+      隐藏（曾导致 e2e 连锁失败 6/61）；②真实登录分支补「身份校验先于写登录态」；③列表统一解包
+      `.list`（我的投递 / 面试 / HR 会话 / HR 消息）；④「我的投递」按 `applicationId` 合并 §10.1
+      面试；⑤HR 候选人详情改走 §4.4 列表按 id 定位（§9.3 出参形状不同）；⑥约面试透传
+      `conversationId`（§8.7 路径必需）且返回类型改 `Interview | Message`；⑦HR 聊天真实模式改
+      定时重取（后端 1.2s 自动回复，前端无 WS 连接）。新增 **`backend/scripts/db-reset.ps1`**
+      （止后端 → 清库 → Redis FLUSHALL → 起后端 → 等 health → 回读基线）。e2e 质量门禁只豁免
+      「错误密码」用例必然触发的 1 条 401。实测 **`npm run e2e` 63/63（连续两轮）**，
+      `npx tsc --noEmit` 仍仅 3 个既有错误。
+    - 下一个动作：**待用户拍板** T9 遗留的真实分支是否本轮切换——求职者端「职位列表 / 分类字典 /
+      消息会话」仍读 mock（`jobs.ts#listJobs`、`categories.ts`、`conversations.ts` 真实分支无调用方），
+      HR「发消息」入口仍为 mock 专用 `ensureConversationForApplication`；切换前需评估 e2e 跨端断言
+      （依赖前端「关闭 / 新建职位联动」的 mock 合成逻辑）。另：接口账目口径、前端最终框架仍在
+      `docs/AI-CONTINUE.md` §9 待确认清单里。
 3. 可选增量（未被本轮涵盖）：招聘者端桌面 Web 后台、HR 上传外部简历库、人才筛选语义检索升级（接口不变）等。
 
 ---
@@ -286,10 +299,21 @@
   `AI-CONTINUE.md` §6.17）；§4.3/§4.4 出参为**契约超集**（`HrJobRecord[]` / `HrApplicationView[]`，
   T9 前端真实分支零适配），`cursor` 为契约保留参数（演示规模未启用），`q` / `hrId` 为契约外扩展参数；
   另新增契约外读取 `GET /api/v1/hr/jobs/{jobId}`（HR 编辑页需打开已关闭职位，公开详情只认 `OPEN`）。
-- **本机演示库存在历史冒烟残留**：早期 T4 冒烟留下一条**可见**的 `app-new-*` 投递（`app-new-1`：
-  求职者 `u-seeker-1` 投云杉 `job-1`，状态 `WITHDRAWN`、未软删），因此 §4.4/§4.5 的计数类断言一律按
-  「种子齐备 + 容忍残留」写；T9 联调前必须按 §6.3 的重置策略（清库重迁 V1~V8）重置演示库，
-  否则 e2e 的候选人数会与 mock 基线不一致。
+- **T9 起全量联调（`USE_MOCK=false`）**：前端 `client.ts` 只发相对路径，故由 `next.config.ts` 的
+  rewrites 把 `/api/v1/**` 与 `/uploads/**` 代理到 `API_PROXY_TARGET`（默认 `http://localhost:8080`）；
+  开关在 `.env.local`（`NEXT_PUBLIC_USE_MOCK=false` + `NEXT_PUBLIC_API_BASE_URL=/api/v1`，`.env*` 不提交），
+  **改后必须重启 dev server**（`NEXT_PUBLIC_*` 构建期内联）。
+- **每轮 e2e / 冒烟前先清库重迁**：`backend/scripts/db-reset.ps1`（按 8080 端口止后端 → `DROP + CREATE pinliao`
+  → Redis `FLUSHALL` → 起后端 → 等 `/actuator/health` UP → 回读 `flyway=8 / companies=16 / jobs=51 /
+  applications=9`）。e2e 注册段用固定手机号 `13900004321`，**只有清库后才能重复注册**；Redis 也需清，
+  否则验证码 60s 冷却会让「发送验证码」返回 42901。脚本参数：`-NoRestart` 只清库、`-KeepRedis` 保留缓存。
+- **历史冒烟残留已被重置脚本覆盖**：早期 T4 冒烟留下一条可见的 `app-new-*` 投递（`app-new-1`：
+  `u-seeker-1` 投云杉 `job-1`，`WITHDRAWN`、未软删），曾让 §4.4/§4.5 多一位候选人；冒烟断言写为
+  「种子齐备 + 容忍残留」，而 e2e 走「先 `db-reset.ps1` 再跑」的流程，计数与 mock 基线一致。
+- **T9 遗留（仍是 mock 驱动，e2e 不依赖）**：求职者端「职位列表 / 详情」（`JobsView` 用
+  `filterJobsSync`）、分类字典（组件直接用 `mock/categories`）、求职者消息会话（`store/pinliao.ts`），
+  以及 HR「发消息」入口（`ensureConversationForApplication` 真实分支直接抛 42210，后端已在投递时自动建会话）。
+  是否切换待用户拍板（`AI-CONTINUE.md` §6.18 末尾 / §9）。
 - localStorage 键：求职者 `pinliao.v3`、认证 `pinliao.auth.v1`、token `pinliao.accessToken` / `pinliao.refreshToken`。
 - `AGENTS.md` / `CLAUDE.md` 由 `next dev` 自动维护（只管理 `<!-- BEGIN:nextjs-agent-rules -->` 区块，
   其余内容安全保留）；提交时一并带上可保持工作区干净。
@@ -298,25 +322,34 @@
 
 ## 7. 运行命令与测试结果
 
-### 7.1 前端（2026-10-16 实测）
+### 7.1 前端（2026-10-19 实测：Mock 基线 + 真实后端联调）
 
 ```powershell
+# —— Mock 基线（USE_MOCK=true，不依赖后端）——
 npm run dev            # 端口 3000；另开终端保持运行
-npm run e2e            # 端到端验收（需 dev server）；本轮：63/63 通过，Chrome 26 → 26 未受影响
-npx tsc --noEmit       # 本轮：仅 3 个既有错误，新文件零错误
+npm run e2e            # 端到端验收（需 dev server）；Mock 基线 63/63
+npx tsc --noEmit       # 仅 3 个既有错误，新文件零错误
 npm run lint           # ESLint（存量告警见 §6.1）
 npm run build          # 生产构建（需 Google Fonts 可达；构建脚本自带产物自检）
 npm start              # 生产启动（node .next/standalone/server.js；可用 $env:PORT 换端口）
+
+# —— 真实后端联调（Step 3 T9 起）——
+cd backend; .\scripts\db-reset.ps1   # 每轮 e2e 前：止后端 → 清库重迁 → Redis FLUSHALL → 起后端 → 等 health
+cd ..
+npm run dev            # .env.local 已置 NEXT_PUBLIC_USE_MOCK=false / API_BASE_URL=/api/v1；改后必须重启
+npm run e2e            # 真实后端下 63/63（2026-10-19 连续两轮通过）
 ```
 
-可覆盖的环境变量：`npm run e2e` 支持 `BASE_URL` / `CHROME_PATH` / `CDP_PORT`。
+可覆盖的环境变量：`npm run e2e` 支持 `BASE_URL` / `CHROME_PATH` / `CDP_PORT`；
+`next.config.ts` 代理目标支持 `API_PROXY_TARGET`（默认 `http://localhost:8080`）。
 
-### 7.2 后端 `backend/`（2026-10-19 实测，Step 3 T0 + T2a + T1 + T2b + T3a + T3b + T4 + T5 + T6 + T7 + T8）
+### 7.2 后端 `backend/`（2026-10-19 实测，Step 3 T0 + T2a + T1 + T2b + T3a + T3b + T4 + T5 + T6 + T7 + T8 + T9）
 
 ```powershell
 cd backend
 $env:JAVA_HOME='C:\Program Files\JetBrains\IntelliJ IDEA Community Edition 2025.2.6.2\jbr'  # 必设（本机仅 JDK 1.8）
 .\scripts\dev-up.ps1         # 起 MySQL 专用实例 3307 + Redis 6379（首次先 .\scripts\db-init.ps1）
+.\scripts\db-reset.ps1       # 清库重迁（drop+create → Redis FLUSHALL → 起后端 → 等 health UP → 回读基线）
 .\mvnw.cmd spring-boot:run   # 后端 :8080；Ctrl+C 停止（收尾用 .\scripts\dev-down.ps1）
 .\mvnw.cmd test              # 单元测试（包络 / JWT / 种子密码 / 租户策略 / 注册 / 职位 / 职位写 / 字典 / 投递面试 / 公司 / 消息 / 用户 / 简历 / 收藏 / 上传 / 招聘者）
 node scripts\smoke-auth.mjs  # 鉴权接口冒烟（20 项，含注册；需后端已启动）
@@ -346,6 +379,8 @@ node scripts\smoke-recruiter.mjs  # 招聘者模块冒烟（50 项；需后端�
 | 招聘者模块冒烟（`backend/scripts/smoke-recruiter.mjs`） | **50/50 全对，可重复执行**：§4.1 未登录 40101 / 求职者 40301 / HR 画像本人 + 本公司；§4.2 部分更新只改入参、空姓名 42201、空串清空可选字段、还原种子值、越权 40301；§4.3 本公司 7 条种子职位 + 超集字段、`status=OPEN` / `CLOSED` 过滤、非法状态 42201、`q` 标题 / `hrId` 归属筛选、不存在 40410、求职者 40301，并现场创建 `job-new-*` → 关闭 → **HR 可见 CLOSED 而公开详情 40410** → 软删后 HR 详情 40410 → 回到基线；§4.4 6 条种子投递 + 超集字段（候选人 / 职位 / `conversationId` / 面试）、更新倒序、`status=OFFER` / `jobId` / `q=林小满` 过滤、非法状态 42201、越权 40301、面试待确认优先（int-hr-01 PENDING）与次选最近（int-hr-02 COMPLETED）；§4.5 `React` 命中林小满（score 3、证据 `技能 / 个人简介 / 项目经历 · 招聘管理系统前端重构`、片段含「技术栈」）、`COBOL` 空数组、仅标签 `自动化测试` 命中沈禾、多关键词权重倒序、空条件 42210、越权 40301；§4.6 词表 20 条 + 未登录 40101 |
 | 种子抽查（`backend/scripts/verify-seed.ps1`） | **16/16 命中**（注册 `u-reg-*` / `co-reg-*`、T3b `job-new-*`、T4/T6 `app-new-*` / `int-new-*` / `conv-new-*` / `msg-new-*` 均已排除；T7 起 resumes 另排除 `u-reg-*` 与软删行）：flyway v8；companies 16；jobs 51（可见 38 / 云杉 7）；categories 84；cities 9；users 8；resumes 7；投递 6+3；interviews 3；HR 会话 6（未读 4）；求职者会话 2；messages 16 |
 | 数据库抽查（MySQL 3307） | V4~V8 success=1；种子内容与 mock 一致（职位关闭规则 stableHash(id)%4、简历 content JSON 原文、会话 id 序列 conv-hr-1/4/8/11/14/16 等）；T2b 后新增 `u-reg-*` / `co-reg-*` 等注册记录（持久保留） |
+| 清库重迁脚本（`backend/scripts/db-reset.ps1`） | **实测可用**：止端口 8080 后端 → `DROP + CREATE pinliao` → Redis `FLUSHALL` → 起后端 → `/actuator/health` UP（约 8s 含 Maven）→ 回读 `flyway=8 / companies=16 / jobs=51 / applications=9`；随后 `verify-seed.ps1` 16/16 |
+| **前端 e2e（真实后端，`USE_MOCK=false`）** | **63/63 通过，连续两轮（每轮前 `db-reset.ps1`）**：求职者 / HR 全链路、跨端投递→约面→接受、注册与企业认证、零控制台错误（仅豁免「错误密码」用例的 1 条预期 401）、零 hydration 报错；Chrome 进程数前后不变 |
 
 运行数据在 `.local/`（已 gitignore）；MySQL / Redis 起停详见 `backend/README.md` 与 `backend/scripts/`。
 
@@ -373,3 +408,4 @@ node scripts\smoke-recruiter.mjs  # 招聘者模块冒烟（50 项；需后端�
 | v1.15 | 2026-10-18 | Step 3 T7 完成：§2 用户画像 / 密码 / 手机号 / 偏好 / 注销（8 条）+ §3 简历 CRUD / 默认简历（6 条）+ §11 收藏（3 条）+ §12 预签名上传（2 条）；Redis 偏好、软删注销、HR 简历可见性、收藏唯一 / 游标、本地目录 + HMAC 上传；`mvnw test` 151/151、`smoke-user` 64/64（连续两次可重复）、其余冒烟与种子 16/16 无回归；修复 `smoke-messages` 迟到自动回复导致的可重复性抖动；下一步 T8 招聘者 / 候选人 / 人才筛选（§4） |
 | v1.16 | 2026-10-18 | 决策结算：接口账目以正文 70 条为准，总览表已校正为鉴权 7 / 职位 10 / 消息 9（合计 70）；T9 e2e 固定手机号重置策略定为**每轮前清库重迁**；T8 与 T9 先后定为 **T8 先、T9 后**（不引入模块级 Mock 开关，避免二次返工） |
 | v1.17 | 2026-10-19 | Step 3 T8 完成：§4 招聘者模块（§4.1~§4.6，6 条）——HR 画像读改（按 `user_id` 归属，非租户注入表）、我发布的职位（HR 可见 CLOSED + 契约外 `GET /hr/jobs/{jobId}`）、我收到的投递（超集卡片 + 最近面试）、人才筛选（移植 mock 关键词引擎）；出参取「前端超集」口径；`mvnw test` 173/173（151→173）、`smoke-recruiter` 50/50（新增，可重复）、既有六项冒烟与 `verify-seed` 16/16 无回归；下一步 T9 全量联调（切 `USE_MOCK=false`，先落实清库重迁重置脚本） |
+| v1.18 | 2026-10-19 | Step 3 T9 完成：全量联调打通（`USE_MOCK=false`，`npm run e2e` **63/63**，连续两轮）——Next rewrites 代理 `/api/v1`+`/uploads`、`.env.local` 切开关、演示账号一键填入不再被 `USE_MOCK` 隐藏、真实登录补身份校验、列表统一解包 `.list`、HR 详情改走 §4.4、约面试补 `conversationId`、自动回复改定时重取、e2e 精确豁免 1 条预期 401；新增 `db-reset.ps1`（清库重迁 + 清 Redis + 起后端 + 等 health）；§6.3 更新（新增 T9 联调 / 重置脚本 / 遗留清单四条）；遗留：求职者端职位列表 / 分类字典 / 消息会话仍读 mock，待用户拍板是否本轮切换 |

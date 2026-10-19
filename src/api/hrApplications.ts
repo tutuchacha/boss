@@ -11,7 +11,7 @@
  * =====================================================================
  */
 
-import type { Application, Interview, InviteInterviewInput } from '@/types/api'
+import type { Application, Interview, InviteInterviewInput, Message } from '@/types/api'
 import { ApplicationStatusEnum } from '@/types/api'
 import { USE_MOCK } from '@/config/env'
 import { ApiError, request } from './client'
@@ -79,7 +79,10 @@ export async function getHrApplication(
     if (!app) return undefined
     return companyApplicationViews(app.companyId).find(v => v.application.id === applicationId)
   }
-  return request<HrApplicationView>(`/applications/${applicationId}`)
+  // 后端 §4.4 列表出参就是 HrApplicationView 超集（含 candidate / conversationId / interview），
+  // 但契约没有单条详情端点（§9.3 返回的是 ApplicationDetail，形状不同），故取列表后按 id 定位
+  const list = await request<HrApplicationView[]>('/hr/applications', { method: 'GET' })
+  return list.find(v => v.application.id === applicationId)
 }
 
 /**
@@ -145,8 +148,13 @@ export interface InviteInterviewParams {
  * §8.7 约面试（HR 快捷操作）：
  * 创建 Interview 记录 + 更新投递状态为「面试中」+ 发送 INTERVIEW_INVITE 消息。
  * 同一投递已有待确认邀请时拒绝（40915），避免重复约会。
+ *
+ * 返回值：Mock 阶段返回新建的 `Interview`；真实后端该端点返回送达的
+ * `Message`（面试邀请消息），故联合类型标注。
  */
-export async function inviteInterview(params: InviteInterviewParams): Promise<Interview> {
+export async function inviteInterview(
+  params: InviteInterviewParams,
+): Promise<Interview | Message> {
   const { applicationId, invite } = params
 
   if (USE_MOCK) {
@@ -185,7 +193,7 @@ export async function inviteInterview(params: InviteInterviewParams): Promise<In
   if (!params.conversationId) {
     throw new ApiError({ code: 42210, message: '缺少会话上下文，无法发送面试邀请', status: 422 })
   }
-  return request<Interview>(
+  return request<Message>(
     `/conversations/${params.conversationId}/actions/invite-interview`,
     { method: 'POST', body: invite },
   )

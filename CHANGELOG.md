@@ -6,6 +6,53 @@
 
 ---
 
+## [T9] 2026-10-19 — Step 3 T9：全量联调（`USE_MOCK=false`，e2e 63/63）
+
+> 前端切真实后端并逐项修差异；新增清库重迁脚本。`npm run e2e` **63/63（连续两轮）**。
+> 本次提交 hash 见 `git log` 最新一条（结算紧接其后）。
+
+### Added
+
+- **`backend/scripts/db-reset.ps1`**：清库重迁——按 8080 端口止后端 → `DROP + CREATE pinliao`
+  → Redis `FLUSHALL`（清验证码冷却 / refresh token）→ 起后端 → 等 `/actuator/health` UP
+  → 回读 `flyway=8 / companies=16 / jobs=51 / applications=9`；支持 `-NoRestart` / `-KeepRedis`。
+  JDK 探测会校验 major ≥ 17（本机 `JAVA_HOME=D:\JDK1.8` 会让 `maven-shade-plugin` 直接失败）。
+- `.env.local`（**不提交**，`.env*` 已 gitignore）：`NEXT_PUBLIC_USE_MOCK=false` +
+  `NEXT_PUBLIC_API_BASE_URL=/api/v1`。
+- `next.config.ts`：`/api/v1/:path*`、`/uploads/:path*` → `API_PROXY_TARGET`（默认 :8080）的 rewrites
+  （前端只发相对路径，代理顺带避免跨域与上传 URL 拼接）。
+
+### Changed
+
+- `LoginPage.tsx`：**「演示账号（一键填入）」与固定验证码提示不再被 `USE_MOCK` 隐藏**（原型演示需要；
+  隐藏曾让 e2e 连锁失败到 6/61）。
+- `src/api/auth.ts`：真实登录分支补 `assertRoleMatches()`（在 `persistTokens` 之前），
+  与 Mock 分支一致地拦截「身份不匹配」。
+- `src/api/applications.ts`：`listMyApplications` 解包 `{list,pagination}` 并按 `applicationId`
+  合并 §10.1 面试（此前 `interview` 恒为 `null`）。
+- `src/api/hrConversations.ts`：`listHrConversations` / `listHrMessages` 解包 `.list`。
+- `src/api/hrApplications.ts`：`getHrApplication` 改走 §4.4 列表按 id 定位（§9.3 返回
+  `ApplicationDetail`，形状与 HR 详情页不符）；`inviteInterview` 返回类型改 `Interview | Message`。
+- `HrInterviewInvitePage.tsx`：约面试透传 `conversationId`（§8.7 路径必需）。
+- `HrChatPage.tsx`：真实模式不再调 Mock 专用的 `replyAsCandidate`，改为 1200ms / 2600ms
+  定时重取（后端 `ConversationAutoReplyService` 约 1.2s 后写入自动回复）。
+- `tests/e2e-verify.cjs`：质量门禁**只豁免 1 条**「错误密码」用例必然触发的 401
+  （浏览器对失败响应必记录，属契约内预期行为）；Mock 模式下无此日志，行为不变。
+
+### Verification
+
+- 前端 `npm run e2e`：**63/63**（真实后端，连续两轮，每轮前 `db-reset.ps1`）；`npx tsc --noEmit`
+  仍仅 3 个既有错误。
+- 后端未改代码：`mvnw test` 173/173、七项冒烟（20/49/51/26/40/64/50）与 `verify-seed` 16/16 不变。
+
+### Docs
+
+- 新增 `ARCHITECTURE.md` §7「后端实现（Step 3）」（技术栈 / 包结构 / 多租户 / 鉴权 / WS / 上传 / T9 对接）；
+  `PROGRESS.md` v1.18、`docs/step3-plan.md` v1.13、`docs/AI-CONTINUE.md` v1.20（新增 §6.18 十四条联调坑，
+  更新 §6.11 / §6.13 / §9）、`backend/README.md`（脚本与基线）、`AGENTS.md` §0/§1、`worklog.md`。
+
+---
+
 ## [9cf3ae0] 2026-10-19 — Step 3 T8：招聘者 / 候选人 / 人才筛选（§4）
 
 > 契约 §4 共 6 条；补齐 HR 画像、我发布的职位、我收到的投递与人才筛选（关键词版）。

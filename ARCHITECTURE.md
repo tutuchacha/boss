@@ -5,7 +5,7 @@
 > **框架无关目标架构**（未来 Spring Boot 后端 + 多租户方案），本文件是**验收版现状**。
 > 两者冲突时，本文件描述现状、`docs/architecture.md` 描述目标。
 >
-> 最后更新：2026-10-16 · 对应已提交基线 `af6197e`（五项验收功能 + 人才筛选演示增量，`npm run e2e` 63/63）
+> 最后更新：2026-10-19 · 前端基线 `npm run e2e` 63/63；Step 3 后端 T0~T9 已落地并完成全量联调（见 §7）
 
 ---
 
@@ -254,10 +254,91 @@ HR 端统一 Query。新增求职者端页面时优先 Query，不要扩大同�
 
 ---
 
-## 7. 修订记录
+## 7. 后端实现（Step 3，`backend/`）
+
+> 2026-10-19（T9）起前端可切 `NEXT_PUBLIC_USE_MOCK=false` 直连该后端：
+> `npm run e2e` 在**真实后端**下 **63/63**（连续两轮，每轮前先清库重迁）。
+> 目标架构（多租户 / 分库演进）见 [`docs/architecture.md`](./docs/architecture.md)，本节只描述现状。
+
+### 7.1 技术栈与本地运行
+
+- Spring Boot **3.5.16**（Java **21**，用 IDEA 自带 JBR；本机系统 JDK 1.8 不可用）+ MyBatis-Plus
+  （分页插件 / 租户插件 / created·updated 自动填充）+ MySQL 8.0.29（**项目专用实例 3307**）+
+  Redis **6379** + Flyway（`V1`~`V8`）+ springdoc（`/v3/api-docs`）。
+- 运行数据都在 `.local/`（gitignore）：`backend/scripts/dev-up.ps1` / `dev-down.ps1` 起停 MySQL + Redis；
+  `db-reset.ps1` 清库重迁（drop + create → Redis FLUSHALL → 起后端 → 等 health）；后端 `:8080`。
+- 统一响应包络 `{code, message, data, traceId}`；错误码 5 位、前 3 位对应 HTTP 状态
+  （如 `40110` → 401、`40410` → 404、`42201` → 422）。
+
+### 7.2 包结构（`com.pinliao.backend`）
+
+```
+auth/        登录（密码 / 短信）、注册、刷新、退出、me；JWT + Redis refresh 白名单
+user/        §2 画像 / 密码 / 手机号 / 偏好（Redis）/ 注销
+resume/      §3 简历 CRUD / 默认简历
+job/         §6 职位公开读（列表 / 搜索 / 详情 / 相似 / 埋点）+ HR 职位写 + §4.3 我发布的职位
+dict/        §7 分类树 / 城市 / 字典（由 mock 脚本生成种子）
+application/ §9 投递 + §10 面试 + §8.7 约面试（状态机 / 归属隔离）
+company/     §5 公司公开信息 / 我的公司 / 资料编辑 / 成员 / 企业认证（异步自动通过）
+message/     §8 会话 / 消息 / 未读 + WebSocket（STOMP）+ 自动回复
+recruiter/   §4.1/§4.2 HR 画像 + §4.4 我收到的投递 + §4.5/§4.6 人才筛选（关键词引擎）
+favorite/    §11 收藏；upload/ §12 预签名上传
+common/      api（包络 / 错误码 / 分页）/ 租户 / 安全 / 异常
+config/      拦截器 / MyBatis-Plus / Redis / WebSocket / 上传目录等装配
+demo/        `_demo` 调试接口（保留）
+```
+
+### 7.3 多租户与数据边界
+
+- 表都带 `company_id` 租户列；MyBatis-Plus `TenantLineInnerInterceptor` 对 HR 端查询注入
+  `company_id`，求职者侧（跨租户）不注入 → **查询必须显式过滤 `user_id`**。
+- 少数表**不在**注入集合内（如 `hr_profiles` 按 `user_id` 唯一、`flyway_schema_history`）：
+  写这类查询前先读 `docs/AI-CONTINUE.md` §6.9 / §6.17。
+- 归属隔离统一 `40410`（不存在 / 非本人 / 非本公司，不泄露存在性）；角色不符才是 `40301`。
+- 新记录 id 一律**递增派生**（`job-new-{seq}` / `app-new-{seq}` / `int-new-{seq}` / `conv-new-{seq}` /
+  `msg-new-{seq}`），序号查询需 `@InterceptorIgnore(tenantLine="true")`。
+
+### 7.4 鉴权与会话
+
+- 登录返回 `accessToken`（JWT HS256，2h）+ `refreshToken`（Redis 白名单，30d，一次性轮换）。
+- 拦截器默认保护 `/api/v1/**`；白名单：`auth/sms|login|refresh|register`、`_demo`、公开只读路径
+  （职位 / 公司 / 分类字典，带 token 时仍解析身份用于推荐加权）。
+- 演示语义：验证码固定 `123456`（同手机号 60s 限流）；HR 注册自动建未认证公司
+  `新注册企业-{手机尾4}` + ADMIN 成员。
+
+### 7.5 消息与 WebSocket
+
+- 会话 / 消息落库（`conversations` / `messages`），未读计数以数据库为事实源。
+- WebSocket 端点 `/ws`（STOMP，握手带 `token`）：`/user/queue/messages`、`/user/queue/typing`、
+  `/topic/conversation/{id}/typing`、错误 `/user/queue/errors`。
+- TEXT 双向自动回复延迟约 **1.2s**（`pinliao.message.auto-reply-delay-ms`）。
+  ⚠️ **前端当前不建立 WS 连接**（T9 结论）：HR 聊天页用「定时重取」兜住自动回复。
+
+### 7.6 上传
+
+- 预签名：`POST /uploads/sign` → HMAC 签名 `PUT /api/v1/uploads/local/{objectKey}` → 确认后返回
+  `/uploads/{objectKey}`；默认目录 `backend/target/uploads`（`PINLIAO_UPLOAD_DIR` 可覆盖）。
+- 前端**不需要**拼绝对地址：`next.config.ts` 已把 `/uploads/**` 代理到后端。
+
+### 7.7 前后端对接（T9 结论）
+
+- `next.config.ts` rewrites：`/api/v1/:path*` 与 `/uploads/:path*` → `API_PROXY_TARGET`
+  （默认 `http://localhost:8080`）。前端 `src/api/client.ts` 只发相对路径，故**不需要**绝对 URL / CORS。
+- 开关在 `.env.local`（gitignore）：`NEXT_PUBLIC_USE_MOCK=false` + `NEXT_PUBLIC_API_BASE_URL=/api/v1`；
+  改后必须重启 dev server（`NEXT_PUBLIC_*` 构建期内联）。
+- 列表统一 `{list, pagination:{nextCursor, hasMore, total}}`；时间统一 ISO-8601 UTC；枚举用枚举名字符串。
+- 验收：`mvnw.cmd test` **173/173**；冒烟 `smoke-auth` 20 / `smoke-jobs` 49 / `smoke-applications` 51 /
+  `smoke-company` 26 / `smoke-messages` 40 / `smoke-user` 64 / `smoke-recruiter` 50；`verify-seed` 16/16；
+  前端 `npm run e2e` **63/63**。
+- 仍是 mock 驱动的前端路径（求职者职位列表 / 分类字典 / 消息会话）：见 `PROGRESS.md` §6.3。
+
+---
+
+## 8. 修订记录
 
 | 版本 | 日期 | 变更 |
 | --- | --- | --- |
 | v1.0 | 2026-10-16 | 首版：按工作区实况记录技术栈、运行时结构、目录、模块关系、约定与已知限制 |
 | v1.1 | 2026-10-16 | 五项验收功能完成：补录候选人 / 投递 / 面试 / 验证码 / 公司资料认证相关页面与模块 |
 | v1.2 | 2026-10-16 | 人才筛选（演示版）增量：运行时总览 / 目录 / Mock 模块图接入；§6.5 记录关键词匹配边界与语义升级路径 |
+| v1.3 | 2026-10-19 | 新增 §7「后端实现（Step 3，`backend/`）」：技术栈与本地运行、包结构、多租户与数据边界、鉴权与会话、WebSocket、上传、T9 前后端对接结论（Next rewrites / 开关 / 出参口径 / 验收数字）；修订记录改为 §8 |

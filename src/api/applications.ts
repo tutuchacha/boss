@@ -39,11 +39,29 @@ export type { SeekerApplicationView }
 /** Mock 阶段的默认简历 id（联调后由简历模块提供真实 id） */
 export const MOCK_RESUME_ID = 'resume-seeker'
 
-/** §9.2 我的投递列表（按更新时间倒序） */
+/** §9.2 我的投递列表（按更新时间倒序）；联调时把 §10.1 的面试按 applicationId 合并回来 */
 export async function listMyApplications(userId: string): Promise<SeekerApplicationView[]> {
   if (USE_MOCK) return seekerApplicationViews(userId)
-  const data = await request<PaginatedData<ApplicationWithJob>>('/applications', { method: 'GET' })
-  return data.list.map(a => ({ application: a, job: a.job, interview: null }))
+
+  const [apps, interviews] = await Promise.all([
+    request<PaginatedData<ApplicationWithJob>>('/applications', { method: 'GET' }),
+    request<PaginatedData<Interview>>('/interviews', { method: 'GET' }),
+  ])
+
+  // 同一投递可能有多条面试（后端已按「待确认优先 + 时间倒序」排序），取第一条作为当前面试
+  const interviewByApp = new Map<string, Interview>()
+  for (const it of interviews.list) {
+    if (!interviewByApp.has(it.applicationId)) interviewByApp.set(it.applicationId, it)
+  }
+
+  return apps.list.map(a => {
+    const { job, ...application } = a
+    return {
+      application: application as Application,
+      job,
+      interview: interviewByApp.get(a.id) ?? null,
+    }
+  })
 }
 
 /** §9.1 投递职位；(userId, jobId) 唯一，重复投递抛 40911 */
