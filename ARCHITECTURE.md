@@ -106,7 +106,7 @@ src/
 │  └─ mock/                  Mock 数据与装配
 │     ├─ bootstrap.ts        打破 jobs ↔ hrJobs 循环依赖的装配点
 │     ├─ jobs.ts / hrJobs.ts / seekerJobs.ts / companies.ts / companyOps.ts
-│     ├─ auth.ts / dict.ts / categories.ts / filter.ts / conversations.ts / hrConversations.ts
+│     ├─ auth.ts / dict.ts / categories.ts / conversations.ts / hrConversations.ts
 │     ├─ candidates.ts       候选人种子（hrConversations 与 applications 共用）
 │     ├─ resumes.ts          简历正文种子（人才筛选检索的数据源）
 │     ├─ applications.ts     投递 / 面试可变数据
@@ -236,12 +236,14 @@ src/
 `prisma/schema.prisma`（19 模型 + 10 枚举）不参与运行：
 无人 `import src/lib/db.ts`，`prisma generate` 非启动前置；生产由后端另维护建表。
 
-### 6.4 求职者端取数方式混用
+### 6.4 求职者端取数方式（T9 后已基本统一）
 
-`JobsView` 走同步 `filterJobsSync()`（`mock/filter.ts`），`JobDetailPage` 走异步
-`getJobDetail()`，投递 / 面试相关页面（`MyApplicationsPage` 等）走 TanStack Query；
-HR 端统一 Query。新增求职者端页面时优先 Query，不要扩大同步 Mock 的适用范围
-（参照 `docs/AI-CONTINUE.md` §7.5 对照表）。
+职位列表（`JobsView` → `listJobs()`）、职位详情（`getJobDetail()`）、投递 / 面试相关页面
+（`MyApplicationsPage` 等）现在都走 TanStack Query + `src/api/*` 的「Mock / 真实」双分支；
+原先同步 Mock 的 `mock/filter.ts` 已删除（T9 追加）。仍走 store 同步数据的是
+**分类字典**（`CATEGORY_LIST` / `SUB_LIST_OF` 常量）与**求职者消息会话**
+（`store/pinliao.ts` 的 `conversations` / `messagesByConv`）——这两块是 T10 的候选改造项。
+新增求职者端页面时一律用 Query，不要新增同步 Mock 取数。
 
 ### 6.5 人才筛选为关键词匹配（演示版，非语义检索）
 
@@ -330,7 +332,9 @@ demo/        `_demo` 调试接口（保留）
 - 验收：`mvnw.cmd test` **173/173**；冒烟 `smoke-auth` 20 / `smoke-jobs` 49 / `smoke-applications` 51 /
   `smoke-company` 26 / `smoke-messages` 40 / `smoke-user` 64 / `smoke-recruiter` 50；`verify-seed` 16/16；
   前端 `npm run e2e` **63/63**。
-- 仍是 mock 驱动的前端路径（求职者职位列表 / 分类字典 / 消息会话）：见 `PROGRESS.md` §6.3。
+- 仍是 mock 驱动的前端路径（求职者分类字典 / 消息会话）：见 `PROGRESS.md` §6.3。
+- 求职者职位列表 / 详情已切真实（T9 追加）：`JobsView` 用 `listJobs()`（`GET /jobs`，`limit=100`、
+  计数取后端 `pagination.total`），HR 发布 / 编辑 / 关闭职位对求职者立即生效。
 
 ---
 
@@ -342,3 +346,4 @@ demo/        `_demo` 调试接口（保留）
 | v1.1 | 2026-10-16 | 五项验收功能完成：补录候选人 / 投递 / 面试 / 验证码 / 公司资料认证相关页面与模块 |
 | v1.2 | 2026-10-16 | 人才筛选（演示版）增量：运行时总览 / 目录 / Mock 模块图接入；§6.5 记录关键词匹配边界与语义升级路径 |
 | v1.3 | 2026-10-19 | 新增 §7「后端实现（Step 3，`backend/`）」：技术栈与本地运行、包结构、多租户与数据边界、鉴权与会话、WebSocket、上传、T9 前后端对接结论（Next rewrites / 开关 / 出参口径 / 验收数字）；修订记录改为 §8 |
+| v1.4 | 2026-10-19 | T9 追加：求职者职位列表切真实（`JobsView` → `listJobs()`），删除 `mock/filter.ts`；§3 目录树去掉 `filter.ts`、§6.4 改为「取数方式已基本统一」、§7.7 补该结论 |

@@ -11,10 +11,11 @@
  */
 'use client'
 
-import { useMemo } from 'react'
 import { Search, ChevronDown, SlidersHorizontal } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
 import { usePinliaoStore, CATEGORY_LIST, SUB_LIST_OF, activeFilterCount } from '@/store/pinliao'
-import { filterJobsSync } from '@/api/mock/filter'
+import { listJobs } from '@/api/jobs'
+import type { SalaryRangeKey } from '@/types/api'
 import { JobRow } from './JobRow'
 import { cn } from '@/lib/utils'
 
@@ -29,22 +30,28 @@ export function JobsView() {
   const favorites = usePinliaoStore(s => s.favorites)
   const profile = usePinliaoStore(s => s.profile)
 
-  // mock 模式下用 filterJobsSync 同步取；联调阶段切到 useQuery，组件无需改动
-  const list = useMemo(
-    () =>
-      filterJobsSync({
+  /**
+   * 职位列表：Mock 与真实后端共用 `listJobs()`（T9 起真实分支走 `GET /jobs`）。
+   * `limit=100` 是演示规模（可见 38 条）下单页取全；展示条数以后端 `total` 为准，
+   * 这样筛选 / 搜索后的「共 N 个职位」与真实库一致（HR 关闭 / 新建职位会立即反映）。
+   */
+  const { data, isPending } = useQuery({
+    // 期望岗位参与加权（Mock 分支读 localStorage，真实分支由后端读库），故纳入 queryKey 以便改动后重排。
+    queryKey: ['jobs', 'list', filters, profile.expectCat, profile.expectSub],
+    queryFn: () =>
+      listJobs({
         q: filters.q,
         city: filters.city,
         cat: filters.cat,
         sub: filters.sub,
         exp: filters.exp,
-        sal: filters.sal as never,
+        sal: filters.sal as SalaryRangeKey,
         sort: filters.sort,
-        expectCat: profile.expectCat,
-        expectSub: profile.expectSub,
+        limit: 100,
       }),
-    [filters, profile.expectCat, profile.expectSub],
-  )
+  })
+  const list = data?.list ?? []
+  const total = data?.pagination.total ?? 0
 
   const subList = filters.cat === '全部' ? [] : SUB_LIST_OF(filters.cat)
   const filterBadge = activeFilterCount({ filters } as never)
@@ -140,7 +147,9 @@ export function JobsView() {
 
       {/* ====== 列表 ====== */}
       <div className="pl-scroll flex-1 overflow-y-auto bg-background">
-        {list.length === 0 ? (
+        {isPending ? (
+          <div className="px-4 py-10 text-center text-xs text-pl-sub">加载中…</div>
+        ) : list.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-3 px-8 py-20 text-center">
             <p className="text-sm font-medium text-foreground">没有符合条件的职位</p>
             <p className="text-xs text-pl-sub">换个关键词，或放宽筛选条件试试。</p>
@@ -166,7 +175,7 @@ export function JobsView() {
         ) : (
           <>
             <div className="px-4 py-1.5 text-[11px] text-pl-sub">
-              共 {list.length} 个职位
+              共 {total} 个职位
               {filters.sort === 'latest'
                 ? '，按发布时间排序'
                 : `，优先展示「${profile.expectSub}」相关`}

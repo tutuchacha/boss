@@ -69,7 +69,7 @@ npm run dev          # 端口 3000
 | Step 1 前端开发（Next.js + Mock） | ✅ 完成 | `src/components/pinliao/`、`src/api/`、`src/store/` |
 | Step 2 前端验收 | ⏳ 进行中 | 五项验收功能已完成，并新增人才筛选演示增量；e2e 63/63 通过；**用户人工验收初步通过（2026-10-16）**；待确认 §9 待决事项 |
 | Step 3 后端（Spring Boot） | 🔄 进行中 | `backend/`（Spring Boot 3.5.16）：T0 骨架 ✅、T2a 鉴权 ✅（2026-10-17）、T1 全量表 + 演示种子 ✅、T2b 注册 ✅、T3a 职位公开读 + 分类字典 ✅、T3b HR 职位写 ✅、T4 投递与面试闭环 ✅、T5 公司模块 + 企业认证 ✅、T6 消息 + WebSocket ✅、T7 用户 / 简历 / 收藏 / 上传 ✅（2026-10-18）、T8 招聘者 / 候选人 / 人才筛选 ✅（2026-10-19）、**T9 全量联调 ✅（2026-10-19，`USE_MOCK=false` 下 `npm run e2e` 63/63，连续两轮通过）**；进度与实测以 `../PROGRESS.md` §7.2 为准 |
-| Step 4 联调 | ✅ 基本完成 | 前端已切真实后端（`.env.local`：`NEXT_PUBLIC_USE_MOCK=false`，`API_BASE_URL=/api/v1` 经 Next rewrites 代理到 :8080）；**遗留**：求职者端「职位列表 / 分类字典 / 消息会话」仍读 mock，HR「发消息」入口仍为 mock 专用（详见 §6.18 末尾与 §9） |
+| Step 4 联调 | ✅ 基本完成 | 前端已切真实后端（`.env.local`：`NEXT_PUBLIC_USE_MOCK=false`，`API_BASE_URL=/api/v1` 经 Next rewrites 代理到 :8080）；**求职者职位列表 / 详情已切真实**（`listJobs` → `GET /jobs`）；遗留：求职者端「分类字典 / 消息会话」仍读 mock，HR「发消息」入口仍为 mock 专用（详见 §6.18 末尾与 §9） |
 
 > ⚠️ **状态快照（2026-10-16）**：五项功能（投递 / 候选人 / 面试、验证码登录 /
 > 注册、公司资料 / 企业认证）已全部接入 UI，并新增人才筛选（演示版）增量；自动化验收
@@ -717,13 +717,22 @@ const { data, isPending } = useQuery({
   并用 `java -version` 解析版本；② PowerShell 7 的 `Invoke-WebRequest` 在响应无 charset 时
   `Content` 是 `byte[]`，`-match '"status":"UP"'` 会永远失败，需 `[Text.Encoding]::UTF8.GetString` 解码；
   ③ 脚本需 **UTF-8 with BOM**（仓库内 `.ps1` 均为 BOM，否则 PS 5.1 下中文输出乱码）。
-- **仍是 Mock 驱动的真实分支（T9 遗留，e2e 通过但不等于全链路真实）**：
-  ① 求职者职位列表 / 详情（`JobsView` 用 `filterJobsSync`，`jobs.ts#listJobs` 真实分支无人调用）；
-  ② 分类字典（组件直接用 `mock/categories`，`categories.ts` 真实分支无人调用）；
-  ③ 求职者消息 / 会话（`store/pinliao.ts` 读 mock，`conversations.ts` 真实分支无人调用）；
-  ④ HR 侧 `ensureConversationForApplication`（真实分支直接抛 42210，后端在投递时已自动建会话，
-  HR「发消息」入口需改用它）。
-  切这些路径前先评估 e2e 的跨端断言（依赖前端「关闭 / 新建职位联动」的 mock 合成逻辑）。
+- **求职者职位列表已切真实（T9 追加，2026-10-19）**：`JobsView` 原来用 `filterJobsSync`（`mock/filter.ts`，
+  纯同步 mock 过滤）**绕过了 `listJobs` 的真实分支**，导致真实模式下 HR 发布 / 关闭职位对求职者无效。
+  现改为 `useQuery(['jobs','list',filters,expectCat,expectSub], () => listJobs({..., limit:100}))`，\n  `mock/filter.ts` 已删除（`expectCat/expectSub` 入 key 是为了改动求职期望后自动重排：\n  Mock 分支读 localStorage 的 profile，真实分支由后端读库）。
+  两个口径细节：① 演示规模要一次取全，必须显式 `limit=100`（后端默认 20、上限 100）；
+  ② 「共 N 个职位」用后端 `pagination.total`，不要用 `list.length`（否则只显示当页条数）。
+  后端 `q` 已同时匹配 `title / 公司名 / cat / sub / tags / area`，与 mock 的 haystack 一致，故
+  「搜索公司名」在真实模式下同样可用。
+- **仍是 Mock 驱动的真实分支（T9 剩余遗留，e2e 通过但不等于全链路真实）**：
+  ① 分类字典（组件直接用 store 的 `CATEGORY_LIST` / `SUB_LIST_OF`，`categories.ts` 真实分支无人调用；
+  后端 `/dict` 种子与 mock 同源，切了无可观测收益）；
+  ② 求职者消息 / 会话（`store/pinliao.ts` 读 mock 播种，`conversations.ts` 真实分支不回写 store →
+  真实模式「立即沟通」后的会话可能显示不存在）；
+  ③ HR 侧 `ensureConversationForApplication`（真实分支直接抛 42210，后端在投递时已自动建会话，
+  HR「发消息」入口改为复用 §4.4 卡片的 `conversationId` 即可）。
+  ②③ 需要把 store 的会话模型改成 TanStack Query（未读 / 乐观发送 / 自动回复），且 e2e 对求职者消息页
+  **零覆盖**——建议独立一轮（T10）并先补断言再动代码。
 
 ---
 
@@ -803,7 +812,7 @@ HR 新建 → 追加。
 | 招聘者端桌面 Web 后台布局 | 当前仅移动端布局 |
 | T8 / T9 先后（已定） | **先 T8 后 T9**（2026-10-18 用户拍板）：先补齐 §4 再整体切 `USE_MOCK=false`；`USE_MOCK` 无模块级粒度，先 T8 可避免二次返工 |
 | T9 演示库重置策略（已定，已落地） | 每轮 e2e 前清库重迁（重建 + Flyway V1~V8），固定手机号 `13900004321` 可反复使用；脚本 **`backend/scripts/db-reset.ps1` 已落地并实测**（2026-10-19，含停后端 / 清 Redis / 等 health） |
-| T9 遗留的真实分支（**待确认**） | 求职者端「职位列表 / 分类字典 / 消息会话」仍读 mock（`jobs.ts#listJobs`、`categories.ts`、`conversations.ts` 真实分支无调用方），HR「发消息」入口仍走 mock 专用 `ensureConversationForApplication`。e2e 63/63 不依赖它们，是否本轮切真实、以及优先级，请用户拍板（详见 §6.18 末尾） |
+| T9 遗留的真实分支（**部分已定 / 部分待确认**） | **已切**：求职者职位列表 / 详情（`JobsView` → `listJobs`，2026-10-19 用户选 A）。**仍待定**：求职者「分类字典 / 消息会话」，HR「发消息」入口——e2e 63/63 不依赖它们；建议独立一轮（T10），先补求职者消息页断言再切（详见 §6.18 末尾） |
 | §4.3 / §4.4 出参口径（已定） | **给前端超集**（2026-10-18 用户拍板）：`HrJobRecord[]` / `HrApplicationView[]`，而非契约文字的 `Job[]` / `ApplicationWithJob[]`，换取 T9 前端零适配 |
 | §4.3 / §4.4 契约外参数（已定） | **接受为可选扩展参数**（2026-10-18 用户拍板）：§4.3 的 `q` / `hrId`、§4.4 的 `q`；`cursor` 保留但未启用 |
 | 是否自托管字体摆脱 Google Fonts 构建依赖 | `next/font/local` |
@@ -837,3 +846,4 @@ HR 新建 → 追加。
 | v1.18 | 2026-10-18 | 顺序拍板：**T8 先、T9 后**（§9 记为已定，§6.16 同步）；`USE_MOCK` 为全局开关，T9 前必须补齐 §4 |
 | v1.19 | 2026-10-19 | Step 3 T8：招聘者 / 候选人 / 人才筛选（§4.1~§4.6）落地——HR 画像读改（`hr_profiles` 非租户注入表，按 `user_id` 归属）、我发布的职位（HR 可见 CLOSED + 契约外 `GET /hr/jobs/{jobId}`）、我收到的投递（超集卡片 + 最近面试）、人才筛选（移植 mock 关键词引擎）；补 §6.17，§9 补两条已定口径（超集出参 / 扩展参数），§2 状态推进到「下一步 T9」 |
 | v1.20 | 2026-10-19 | Step 3 T9：全量联调打通（`USE_MOCK=false`，`npm run e2e` **63/63**，连续两轮通过）——`next.config.ts` 加 `/api/v1` `/uploads` rewrites、`.env.local` 切开关、演示账号一键填入不再被 `USE_MOCK` 隐藏、真实登录分支补身份校验、列表统一解包 `.list`、HR 详情改走 §4.4、约面试补 `conversationId`、自动回复改定时重取、e2e 精确豁免 1 条预期 401；新增 `backend/scripts/db-reset.ps1`（清库重迁 + 清 Redis + 重启后端 + 等 health）；补 §6.18（14 条联调坑）、§6.11/§6.13 更新、§9 增「T9 遗留真实分支」待确认项 |
+| v1.21 | 2026-10-19 | T9 追加（用户选 A）：**求职者职位列表切真实**——`JobsView` 改 `useQuery + listJobs()`（`GET /jobs`，`limit=100` 单页取全、计数用 `pagination.total`），删除 `src/api/mock/filter.ts`；HR 发布 / 编辑 / 关闭职位在真实模式下对求职者立即生效。§6.18 新增该条坑（limit 默认 20 / 计数用 total / q 已含公司名），遗留清单更新为「分类字典 / 消息会话 / HR 发消息」；§9 改为「部分已定」 |
