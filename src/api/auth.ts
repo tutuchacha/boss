@@ -93,6 +93,22 @@ export class RoleMismatchError extends ApiError {
 }
 
 /**
+ * 身份校验（真实分支专用）：账号真实角色与登录页所选身份不一致时抛
+ * RoleMismatchError。
+ *
+ * 必须在 persistTokens / 写 store **之前**调用：若先写登录态，RootGate 会立刻
+ * 卸载登录页去渲染工作台，提示永远来不及显示（AGENTS §2.3）。
+ */
+function assertRoleMatches(result: LoginResult, expectRole?: RoleEnum): void {
+  if (!expectRole) return
+  const actualRole: RoleEnum =
+    result.user.role === RoleEnum.HR ? RoleEnum.HR : RoleEnum.JOB_SEEKER
+  if (actualRole !== expectRole) {
+    throw new RoleMismatchError(actualRole)
+  }
+}
+
+/**
  * 密码登录。
  * @param input      账号密码
  * @param expectRole 期望身份（登录页所选）。与账号真实角色不符时抛
@@ -149,6 +165,7 @@ export async function loginWithPassword(
     body: input,
     noAuth: true,
   })
+  assertRoleMatches(result, expectRole)
   persistTokens(result)
   return result
 }
@@ -254,6 +271,7 @@ export async function loginWithSms(
     body: input,
     noAuth: true,
   })
+  assertRoleMatches(result, expectRole)
   persistTokens(result)
   return result
 }

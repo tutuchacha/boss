@@ -94,6 +94,8 @@ export function HrInterviewInvitePage({ applicationId }: Props) {
     try {
       await inviteInterview({
         applicationId,
+        // 真实后端按会话发邀请（§8.7 路径带 conversationId），由投递卡片超集带出
+        conversationId: view?.conversationId,
         invite: {
           scheduledAt: when.toISOString(),
           format,

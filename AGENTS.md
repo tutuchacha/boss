@@ -20,14 +20,14 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 聘聊 = Boss 直聘模式招聘平台原型（求职者端 + HR 端双端 H5），Next.js 16 + Tailwind 4 + Zustand +
 TanStack Query，数据全部为前端 Mock。当前处于 **Step 2 前端验收**：五项验收功能（投递 / 候选人 /
 面试、验证码登录 / 注册、公司资料 / 企业认证）已完成，并新增**人才筛选（演示版）**
-增量，`npm run e2e` **63/63** 通过；用户人工验收初步通过（2026-10-16）。Step 3 后端已开工：**T0 ✅（骨架）、T2a ✅（鉴权：验证码 / 密码·短信登录 / 刷新 / 退出 / me）、T1 ✅（V3 全量业务表 + V4~V8 演示种子）、T2b ✅（注册：§1.2，HR 自动建未认证公司，2026-10-18）、T3a ✅（职位公开读 + 分类字典：§6.1~§6.4/§6.9 + §7，2026-10-18）、T3b ✅（HR 职位写：§6.5~§6.8，2026-10-18）、T4 ✅（投递与面试闭环：§9/§10 + §8.7，2026-10-18）、T5 ✅（公司模块 + 企业认证：§5，2026-10-18）、T6 ✅（消息 + WebSocket：§8，2026-10-18）、T7 ✅（求职者 / 简历 / 收藏 / 上传：§2/§3/§11/§12，2026-10-18）、T8 ✅（招聘者 / 候选人 / 人才筛选：§4，2026-10-19）**，`backend/` + MySQL 3307 / Redis 6379 专用实例，当前 **T9 全量联调（切 `USE_MOCK=false`，目标 `npm run e2e` 63/63）**，计划见 `docs/step3-plan.md`。
+增量，`npm run e2e` **63/63** 通过；用户人工验收初步通过（2026-10-16）。Step 3 后端已开工：**T0 ✅（骨架）、T2a ✅（鉴权：验证码 / 密码·短信登录 / 刷新 / 退出 / me）、T1 ✅（V3 全量业务表 + V4~V8 演示种子）、T2b ✅（注册：§1.2，HR 自动建未认证公司，2026-10-18）、T3a ✅（职位公开读 + 分类字典：§6.1~§6.4/§6.9 + §7，2026-10-18）、T3b ✅（HR 职位写：§6.5~§6.8，2026-10-18）、T4 ✅（投递与面试闭环：§9/§10 + §8.7，2026-10-18）、T5 ✅（公司模块 + 企业认证：§5，2026-10-18）、T6 ✅（消息 + WebSocket：§8，2026-10-18）、T7 ✅（求职者 / 简历 / 收藏 / 上传：§2/§3/§11/§12，2026-10-18）、T8 ✅（招聘者 / 候选人 / 人才筛选：§4，2026-10-19）、T9 ✅（全量联调：`.env.local` 切 `USE_MOCK=false`，真实后端下 `npm run e2e` 63/63，2026-10-19）**，`backend/` + MySQL 3307 / Redis 6379 专用实例；**当前联调态**：前端经 `next.config.ts` rewrites 代理 `/api/v1` 与 `/uploads` 到 :8080，每轮 e2e 前先跑 `backend/scripts/db-reset.ps1` 清库重迁；遗留待用户拍板（求职者端职位列表 / 分类字典 / 消息会话仍读 mock），计划见 `docs/step3-plan.md`。
 演示账号：`13800000001`（求职者）/ `13800000002`（HR），密码均 `123456`；短信验证码固定 `123456`。
 
 ## 1. 运行与验收（统一用 npm，不用 bun）
 
 ```powershell
-npm run dev          # dev server，端口 3000（e2e 需要它常驻）
-npm run e2e          # 端到端验收（tests/e2e-verify.cjs）；基线 63/63
+npm run dev          # dev server，端口 3000（e2e 需要它常驻）；联调态读取 .env.local 的 USE_MOCK=false
+npm run e2e          # 端到端验收（tests/e2e-verify.cjs）；Mock 基线 63/63，真实后端下同为 63/63
 npx tsc --noEmit     # 类型检查；基线仅 3 个既有错误（见 §3）
 npm run lint         # ESLint
 npm run build        # 生产构建（需能访问 Google Fonts）
@@ -39,6 +39,7 @@ npm run build        # 生产构建（需能访问 Google Fonts）
 cd backend
 $env:JAVA_HOME='C:\Program Files\JetBrains\IntelliJ IDEA Community Edition 2025.2.6.2\jbr'  # 必设：本机系统仅 JDK 1.8
 .\scripts\dev-up.ps1        # 起 MySQL 专用实例 3307 + Redis 6379（首次先 .\scripts\db-init.ps1）
+.\scripts\db-reset.ps1      # T9 起：清库重迁（drop+create → Redis FLUSHALL → 起后端 → 等 health UP）
 .\mvnw.cmd spring-boot:run  # 后端 :8080；收工用 .\scripts\dev-down.ps1
 .\mvnw.cmd test             # 单元测试（包络 / JWT / 种子密码 / 租户策略 / 注册 / 职位 / 职位写 / 字典 / 投递面试 / 公司 / 消息 / 用户 / 简历 / 收藏 / 上传 / 招聘者；基线 173/173）
 node scripts\smoke-auth.mjs # 鉴权接口冒烟（T2a/T2b 起；需后端已启动，20 项含注册）

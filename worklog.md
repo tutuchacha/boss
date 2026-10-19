@@ -1203,3 +1203,59 @@ Stage Summary:
 - T8 完成：§4.1~§4.6 六条全部落地，「HR 可见已关闭职位」「超集出参」「关键词匹配与证据片段」均已实证；
   单测 173/173、招聘者冒烟 50/50，其余冒烟与种子 16/16 无回归；前端 e2e 63/63 基线未动。
 - 下一步：T9 全量联调——先落地「清库重迁」重置脚本，再切 `USE_MOCK=false`，逐项修差异至 e2e 63/63。
+
+---
+
+Task ID: 30
+Agent: orchestrator (main)
+Task: Step 3 T9 — 全量联调（切 `USE_MOCK=false`，目标 `npm run e2e` 63/63）
+
+Work Log:
+- 前置（用户拍板后开工）：
+  - 顺序为「先 T8 后 T9」（2026-10-18 已定），本轮直接把前端整体切到真实后端。
+  - 开始前先做差异侦察：`next.config.ts` 无 `/api/v1` 代理、7 个 service 真实分支与后端出参不符；
+    另派 explore 子代理做「前端真实分支 × 后端 view/DTO」逐条核对（产出 M1~M7 必改 + N1~N9 可缓）。
+- 联调底座：
+  - `next.config.ts` 加 rewrites：`/api/v1/:path*` 与 `/uploads/:path*` → `API_PROXY_TARGET`（默认 :8080）。
+    前端 `client.ts` 只发相对路径，代理同时解决跨域与上传 URL 拼接（不必拼绝对地址）。
+  - `.env.local`（不提交）：`NEXT_PUBLIC_USE_MOCK=false`、`NEXT_PUBLIC_API_BASE_URL=/api/v1`。
+  - 新增 `backend/scripts/db-reset.ps1`：按 8080 端口止后端 → `DROP + CREATE pinliao` → Redis `FLUSHALL`
+    → 起后端 → 等 `/actuator/health` UP → 回读 `flyway=8 / companies=16 / jobs=51 / applications=9`；
+    `-NoRestart` / `-KeepRedis` 可调。实测 3 轮可用（含首次踩的 JDK 与 health 解码两个坑）。
+- 修差异（先跑一轮拿实测清单：**6/61**，根因是演示账号区被隐藏）：
+  - 「演示账号（一键填入）」与固定验证码提示原先被 `USE_MOCK &&` 包住，切真实后端整块消失 → e2e 点不到账号，
+    登录失败后 61 项连锁 FAIL。改为**始终展示**（原型演示需要），删掉 `USE_MOCK` 导入。
+  - `auth.ts` 真实分支补 `assertRoleMatches()`（`persistTokens` 之前）：原实现只有 mock 分支校验身份，
+    真实分支用 HR 手机号选「求职者」能直接进 HR 工作台（违反 AGENTS §2.3）。
+  - 列表统一解包 `.list`：`listMyApplications` / `listHrConversations` / `listHrMessages`。
+  - `listMyApplications` 额外按 `applicationId` 合并 §10.1 面试（原真实分支 `interview` 恒为 null）。
+  - `getHrApplication` 改走 §4.4 列表按 id 定位（§9.3 返回 `ApplicationDetail`，与 HR 详情页形状不符）。
+  - `inviteInterview` 返回类型改 `Interview | Message`；`HrInterviewInvitePage` 透传 `conversationId`
+    （§8.7 路径必需，否则 42210）。
+  - `HrChatPage` 真实模式不再调 mock 专用 `replyAsCandidate`（会抛错并跳过收尾逻辑），改为定时重取
+    （1200ms / 2600ms 两次，覆盖后端 1.2s 自动回复；前端未建立 WS 连接）。
+  - `tests/e2e-verify.cjs`：「错误密码被拒绝」用例在真实后端必然产生 1 条 HTTP 401 控制台日志
+    （契约行为），质量门禁**只豁免 1 条**该形态的 401，其余仍失败；Mock 模式无此日志，63 项数不变。
+- 实测：
+  - 前端 `npm run e2e` 真实后端：先 62/63（仅差上述 401），加豁免后 **63/63**；随后「清库重迁 + e2e」
+    再跑一轮仍 **63/63**（连续两轮可重复）。
+  - `npx tsc --noEmit` 仍仅 3 个既有错误；后端代码本轮未改，故 `mvnw test` 173/173 与七项冒烟
+    （20/49/51/26/40/64/50）、`verify-seed` 16/16 保持。
+- 踩坑（已写入 AI-CONTINUE §6.18）：
+  - **演示专用 UI 被全局开关隐藏**是本轮最大坑：排查同类问题先看 `USE_MOCK` 包了什么。
+  - `db-reset.ps1` 三个坑：JDK 探测必须校验 major ≥ 17（本机 `JAVA_HOME=D:\JDK1.8` 会让 shade 插件炸）；
+    PowerShell 7 的 `Invoke-WebRequest` 无 charset 时 `Content` 是 `byte[]`（health 判定需自行解码）；
+    `.ps1` 必须 UTF-8 **with BOM**（仓库约定）。
+  - e2e 可重复的前提是「先重迁再跑」：固定手机号 `13900004321` 已注册会 40910、验证码 60s 冷却会 42901。
+- 文档：新建 `ARCHITECTURE.md` §7「后端实现（Step 3）」（原 §7 修订记录顺延为 §8）；
+  PROGRESS v1.18（§0 快照 / §1 表 / §4 T9 实测 + 遗留 / §6.3 四条 / §7.1 §7.2 命令与结果 / §8）；
+  step3-plan v1.13（T9 行 ✅、§4 T9 实测、§7）；AI-CONTINUE v1.20（§2 状态、§6.11、§6.13、新增 §6.18
+  十四条、§9 补「T9 遗留真实分支」待确认、§10）；api-endpoints 本次无契约变化（T9 只改前端 / 脚本 / e2e）；
+  `backend/README.md`（db-reset + smoke-recruiter + 基线 + 联调步骤）；AGENTS.md §0/§1；CHANGELOG；worklog。
+
+Stage Summary:
+- T9 完成：前端在**真实后端**下 `npm run e2e` **63/63**（连续两轮），联调开关与清库重迁流程均已脚本化；
+  新增 `db-reset.ps1`、Next 代理、7 处前端差异修复与 e2e 的 1 条精确豁免。
+- 遗留（**待用户拍板**）：求职者端「职位列表 / 分类字典 / 消息会话」仍读 mock（`jobs.ts#listJobs` /
+  `categories.ts` / `conversations.ts` 真实分支无调用方），HR「发消息」入口仍为 mock 专用；切换前需评估
+  e2e 跨端断言（依赖前端「关闭 / 新建职位联动」的 mock 合成逻辑）。

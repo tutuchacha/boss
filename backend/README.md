@@ -46,8 +46,24 @@ node scripts\smoke-messages.mjs
 # 5f) 用户 / 简历 / 收藏 / 上传冒烟（19 条接口 + 错误分支 + 真实 PUT 直传；可重复执行）
 node scripts\smoke-user.mjs
 
+# 5g) 招聘者模块冒烟（HR 画像 / 我发布的职位 / 我收到的投递 / 人才筛选；可重复执行）
+node scripts\smoke-recruiter.mjs
+
 # 6) 种子行数抽查（16 项断言；需已启动过后端完成 Flyway 迁移 V1~V8）
 powershell -ExecutionPolicy Bypass -File scripts\verify-seed.ps1
+```
+
+前端联调（Step 3 T9）：
+
+```powershell
+# 每轮前端 e2e 前先清库重迁（否则固定手机号 13900004321 已注册、验证码进 60s 冷却）
+powershell -ExecutionPolicy Bypass -File scripts\db-reset.ps1
+
+# 仓库根目录 .env.local（不提交）：NEXT_PUBLIC_USE_MOCK=false、NEXT_PUBLIC_API_BASE_URL=/api/v1
+# next.config.ts 已把 /api/v1 与 /uploads 代理到 http://localhost:8080（可用 API_PROXY_TARGET 覆盖）
+cd ..
+npm run dev     # 改 .env.local 后必须重启
+npm run e2e     # 真实后端下 63/63
 ```
 
 自检地址：
@@ -98,17 +114,20 @@ powershell -ExecutionPolicy Bypass -File scripts\verify-seed.ps1
 | `db-start.ps1` / `db-stop.ps1` | 起 / 停 MySQL |
 | `redis-start.ps1` / `redis-stop.ps1` | 起 / 停 Redis |
 | `dev-up.ps1` / `dev-down.ps1` | 一键起 / 停两者 |
+| `db-reset.ps1` | **T9 起：清库重迁**——按 8080 端口止后端 → `DROP + CREATE pinliao` → Redis `FLUSHALL` → 起后端 → 等 `/actuator/health` UP → 回读基线（`-NoRestart` 只清库、`-KeepRedis` 保留缓存）。每轮 `npm run e2e` 前必跑 |
 | `smoke-auth.mjs` | 鉴权接口冒烟（Node 18+；后端启动后运行，20 项断言含注册） |
 | `smoke-jobs.mjs` | 职位与字典接口冒烟（T3a/T3b；公开读 + HR 写 发布 / 更新 / 关闭重开 / 软删 / 越权，49 项断言） |
 | `smoke-applications.mjs` | 投递与面试接口冒烟（T4；状态机 / 校验码 / 约面试 / 接受拒绝 / 撤回重投，51 项断言，可重复执行） |
 | `smoke-company.mjs` | 公司模块冒烟（T5；公开详情 / 公司职位分页 / 资料编辑 / 成员 / 企业认证 PENDING→自动通过 / 40916，26 项断言，可重复执行） |
 | `smoke-messages.mjs` | 消息与 WebSocket 冒烟（T6；会话 / 消息 / 发起 / 发送 / 幂等 / 已读 / typing / 发送简历 / 关闭 + STOMP 推送 / 错误队列，40 项断言，可重复执行） |
 | `smoke-user.mjs` | 用户 / 简历 / 收藏 / 上传冒烟（T7；画像 / 密码 / 手机号 / 偏好 / 注销 / 简历默认切换 / 收藏分页 / 预签名直传与静态读回，64 项断言，可重复执行） |
+| `smoke-recruiter.mjs` | 招聘者模块冒烟（T8；HR 画像读改 / 我发布的职位（含 CLOSED 可见）/ 我收到的投递超集 / 人才筛选关键词与证据 / 词表，50 项断言，可重复执行） |
 | `verify-seed.ps1` | 种子行数抽查（16 项断言，对齐 step3-plan §3 数字；须先完成迁移；已排除冒烟 / 注册产物前缀、T7 软删简历） |
 
-当前验收基线（2026-10-18）：`mvnw test` **151/151**；`smoke-auth` 20/20；`smoke-jobs` 49/49；
+当前验收基线（2026-10-19）：`mvnw test` **173/173**；`smoke-auth` 20/20；`smoke-jobs` 49/49；
 `smoke-applications` 51/51；`smoke-company` 26/26；`smoke-messages` 40/40（连续两次）；
-`smoke-user` 64/64（连续两次）；`verify-seed` 16/16。
+`smoke-user` 64/64（连续两次）；`smoke-recruiter` 50/50（可重复执行）；`verify-seed` 16/16；
+前端 `npm run e2e` 在**真实后端**下 **63/63**（T9，连续两轮，每轮前先 `db-reset.ps1`）。
 
 另有 `scripts/seed-gen/`（开发期工具）：从仓库 `src/api/mock/*` 生成 `V4~V8` 种子迁移，
 杜绝手抄漂移；**勿手改 `V4~V8` 迁移文件**，改演示数据请改 mock 后重跑生成脚本（用法见脚本头部注释）。

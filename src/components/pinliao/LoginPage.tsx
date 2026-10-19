@@ -13,7 +13,7 @@
  *    密码 / 验证码登录用于「身份不匹配」校验；注册用于决定新账号角色
  *  - 字段级校验 + 业务错误提示 + 身份不匹配一键切换
  *  - 验证码 60 秒倒计时（与 Mock 限流 42901 对齐）
- *  - 演示账号一键填入（Mock 阶段专用，由 USE_MOCK 控制隐藏）
+ *  - 演示账号一键填入（原型演示专用；Mock 与真实后端联调都保留）
  *
  * hydration 安全：组件不依赖时间/随机数，首帧渲染内容由固定常量决定。
  * =====================================================================
@@ -38,7 +38,6 @@ import { useAuthStore } from '@/store/auth'
 import { useHrStore } from '@/store/hr'
 import { usePinliaoStore } from '@/store/pinliao'
 import { ApiError } from '@/api/client'
-import { USE_MOCK } from '@/config/env'
 import { cn } from '@/lib/utils'
 
 type LoginRole = typeof RoleEnum.JOB_SEEKER | typeof RoleEnum.HR
@@ -550,11 +549,9 @@ export function LoginPage() {
               </button>
             </div>
             {fieldErr.code && <p className="mt-1 text-[11px] text-destructive">{fieldErr.code}</p>}
-            {USE_MOCK && (
-              <p className="mt-1.5 text-[11px] text-pl-sub">
-                演示环境验证码固定为 <span className="font-mono">123456</span>
-              </p>
-            )}
+            <p className="mt-1.5 text-[11px] text-pl-sub">
+              演示环境验证码固定为 <span className="font-mono">123456</span>
+            </p>
 
             {feedback}
 
@@ -668,12 +665,10 @@ export function LoginPage() {
               <p className="mt-1 text-[11px] text-destructive">{fieldErr.regPassword}</p>
             )}
 
-            {USE_MOCK && (
-              <p className="mt-2 text-[11px] text-pl-sub">
-                演示环境验证码固定为 <span className="font-mono">123456</span>
-                ；以「公司代表」身份注册将自动创建未认证公司，可体验企业认证流程。
-              </p>
-            )}
+            <p className="mt-2 text-[11px] text-pl-sub">
+              演示环境验证码固定为 <span className="font-mono">123456</span>
+              ；以「公司代表」身份注册将自动创建未认证公司，可体验企业认证流程。
+            </p>
 
             {feedback}
 
@@ -698,9 +693,8 @@ export function LoginPage() {
   )
 }
 
-/** 演示账号一键填入（密码 / 验证码模式展示） */
+/** 演示账号一键填入（密码 / 验证码模式展示；原型演示需要，真实后端联调时同样保留） */
 function DemoAccountsSection({ onFill }: { onFill: (role: LoginRole) => void }) {
-  if (!USE_MOCK) return null
   return (
     <section className="mb-6 mt-6 rounded-xl border border-dashed border-border bg-secondary/40 p-3.5">
       <div className="flex items-center gap-1.5">

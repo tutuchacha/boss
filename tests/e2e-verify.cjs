@@ -22,7 +22,7 @@
  *            公司资料/企业认证(自动通过)
  *   跨端    ：关闭职位对求职者不可见；求职者投递→HR 候选人可见→约面→
  *            求职者接受→HR 回看「候选人已接受」
- *   质量    ：零控制台错误、零 hydration 报错
+ *   质量    ：零控制台错误（联调模式豁免「错误密码被拒绝」用例的 1 条 401）、零 hydration 报错
  *
  * ⚠️ 进程清理：只终止本脚本 spawn 的 Chrome 进程树（killChromeTree）。
  *    绝不要用 `Get-Process chrome | Stop-Process -Force` ——
@@ -713,7 +713,19 @@ async function main() {
     // ============================== 质量 ==============================
     console.log('\n=== 质量 ===')
     const errs = cdp.consoleErrors()
-    push('零控制台错误', errs.length === 0, errs.slice(0, 2).join(' | '))
+    // 真实后端联调（NEXT_PUBLIC_USE_MOCK=false）下，「错误密码被拒绝」用例会真实触发一次
+    // HTTP 401（契约 §1.4「账号或密码错误」的 HTTP 状态），浏览器必然记录一条
+    // Failed to load resource: 401。这是**预期内**的业务错误，只豁免 1 条；
+    // 其余 401（如未带 token 访问鉴权接口）仍会让本项失败。
+    let exempt401 = 0
+    const unexpected = errs.filter(t => {
+      if (exempt401 < 1 && /status of 401 \(Unauthorized\)/i.test(t)) {
+        exempt401 += 1
+        return false
+      }
+      return true
+    })
+    push('零控制台错误', unexpected.length === 0, unexpected.slice(0, 2).join(' | '))
     push('零 hydration 报错', cdp.hydrationErrors().length === 0)
   } finally {
     try { ws.close() } catch { /* ignore */ }
