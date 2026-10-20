@@ -9,7 +9,7 @@ public final class AiViews {
     private AiViews() {
     }
 
-    /** GET /api/v1/ai/status：只回显配置，不发起上游调用。 */
+    /** GET /api/v1/ai/status：只回显配置，不发起上游调用。provider = springai / fake（T-AI1 起）。 */
     public record Status(boolean enabled, String provider, String chatModel, String embeddingModel) {
     }
 

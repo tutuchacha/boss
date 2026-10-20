@@ -14,7 +14,7 @@
 
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Loader2, MessageSquare, Video } from 'lucide-react'
+import { ArrowLeft, Loader2, MessageSquare, Sparkles, Video } from 'lucide-react'
 import { ApplicationStatusEnum, InterviewFormatEnum, InterviewStatusEnum } from '@/types/api'
 import {
   APPLICATION_STATUS_TEXT,
@@ -27,11 +27,13 @@ import {
   HR_APPLICATIONS_QUERY_KEY,
   updateApplicationStatus,
 } from '@/api/hrApplications'
+import { AI_STATUS_QUERY_KEY, getAiStatus } from '@/api/ai'
 import { ApiError } from '@/api/client'
 import { useHrStore } from '@/store/hr'
 import { formatDateTime } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { AvatarBadge } from '../AvatarBadge'
+import { HrAiAssistantSheet } from './HrAiAssistantSheet'
 import { STATUS_TONE } from './HrCandidatesPage'
 
 interface Props {
@@ -48,11 +50,21 @@ export function HrCandidateDetailPage({ applicationId }: Props) {
   const dataVersion = useHrStore(s => s.dataVersion)
 
   const [busy, setBusy] = useState<string | null>(null)
+  const [aiOpen, setAiOpen] = useState(false)
 
   const { data: view, isPending } = useQuery({
     queryKey: ['hr', 'application', applicationId, dataVersion],
     queryFn: () => getHrApplication(applicationId),
   })
+
+  // AI 开关：关闭（或查询失败）时不渲染入口，避免点了才报 42220
+  const { data: aiStatus } = useQuery({
+    queryKey: AI_STATUS_QUERY_KEY,
+    queryFn: getAiStatus,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  })
+  const aiEnabled = aiStatus?.enabled === true
 
   /** 操作成功后统一刷新（列表 + 详情 + 会话） */
   const refresh = async () => {
@@ -189,6 +201,29 @@ export function HrCandidateDetailPage({ applicationId }: Props) {
             {formatDateTime(application.updatedAt)}
           </p>
         </section>
+
+        {/* AI 简历助手入口（AI 关闭时隐藏） */}
+        {aiEnabled && (
+          <section className="mt-2 bg-card px-4 py-3.5">
+            <div className="flex items-center gap-2">
+              <h3 className="flex items-center gap-1.5 text-[13px] font-medium text-foreground">
+                <Sparkles className="h-3.5 w-3.5 text-primary" />
+                AI 简历助手
+              </h3>
+              <button
+                type="button"
+                aria-label="打开 AI 助手"
+                onClick={() => setAiOpen(true)}
+                className="ml-auto flex h-8 items-center gap-1 rounded-lg border border-primary/60 px-3 text-[12px] font-medium text-primary transition-colors hover:bg-primary/5"
+              >
+                开始提问
+              </button>
+            </div>
+            <p className="mt-1 text-[11px] leading-relaxed text-pl-sub">
+              基于这份在线简历回答，并附上原文引用；简历里没有的信息会如实说明。
+            </p>
+          </section>
+        )}
 
         {/* 打招呼语 */}
         {application.coverLetter && (
@@ -334,6 +369,10 @@ export function HrCandidateDetailPage({ applicationId }: Props) {
           </div>
         )}
       </div>
+
+      {aiOpen && aiEnabled && (
+        <HrAiAssistantSheet applicationId={applicationId} onClose={() => setAiOpen(false)} />
+      )}
     </div>
   )
 }

@@ -61,7 +61,7 @@ public class AiConnectivityService {
 
     /** 状态回显：不发起上游调用，AI 关闭时也可安全读取。 */
     public AiViews.Status status() {
-        return new AiViews.Status(properties.enabled(), "openai-compatible", chatModelName, embeddingModelName);
+        return new AiViews.Status(properties.enabled(), properties.provider(), chatModelName, embeddingModelName);
     }
 
     /** 自检：真实调用一次 chat + embedding，返回模型名 / 耗时 / token / 向量维度。 */

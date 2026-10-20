@@ -6,6 +6,55 @@
 
 ---
 
+## [Step 4 · T-AI2] 2026-10-20 — 单简历问答（带引用）+ HR 候选人详情 AI 助手抽屉
+
+> 本条目同时补记 **T-AI1 索引入库**（2026-10-20 落地，原 CHANGELOG 遗漏）与 **T-AI2 单简历问答**。
+> 目标：HR 在候选人详情就能「就这份简历提问」，回答必须能溯源；没有依据时必须承认不知道。
+
+### Added
+
+- **T-AI1 索引入库**：V9 `resume_chunks`（`section/ordinal/title/content/content_hash/model/dim/embedding`，
+  唯一键 `(resume_id, section, ordinal, model)`）；`ResumeChunker` 五段式结构化分块（上下文头、800 字按句续写、
+  **手机号等联系方式不入库**）；`AiEmbeddingModel` SPI + `SpringAiEmbeddingAdapter`（`text-embedding-v4`，
+  ≤10 条切批）/ `FakeEmbeddingModel`（确定性词袋向量）；`POST /api/v1/ai/index/rebuild`（全量 / 单份）与
+  `GET /api/v1/hr/applications/{id}/ai/index-status`。
+- **T-AI2 问答链路**：`AiChatClient` SPI + `SpringAiChatAdapter`（`enable_thinking=false`，失败转 50020）/
+  `FakeChatClient`；`RetrievalService`（`resumeId` 先经 `applications.company_id` 前置过滤 + 内存余弦 topK）；
+  `PromptBuilder`（资料 / 指令分区 + 无依据固定话术）；`CitationAssembler`（解析 `[n]`、去重、模型漏标兜底
+  `来源：[1]`）；`HrResumeQaService`（开关 / 角色 / 归属 / 首次提问按需建索引 / 低分不调模型）；
+  `AiQuotaService`（HR/自然日 100 次，`42902`，Redis 故障降级放行）。
+- 新接口 `POST /api/v1/hr/applications/{applicationId}/ai/qa`（问题 1~500 字；无依据时
+  `answer="简历中没有相关信息。"`、`grounded=false`、`citations=[]`）。
+- 前端：`src/api/ai.ts`（`getAiStatus` / `askResumeQuestion`，`USE_MOCK` 双分支）、`src/api/mock/ai.ts`
+  （段落意图 + 原文命中的规则回答）、`HrAiAssistantSheet`（快捷问题 / 对话 / `[n]` 引用卡片 / 错误态）、
+  候选人详情「AI 简历助手」入口（按 `/ai/status.enabled` 显隐）。
+- `docs/api-endpoints.md` 新增 §14「AI 模块（契约外扩展）」共 5 条接口（仍不计入 70 条账目）。
+- `docs/AI-CONTINUE.md` §6.21（问答 / 引用 12 条坑，含 CDP `eval` 不能跑 async 的 e2e 探针坑）。
+
+### Changed
+
+- `AiProperties` 扩为 8 参 record：新增 `qaTopK` / `qaMinScore` / `qaMaxTokens` / `qaDailyLimit`，
+  `application.yml` 对应 `pinliao.ai.qa-*` 环境变量（`PINLIAO_AI_QA_*`）。
+- `smoke-ai.mjs` 从 17 项扩到 **31 项**：新增问答权限 / 入参 / 跨公司 / 带引用回答 / 无依据 / 问答后索引状态。
+- `tests/e2e-verify.cjs` 从 63 项扩到 **65 项**：新增「AI 入口与开关一致」「AI 问答返回带引用的回答」。
+- `backend/README.md`：AI 接口清单补 T-AI1/T-AI2 四条、配置补 `PROVIDER` / `QA_*`、脚本表补 `smoke-ai.mjs`、
+  基线更新为 `mvnw test` 230/230、`smoke-ai` 31/31、e2e 65/65。
+
+### Docs
+
+- `docs/step4-ai-plan.md` v1.3：T-AI2 标 ✅、补实测记录、§8 假模型名更正为 `FakeChatClient`、e2e 门禁改 65。
+- `PROGRESS.md` §0 / §0.1 / §1 / §2.2 / §7 同步；`worklog.md` 追加 Task 37 / Task 38。
+
+### Verified
+
+- `mvnw test` **230/230**（新增 31 项，全部假模型，不联网 / 不花钱）。
+- `smoke-ai.mjs` **31/31**（`provider=fake`，可重复执行）。
+- `npm run e2e` **65/65**：真实后端 + fake AI provider 一轮；Mock 分支一轮；AI 关闭时 **64/64**
+  （入口隐藏、问答用例跳过），其余功能零回归。
+- AI 关闭实测：`/ai/status` → `enabled=false`，`/ai/qa` → **422 + 42220**，前端无入口。
+
+---
+
 ## [可观测性 · T-OBS2] 2026-10-19 — ARMS 链路打通（修 `-Background` 引号 bug，带探针 e2e 63/63）
 
 > 用户已从控制台取得 LicenseKey 并反馈「当前已经能够在阿里云控制台查看本服务了」。

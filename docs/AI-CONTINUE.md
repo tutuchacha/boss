@@ -832,6 +832,43 @@ const { data, isPending } = useQuery({
   本机开发环境挂，且 SQL 文本默认脱敏（本项目 SQL 带手机号，**不要**关脱敏）；前端监控（Web SDK）
   会往浏览器注入请求，**可能破坏 e2e「零控制台错误」门禁**，要做必须最后做并加开关。
 
+### 6.21 单简历问答 / 引用（Step 4 T-AI2 起）
+
+- **检索必须先做可见性过滤**：`resume_chunks` 不冗余 `company_id`，`HrResumeQaService` 先用
+  `applications`（租户表，`selectById` 已被插件追加 `company_id`）取 `resumeId`，再显式比对
+  `companyId`（纯 Mockito 单测没有插件，必须靠显式比对兜住越权）。跨公司 / 不存在统一 `40401`，
+  不泄露存在性。**不要**新增「按 resumeId 直接问答」的接口，否则等于绕过投递归属。
+- **假向量只做管道验证，不具语义**：`FakeEmbeddingModel` 是「中文单字 + 拉丁词」词袋哈希，
+  自然中文问句（如「候选人的核心技能是什么？」）与技能块的字面重合可能低于 `qa-min-score=0.2`，
+  会走「无依据」分支。冒烟 / e2e 要带**强字面重合**的问题（如「候选人的技能包括 React 和 TypeScript 吗？」）；
+  真实语义效果必须用 `provider=springai` 验，别拿 fake 结果判断召回质量。
+- **低分不调对话模型**：`topScore < qa-min-score` 时直接返回
+  `简历中没有相关信息。` + `grounded=false` + `citations=[]`，此时 `chatModel` 仍回显（排查用），
+  `retrieved` 保留命中数。**不要**为了「显得智能」把低分资料硬塞给模型。
+- **引用编号由后端解析，不信任模型**：`CitationAssembler` 解析回答中的 `[n]`，只保留合法编号并按首次
+  出现顺序去重；模型完全漏标时在末尾补 `来源：[1]`。`citations[].index` 与正文 `[n]` 一一对应。
+- **`resume_chunks.id` 是 `rc_` + 32 位 hash**（`resumeId|section|ordinal`），不是 `resumeId#1`；
+  冒烟断言别写错格式。
+- **首次提问按需建索引**：`countByResume(resumeId, model) == 0` 时自动 `rebuildOne`，仍为空才抛 `42221`。
+  因此清库后无需先重建索引，用户第一问会多花一次嵌入时间（fake 毫秒级，真实约 1s）。
+- **配额按 HR / 自然日**：`AiQuotaService` 用 Redis key（含 `userId` + 日期 + 模型维度），默认 100 次/日，
+  超限 `42902`；**Redis 故障降级放行**（宁可少一道限流，也不要因缓存挂了导致问答全不可用）。
+  `db-reset.ps1` 会 `FLUSHALL`，冒烟可重复执行不会撞配额。
+- **上游失败统一 50020**：`SpringAiChatAdapter` / `SpringAiEmbeddingAdapter` 捕获异常转
+  `BusinessException(AiCodes.UPSTREAM_FAILED)`，**不回显上游原始报文**（可能含 key / 内部信息）。
+- **审计不落简历原文**：只记 `applicationId / userId / questionLength / retrieved / citations /
+  answerLength / tokens / elapsedMs`。排查「答得不对」时用引用片段定位，不要往日志里打 Prompt。
+- **前端入口按 `/ai/status.enabled` 显隐**：`getAiStatus` 查询 `staleTime=5min`、`retry=false`；
+  查询失败也按「不显示」处理，避免用户点了才吃 `42220`。抽屉当前是**本地临时会话**，关闭即清空。
+- **e2e 探针别用 CDP 的 `eval` 跑 async**：`tests/e2e-verify.cjs` 的 `eval` 外层是同步
+  `JSON.stringify(...)`，传 `(async () => ...)()` 只会得到 `{}`（本次实测 `enabled=[object Object]`）。
+  改在 **Node 侧**先密码登录、再带 token 查 `/api/v1/ai/status`，用返回值决定「入口应显示 / 应隐藏」。
+- **Mock 模式跑 e2e 时后端最好别开着**：Mock 分支的入口固定显示，但 Node 探针仍会打到真实后端；
+  若后端恰好 `AI 关闭`，探针得到 `false` 而页面入口存在 → 误报「入口与开关不一致」。
+  Mock 回归请在**后端停止**（或后端 AI 开启）时跑。
+- **`AiProperties` 是 8 参 record**：`(enabled, provider, chunkMaxChars, embeddingBatchSize,
+  qaTopK, qaMinScore, qaMaxTokens, qaDailyLimit)`；新增配置项时所有单测构造器都要同步，别再写 4 参旧签名。
+
 ---
 
 ## 7. 数据与契约
@@ -951,3 +988,4 @@ HR 新建 → 追加。
 | v1.23 | 2026-10-19 | **Step 4 T-AI0 落地**：Spring AI 1.1.8（BOM + OpenAI starter）接入百炼 DashScope 兼容模式；`ai/` 包（`AiCodes` / `AiProperties` / `AiConnectivityService` / `AiController` → `/api/v1/ai/status|ping`）；密钥与模型全部走用户级环境变量 `PINLIAO_AI_*`（`api-key` 占位，无 key 也能启动）。**新增 §6.19（AI 接入 10 条坑）**：`sk-ws-` key 可用性与 coding 域名 401、`enable_thinking=false`（思考型模型 10s+ → 1.0s）、空 `api-key` 会导致启动失败、错误码不能用 `43xxx`、AI 自检端点须鉴权、PowerShell 5.1 下 `java -version` NativeCommandError 吞掉 JDK 探测、key 泄露三连核查法。实测 ping chat 1005ms/44 tokens、embedding 1024 维/538ms；`mvnw test` 176/176、e2e 63/63 无回归；§2 状态行与 §9 同步 |
 | v1.24 | 2026-10-19 | **可观测性 T-OBS1 落地（选型由开源 OTel Agent 改为阿里云 ARMS 应用监控探针）**：新增 `scripts/fetch-arms-agent.ps1`（下载探针到 `.local/arms/`）与 `scripts/dev-with-arms.ps1`（`-DryRun` 配置自检含密钥打码 / `-Background` / `-AllowMissingLicenseKey`；`-javaagent` 只挂 fork 出的应用 JVM）；`scripts/_env.ps1` 新增 `PINLIAO_ARMS_*` 与共享函数（`Wait-BackendUp` / `Get-JavaMajor` / `Resolve-PinliaoJavaHome` / `Format-Secret`），`db-reset.ps1` 去重改用它；`common/web/TraceIdFilter` 取值改为「活跃 OTel span 的 traceId → 透传 `X-Trace-Id` → UUID」（契约不变）+ 6 项 `TraceIdFilterTest`；新增 `docs/arms-plan.md` v1.1 与 `backend/README.md`「ARMS 链路」一节。**新增 §6.20（ARMS 接入 12 条坑）**：两产品入口区别（应用监控 vs 链路 OTel 版）、探针实为 OTel javaagent 2.23.0 改名版、只能挂应用 JVM、`jvmArguments` 空格坑、探针工作目录与 `status` 文件、**未配 LicenseKey 时不产生 span**、`%mdc` 探针法、OTel API 安全降级写法、计费与前端监控门禁。实测 `mvnw test` 182/182、真实后端 e2e 63/63（零影响） |
 | v1.25 | 2026-10-19 | **可观测性 T-OBS2：ARMS 链路打通**（控制台可见 `pinliao-backend`、包络 traceId 即链路 TraceId、应用 JVM 有到阿里云 80 端口的 Established 上报连接、带探针 e2e 63/63）。**§6.20 补 5 条坑**：① `Start-Process -ArgumentList` 传数组会丢引号 → `-Darms.licenseKey/appName` 进不了应用 JVM（探针加载却不产生 span、控制台看不到应用），必须传单个带引号字符串并回读进程命令行；② `.apsara-apm\java\<版本>\status` **不刷新、不可作授权判据**；③ 判活三条判据（命令行含 `-Darms.*` / 送 `X-Trace-Id` 不回显 / 有到 80 端口连接）；④ `-Darms.*` 与环境变量 `ARMS_LICENSE_KEY`/`ARMS_APP_NAME` 两种形式都可用；⑤ `OTEL_JAVAAGENT_LOGGING=debug` 是非法值（日志变 no-op、连横幅都不打），要用 `-Dio.opentelemetry.javaagent.slf4j.simpleLogger.defaultLogLevel=debug` |
+| v1.26 | 2026-10-20 | **Step 4 T-AI1 + T-AI2**：索引入库（V9 / 分块 / 真实 1024 维嵌入 / rebuild + index-status）与单简历问答（检索 / 引用 / 无依据 / 配额 / 前端 AI 抽屉 / e2e 65 项）落地。**新增 §6.21（问答与引用 12 条坑）**：检索前置租户过滤、假向量无语义导致自然问句落「无依据」、低分不调模型、`[n]` 由后端解析与漏标兜底、chunkId 是 `rc_` hash、首次提问按需建索引、按 HR/日配额与 Redis 降级放行、上游失败统一 50020、审计不落原文、入口按 status 显隐、**CDP `eval` 不能跑 async**、Mock e2e 与后端开关的冲突。实测 `mvnw test` 230/230、`smoke-ai.mjs` 31/31、e2e 65/65（真实 fake provider + Mock 各一轮）、AI 关闭 42220 且入口隐藏 |

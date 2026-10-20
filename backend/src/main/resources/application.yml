@@ -42,6 +42,17 @@ pinliao:
   ai:
     # AI 总开关（默认关：无密钥的机器 / CI 不受影响；本地演示用 PINLIAO_AI_ENABLED=true 打开）
     enabled: ${PINLIAO_AI_ENABLED:false}
+    # 向量来源：springai = 真实上游；fake = 本地确定性假向量（单测 / 冒烟，零费用）
+    provider: ${PINLIAO_AI_PROVIDER:springai}
+    # 单块正文上限（含标题），超出按句切分并续写（T-AI1）
+    chunk-max-chars: ${PINLIAO_AI_CHUNK_MAX_CHARS:800}
+    # 单次嵌入请求条数上限（百炼 text-embedding-v4 ≤10）
+    embedding-batch-size: ${PINLIAO_AI_EMBEDDING_BATCH_SIZE:10}
+    # 单简历问答（T-AI2）：检索 topK / 最低相似度 / 生成 token 上限 / 每 HR 每日次数上限
+    qa-top-k: ${PINLIAO_AI_QA_TOP_K:6}
+    qa-min-score: ${PINLIAO_AI_QA_MIN_SCORE:0.2}
+    qa-max-tokens: ${PINLIAO_AI_QA_MAX_TOKENS:700}
+    qa-daily-limit: ${PINLIAO_AI_QA_DAILY_LIMIT:100}
   auth:
     # HS256 签名密钥（≥32 字节）；生产用环境变量 PINLIAO_AUTH_SECRET 覆盖
     secret: ${PINLIAO_AUTH_SECRET:pinliao-local-dev-secret-0123456789abcdef}

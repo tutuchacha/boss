@@ -3,8 +3,8 @@
 > 状态唯一定稿在 `PROGRESS.md`；本文件是 AI 增量的**方案与任务板**（进度以 §7 任务表为准）。
 > 前置：Step 3 后端 + T9 全量联调已完成（`USE_MOCK=false` 下 `npm run e2e` **63/63**）。
 > 编号说明：本增量编号为 **Step 4（AI / RAG）**；`PROGRESS.md` §1 中旧的「Step 4 联调」已并入 Step 3 T9。
-> 最后更新：2026-10-19 · 状态：**T-AI0 完成（依赖 + 配置 + 连通性自检已落地并实测）**，T-AI1 待开工
-> （决策见 §1，实测结论见 §6.2 / §7，待确认子项见 §10）
+> 最后更新：2026-10-20 · 状态：**T-AI0 ✅ + T-AI1 ✅ + T-AI2 ✅（单简历问答：检索 / 引用 / 无依据 / 配额 / HR 候选人详情 AI 抽屉全部落地并实测）**，
+> 下一步 T-AI3 流式输出（决策见 §1，实测结论见 §7，待确认子项见 §10）
 
 ---
 
@@ -104,17 +104,19 @@
   → 写 resume_chunks（文本/元数据/向量）
 ```
 
-**结构化分块规则（草案，T-AI1 定稿）**：
+**结构化分块规则（T-AI1 已定稿并落地，见 `ai/index/ResumeChunker`）**：
 
 | section | 拆法 | 文本形态（示例） |
 |---|---|---|
-| `basics` | 1 块 | 「基本信息 · 林小满 · 上海 · 3 年前端开发经验，熟悉 React…」 |
-| `experiences` | 每段经历 1 块 | 「工作经历 · 某电商平台 · 高级后端工程师 2019.07-至今：负责订单与营销核心链路…」 |
-| `projects` | 每个项目 1 块 | 「项目经历 · 秒杀系统高并发改造 · 后端负责人 2023.02-2024.05：基于 Spring Boot + Redis…」 |
-| `skills` | 1 块（或按类别分） | 「技能标签：Java、Spring Boot、MySQL、Redis、微服务、高并发」 |
+| `basics` | 1 块 | 「基本信息 · 林小满 · 上海\n3 年前端开发经验，熟悉 React…」（**手机号等联系方式不入库**） |
+| `educations` | 每条 1 块（T-AI1 补充） | 「教育经历 · 某某大学 · 计算机科学与技术 · 本科 · 2018-09 - 2022-06」 |
+| `experiences` | 每段经历 1 块 | 「工作经历 · 某电商平台 · 高级后端工程师 · 2019-07 - present\n负责订单与营销核心链路…」 |
+| `projects` | 每个项目 1 块 | 「项目经历 · 秒杀系统高并发改造 · 后端负责人 · 2023-02 - 2024-05\n基于 Spring Boot + Redis…」 |
+| `skills` | 1 块 | 「技能标签\nJava、Spring Boot、MySQL、Redis、微服务、高并发」 |
 
 每块统一加**上下文头**（section + 主体 + 角色 + 时间），这是提升检索命中率最划算的一招。
-`chunk_max_chars` 默认 800（超出按句号二次切分）；每块记录 `content_hash` 用于增量与幂等。
+`chunk_max_chars` 默认 800（超出按句号 / 分号 / 换行切分，续块标题追加「（续 n）」）；
+每块记录 `content_hash`（sha256）用于增量与幂等。
 
 ### 5.2 查询管道（检索 + 生成）
 
@@ -141,8 +143,13 @@
   `resume_chunks` 因此也不能当租户表糊弄。
 - 检索过滤条件 = 「该 HR 所属公司可见的候选人集合」：由 §4.4 投递（`applications.company_id`）
   与人才库范围推导；**每一次向量查询都必须带上该条件**，不允许「先全局检索再过滤」。
-- 索引写入时冗余 `company_id` / `application_id` 便于过滤；跨公司共享同一份简历时按公司分别建块
-  （向量相同、元数据不同）或建块一次 + 过滤时 join，二者在 T-AI1 定稿。
+- **定稿（T-AI1）**：索引**不冗余** `company_id` / `application_id`，一份简历只建一套块。
+  理由：同一份简历可投多家公司，按公司复制会让存储与嵌入费用成倍放大；而 `applications.company_id`
+  是现成且权威的可见性来源。T-AI2 检索时先 `SELECT DISTINCT resume_id FROM applications
+  WHERE company_id = ? AND deleted_at IS NULL`，再 `resume_chunks.resume_id IN (...)` ——
+  这是 SQL 层**前置过滤**（不是向量算完再丢弃），既安全又不重复计费。
+- `resume_chunks` 的查询按 `model` 隔离：换 provider（`fake` ↔ 真实）或换嵌入模型后旧向量不复用，
+  必须重建（`ResumeChunkStore` 的复用查询都带 `model` 条件）。
 - 日志与埋点**不得**记录简历原文与完整 Prompt；只记录长度、token、chunkId、耗时。
 
 ### 5.4 开关、降级与成本
@@ -157,25 +164,29 @@
 
 ### 6.1 后端新增包（不动既有包）
 
-`✅` = T-AI0 已落地；`⬜` = 后续增量规划。
+`✅` = 已落地（T-AI0 / T-AI1）；`⬜` = 后续增量规划。
 
 ```
 backend/src/main/java/com/pinliao/backend/ai/
 ├─ AiCodes.java        ✅ 模块错误码（42220 未启用 / 42221 索引未就绪 / 42902 超配额 / 50020 上游失败）
-├─ config/             ✅ AiProperties（record，绑定 pinliao.ai.enabled）+ AiConfig（@EnableConfigurationProperties）
-├─ spi/                ⬜ AiChatClient / AiEmbeddingModel / AiVectorStore  ← 业务唯一依赖（框架隔离层）
+├─ config/             ✅ AiProperties（record，绑定 pinliao.ai.*：enabled / provider / chunkMaxChars / embeddingBatchSize）
+│                         + AiConfig（@EnableConfigurationProperties）
+├─ spi/                ✅ AiEmbeddingModel（业务唯一向量依赖）；⬜ AiChatClient / AiVectorStore
 ├─ provider/
-│   ├─ springai/       ✅（直接用 starter 自动装配的 ChatModel / EmbeddingModel；T-AI1 起加 SPI adapter）
-│   ├─ langchain4j/    ⬜ LangChain4j adapter（阶段 2，对照）
-│   └─ fake/           ⬜ FakeChatModel / FakeEmbeddingModel（离线演示与集成测试）
-├─ chunk/              ⬜ ResumeChunker、ChunkHash、ResumeTextExtractor
-├─ index/              ⬜ ResumeIndexService（增量索引 / 全量重建 / 状态查询）
+│   ├─ SpringAiEmbeddingAdapter ✅ 真实上游（按 ≤10 条切批、异常转 50020、维度校验）
+│   ├─ FakeEmbeddingModel       ✅ 确定性词袋哈希向量（零网络 / 零费用，单测与冒烟）
+│   └─ langchain4j/    ⬜ LangChain4j adapter（阶段 2，对照）
+├─ index/              ✅ ResumeChunker / ResumeChunk / ResumeChunkEntity / ResumeChunkMapper
+│                         / ResumeChunkStore（按简历整体替换 + 按 model 复用向量）/ ResumeIndexService
+├─ dto/                ✅ AiIndexRequests（rebuild 请求体）
+├─ view/               ✅ AiViews（自检）/ AiIndexViews（重建结果 / 索引状态）
 ├─ rag/                ⬜ RetrievalService（过滤 + topK + rerank）、PromptBuilder、CitationAssembler
 ├─ qa/                 ⬜ HrResumeQaService（会话记忆 + 流式输出）
 ├─ search/             ⬜ SemanticTalentSearchService（阶段 T-AI4，与 TalentMatchService 并行）
 ├─ usage/              ⬜ AiUsageRecorder → usage_logs
 ├─ service/            ✅ AiConnectivityService（自检：chat + embedding）
-└─ web/                ✅ AiController（/api/v1/ai/status、/api/v1/ai/ping，契约外自检）
+└─ web/                ✅ AiController（/api/v1/ai/status、/ping）
+                          + AiIndexController（/api/v1/ai/index/rebuild、/hr/applications/{id}/ai/index-status）
 ```
 
 ### 6.2 配置（**已落地**：key 只进环境变量，不进仓库）
@@ -193,6 +204,9 @@ backend/src/main/java/com/pinliao/backend/ai/
 | `PINLIAO_AI_EMBEDDING_MODEL` | `text-embedding-v4` | 1024 维 |
 | `PINLIAO_AI_EMBEDDING_DIM` | `1024` | 与 `text-embedding-v4` 默认一致 |
 | `PINLIAO_AI_ENABLED` | `true` | 总开关；**默认 false**（无 key 的机器 / CI 不受影响） |
+| `PINLIAO_AI_PROVIDER` | `springai` | T-AI1 新增：`fake` = 本地确定性假向量（单测 / 冒烟，零费用） |
+| `PINLIAO_AI_CHUNK_MAX_CHARS` | `800` | T-AI1 新增：单块正文上限，超出按句切分并续写 |
+| `PINLIAO_AI_EMBEDDING_BATCH_SIZE` | `10` | T-AI1 新增：单次嵌入请求条数上限（百炼 `text-embedding-v4` ≤10） |
 
 `application.yml` 实际写法（provider 参数交给 Spring AI 原生前缀，不再自造一套）：
 
@@ -243,11 +257,11 @@ Invoke-RestMethod http://localhost:8080/api/v1/ai/ping   -Headers @{ Authorizati
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/v1/ai/status` | **已落地**（契约外自检）：回显 enabled / provider / 模型名，不调用上游 |
+| GET | `/api/v1/ai/status` | **已落地**（契约外自检）：回显 enabled / provider（`springai` / `fake`）/ 模型名，不调用上游 |
 | GET | `/api/v1/ai/ping` | **已落地**（契约外自检）：真实调用一次 chat + embedding，返回耗时 / token / 向量维度 |
 | POST | `/api/v1/hr/applications/{applicationId}/ai/qa` | 简历问答（v1 非流式 JSON；v2 SSE `text/event-stream`：`delta` / `citation` / `done` / `error`） |
-| GET | `/api/v1/hr/applications/{applicationId}/ai/index-status` | 该候选人简历索引状态（是否已索引、chunk 数、模型版本） |
-| POST | `/api/v1/ai/index/rebuild` | 全量重建索引（演示/运维用，需鉴权） |
+| GET | `/api/v1/hr/applications/{applicationId}/ai/index-status` | **已落地（T-AI1）**：该候选人简历索引状态（`indexed` / `chunkCount` / `model` / `dim` / `updatedAt`）；按投递记录校验可见性，跨公司 404 |
+| POST | `/api/v1/ai/index/rebuild` | **已落地（T-AI1）**：全量或单份重建（body `{resumeId?}`）；需 HR / 管理员；返回 `resumes/skipped/chunks/embedded/reused/elapsedMs` |
 | POST | `/api/v1/hr/talent/semantic-search` | 阶段 T-AI4：语义人才检索 |
 
 - 两个自检端点同样受 `WebAuthConfig` 拦截器保护（`/api/v1/**` 默认需登录），避免未授权调用产生费用
@@ -260,17 +274,26 @@ Invoke-RestMethod http://localhost:8080/api/v1/ai/ping   -Headers @{ Authorizati
   而 `ApiCodes.httpStatus()` 只识别 400/401/403/404/409/422/429/500 前缀，`430xx` 会落到 500。故改用
   上表四个（`42220/42221` 属 422 业务规则族、`42902` 属 429 限流族、`50020` 属 500 上游故障族）。
 
-### 6.4 数据表（V9 起）
+### 6.4 数据表（**V9 已落地**，见 `db/migration/V9__ai_resume_chunks.sql`）
 
 ```sql
--- 阶段 1 只建表存文本与元数据（向量在内存 JSON）；阶段 2 再加 embedding 列
+-- V9 实际结构（阶段 2 的 MySQL 向量方案：embedding 直接存 JSON 数组）
 resume_chunks(
-  id, resume_id, user_id, company_id, application_id,   -- company_id/application_id 用于可见性过滤
+  id, resume_id, user_id,
   section, ordinal, title, content, content_hash,
-  model, dim, embedding,                                 -- 阶段 2 才有值
+  model, dim, embedding,                       -- embedding = JSON float 数组（1024 维约 12.7KB/行）
   created_at, updated_at,
-  KEY (resume_id, section), KEY (company_id, resume_id), UNIQUE (content_hash, model)
+  UNIQUE (resume_id, section, ordinal, model),
+  KEY (content_hash, model), KEY (user_id),
+  FOREIGN KEY (resume_id) REFERENCES resumes(id) ON DELETE CASCADE
 )
+-- 与草案的差异（T-AI1 定稿）：
+--   1) 去掉 company_id / application_id（可见性在检索时用 applications 前置过滤，见 §5.3）；
+--   2) 唯一键改为 (resume_id, section, ordinal, model)：同一段文字出现在两份简历里要能各建一块，
+--      否则引用会指向别人的简历；跨简历复用向量靠 (content_hash, model) 查询，不靠唯一键；
+--   3) 阶段 1「只存文本」与阶段 2「加 embedding」合并为一次建表（演示规模无需两段迁移）。
+
+-- 尚未落地（T-AI2 / T-AI3）：
 ai_chat_sessions(id, company_id, hr_id, application_id, title, created_at, updated_at)
 ai_chat_messages(id, session_id, role, content, citations_json, tokens, latency_ms, created_at)
 ```
@@ -282,24 +305,53 @@ ai_chat_messages(id, session_id, role, content, citations_json, tokens, latency_
 | 编号 | 内容 | 产出与验收 | 预估 | 需要真实 key | 状态 |
 |---|---|---|---|---|---|
 | T-AI0 | 依赖与连通性：BOM + starter + `AiProperties` + `/ai/ping` | ✅ **完成（2026-10-19）**：`spring-ai-bom:1.1.8` + `spring-ai-starter-model-openai`；`AiCodes` / `AiProperties` / `AiConnectivityService` / `AiController`；`/api/v1/ai/status` + `/ping` 实测通过（chat 1005ms / 44 tokens、embedding 538ms / dim 1024）；`mvnw test` **176/176**；key 走用户级环境变量且已核查仓库零泄漏；`backend/README.md` 已加「AI 配置」 | 0.5 天 | 是 | ✅ |
-| T-AI1 | 索引入库：`ResumeChunker` + `AiEmbeddingModel` + `resume_chunks`(V9) + 重建接口 | 单测（FakeEmbedding）断言分块规则；`smoke-ai.mjs`：12 份简历 → N 个 chunk；重复执行幂等 | 1~2 天 | 否 | ⬜ |
-| T-AI2 | **单简历问答 MVP**（非流式）+ 引用 + HR 候选人详情「AI 助手」抽屉 | §0 的 5 条 DoD 全过；前端走 mock 分支；e2e 仅新增「入口存在 / 开关关闭时隐藏」断言 | 1~2 天 | 是（人工验收时） | ⬜ |
+| T-AI1 | 索引入库：`ResumeChunker` + `AiEmbeddingModel` + `resume_chunks`(V9) + 重建接口 | 单测（FakeEmbedding）断言分块规则；`smoke-ai.mjs`：12 份简历 → N 个 chunk；重复执行幂等 | 1~2 天 | 否 | ✅ **完成（2026-10-20）**：`ResumeChunker`（basics/educations/experiences/projects/skills 五段式 + 上下文头 + 800 字按句续写，手机号不入库）、`AiEmbeddingModel` SPI + `SpringAiEmbeddingAdapter`（≤10 条切批、失败转 50020）/ `FakeEmbeddingModel`（确定性词袋向量）、V9 `resume_chunks`、`ResumeIndexService`（全量 / 单份 / 状态，按 model 复用向量）、`AiIndexController`；单测新增 17 项，`mvnw test` **199/199**；`smoke-ai.mjs` **17/17**（fake：7 份简历 35 块、二次 `embedded=0`；真实：单份 5 块 950ms、`text-embedding-v4` 1024 维、二次 0 调用）；`verify-seed.ps1` 16/16（flyway=9） |
+| T-AI2 | **单简历问答 MVP**（非流式）+ 引用 + HR 候选人详情「AI 助手」抽屉 | §0 的 5 条 DoD 全过；前端走 mock 分支；e2e 仅新增「入口存在 / 开关关闭时隐藏」断言 | 1~2 天 | 是（人工验收时） | ✅ **完成（2026-10-20）**：`AiChatClient` SPI + `SpringAiChatAdapter`（`enable_thinking=false`，失败转 50020）/ `FakeChatClient`；`RetrievalService` 余弦 topK（`resumeId` 先经 `applications.company_id` 过滤）、`PromptBuilder`（资料 / 指令分区 + 无依据话术）、`CitationAssembler`（`[n]` 解析 + 漏标兜底）、`HrResumeQaService`（开关 / 角色 / 归属 / 按需建索引 / 低分不调模型）、`AiQuotaService`（HR/日 100 次，42902；Redis 故障放行）；`POST /hr/applications/{id}/ai/qa`；前端 `src/api/ai.ts` + `mock/ai.ts` 双分支、候选人详情「AI 简历助手」抽屉（入口按 `/ai/status.enabled` 显隐）；`mvnw test` **230/230**、`smoke-ai.mjs` **31/31**、e2e **65/65**（真实后端 fake 向量 + Mock 分支各一轮）；AI 关闭下接口 42220、入口隐藏 |
 | T-AI3 | 流式输出（SSE 或 STOMP）+ 打字机 + 引用点击定位 | 首字延迟、中断、错误态；e2e 不依赖流式内容 | 1 天 | 是 | ⬜ |
 | T-AI4 | 语义人才检索（与关键词版并行 A/B） | 同一组查询两边对比记录（相关性、命中率）；人才筛选页加「语义模式」 | 2 天 | 是 | ⬜ |
 | T-AI5 | 面试问题生成（结构化输出 + 人工可改） | HR 面试准备页；输出 schema 校验 | 1~2 天 | 是 | ⬜ |
 | T-AI6 | 工程化：混合检索（复用 `TalentMatchService` 权重）/ rerank / 评测集 / 成本看板 | 评测报告（10~20 题小集）；`usage_logs` 看板 | 持续 | 是 | ⬜ |
 | T-AI7 | （可选）LangChain4j 对照实现 | 同一问答换 adapter 跑通，写对比笔记 | 1~2 天 | 是 | ⬜ |
 
+**T-AI1 实测记录（2026-10-20）**：
+
+- 假向量（`PINLIAO_AI_PROVIDER=fake`）：7 份种子简历 → **35 块**（每份 5 块：基本信息 / 教育 / 工作 / 项目 / 技能），
+  首次 `embedded=35`，重复重建 `embedded=0 / reused=35`，`smoke-ai.mjs` **17/17**。
+- 真实上游（`text-embedding-v4`）：单份 `resume-u-cand-1` → 5 块 / `embedded=5` / **950ms**；
+  全量 7 份 → 35 块 / `embedded=30`（复用 5）/ **2.1s**；再次重建 `embedded=0` / 185ms。
+- 落库抽查：`model=text-embedding-v4`、`dim=1024`、单行 `embedding` 约 12.7KB；`13800001101` 在
+  `resume_chunks.content` 中 **0 命中**（联系方式不入库）。
+- 回归：`mvnw test` **199/199**；`db-reset.ps1` → `flyway=9 / companies=16 / jobs=51 / applications=9`；
+  `verify-seed.ps1` **16/16**。
+
+**T-AI2 实测记录（2026-10-20）**：
+
+- `mvnw test` **230/230**（新增 31：`SpringAiChatAdapterTest` 3 / `PromptBuilderTest` 1 /
+  `CitationAssemblerTest` 5 / `RetrievalServiceTest` 5 / `AiQuotaServiceTest` 3 / `HrResumeQaServiceTest` 14），
+  全部使用假对话 / 假向量，**不联网、不花钱**。
+- `smoke-ai.mjs` **31/31**（fake provider）：权限（未登录 40101 / 求职者 40301）、入参（空 / >500 字 42201）、
+  跨公司与不存在投递 40401、带引用回答（`grounded=true`、`citations≥1`、`chatModel=fake-chat-v1`）、
+  简历外问题固定「简历中没有相关信息。」且 `citations=[]`。
+- 前端：候选人详情「AI 简历助手」入口仅在 `/ai/status.enabled=true` 时渲染；抽屉内置 3 条快捷问题、
+  `[n]` 引用卡片（段落 / 相似度 / 原文片段）与「AI 生成仅供参考」提示；Mock 分支用段落意图 + 原文命中，
+  未命中同样回答「简历中没有相关信息。」。
+- e2e **65/65**：真实后端（`provider=fake`，避免真实对话费用）与 Mock 分支各跑一轮；新增
+  「AI 入口与开关一致」「AI 问答返回带引用的回答」2 项。
+- AI 关闭（`PINLIAO_AI_ENABLED=false`）：`POST .../ai/qa` → **422 + 42220**，前端入口隐藏，
+  e2e 其余 64 项不受影响（实测见 `docs/AI-CONTINUE.md` §6.21）。
+
 ## 8. 测试策略（保证不破坏现有基线）
 
-- **假模型优先**：`FakeEmbeddingModel`（确定性哈希 → 归一化向量，保证同文本同向量）+
-  `FakeChatModel`（模板回复）。单测/集成测试**不联网、不花钱、可重复**，与现有 176 项测试风格一致。
+- **假模型优先**：`FakeEmbeddingModel`（确定性词袋哈希 → 归一化向量，保证同文本同向量）+
+  `FakeChatClient`（模板回复，固定引用 `[1]`）。单测/集成测试**不联网、不花钱、可重复**，与现有 199 项测试风格一致。
   （T-AI0 已先行示范：`AiConnectivityServiceTest` 用 Mockito 假模型覆盖「关闭 → 42220 不调上游」与
-  「开启 → 关闭思考模式 + token 上限」两条不变量。）
+  「开启 → 关闭思考模式 + token 上限」两条不变量；T-AI1 的 `ResumeIndexServiceTest` 用假向量覆盖
+  「内容未变 → 0 次上游调用」「换模型 → 不复用旧向量」两条费用 / 正确性不变量。）
 - **`smoke-ai.mjs`** 走 `provider=fake`（或本地 Ollama 向量），断言分块数、幂等、过滤边界
   （他人公司的简历检索不到）；`node scripts/smoke-ai.mjs` 纳入 `backend/README.md` 冒烟清单。
-- **e2e 只加不变量断言**：入口显隐、开关关闭时不可见、无控制台错误；**不**断言模型具体输出。
-- **回归门禁**：每轮改动后仍须 `npm run e2e` 63/63（真实后端）、`mvnw test` 全绿、
+  **安全闸**：脚本检测到 `provider=springai` 会直接退出（避免误花额度），确认要测真实链路加 `--allow-real`。
+- **e2e 只加不变量断言**：入口显隐、开关关闭时不可见、回答带 `[n]` 引用；**不**断言模型具体输出。
+- **回归门禁**：每轮改动后仍须 `npm run e2e` **65/65**（真实后端 / Mock 各一轮）、`mvnw test` 全绿、
   `verify-seed.ps1` 16/16；AI 表新增不影响既有种子计数（V9 只建表不插演示数据）。
 - **契约与文档义务**：`docs/api-endpoints.md` 新增 §AI 并更新账目数；
   `PROGRESS.md` / `CHANGELOG.md` / `worklog.md` / `AI-CONTINUE.md §6`（新增 AI 踩坑小节）同步。
@@ -324,14 +376,14 @@ ai_chat_messages(id, session_id, role, content, citations_json, tokens, latency_
 
 | 风险 | 应对 |
 |---|---|
-| DashScope 兼容协议的 path / 维度 / 批量（10 条）与 OpenAI 默认不同 | ✅ **已实测**（T-AI0）：`base-url` 用 `.../compatible-mode`，Spring AI 默认拼 `/v1/chat/completions`、`/v1/embeddings`，与 DashScope 路径一致；维度显式配 1024；批量切分封装留给 T-AI1 |
+| DashScope 兼容协议的 path / 维度 / 批量（10 条）与 OpenAI 默认不同 | ✅ **已实测**（T-AI0/T-AI1）：`base-url` 用 `.../compatible-mode`，Spring AI 默认拼 `/v1/chat/completions`、`/v1/embeddings`，与 DashScope 路径一致；维度显式配 1024；**批量按 10 条切分已封装在 `SpringAiEmbeddingAdapter`**（真实单份 5 块 950ms、全量 30 块 2.1s） |
 | DashScope「思考型」模型默认开启思考 → 延迟与费用不可控 | ✅ **已处理**（T-AI0）：请求体 `extraBody(enable_thinking=false)`（实测 10s+ → 1.0s）；单测断言该参数 |
 | key 泄露（用户最担心「额度被用光」） | ✅ **已核查**（T-AI0）：key 仅存用户级环境变量；`git grep` / 未跟踪文件 / 全部历史提交均零命中；`.env*`、`.local/` 已 gitignore |
 | 跨租户简历泄漏（最严重） | §5.3 过滤前置；`smoke-ai.mjs` 增加「A 公司查不到 B 公司简历」断言 |
 | 简历文本被当作指令（Prompt 注入） | 「资料」与「指令」分区，并在系统提示里声明资料为纯数据 |
 | e2e「零控制台错误」门禁 | AI 相关请求失败必须走统一包络处理，不在前端产生未捕获错误 |
 | 成本不可控 | §5.4 配额 + `usage_logs`；演示额度上限写进配置 |
-| 模型换代导致向量失效 | `resume_chunks` 以 `model` 维度隔离，换代即重建（索引重建接口已具备） |
+| 模型换代导致向量失效 | ✅ **已处理**（T-AI1）：`resume_chunks` 以 `model` 维度隔离，复用查询与状态统计都带 `model`；换代后重建即覆盖 |
 | Spring Boot 3.5 已 EOL；Spring AI 2.0 需 Boot 4 + Jackson 3 | **单独开一轮** Boot 4 迁移，不与 AI 增量混做 |
 
 **待确认（需用户后续拍板，不替用户决定）**：
@@ -350,3 +402,5 @@ ai_chat_messages(id, session_id, role, content, citations_json, tokens, latency_
 |---|---|---|
 | v1.0 | 2026-10-19 | 首版。基于当前仓库实况（Boot 3.5.16 / MySQL 3307 / 无 Docker / 原生 Redis / 结构化简历 JSON / 多租户红线 / e2e 门禁）制定 Step 4 AI / RAG 增量方案；用户拍板：通义千问一站式、先内存后 MySQL、Spring AI 主线 + 事后补 LangChain4j、问答先行、**先落文档不动代码** |
 | v1.1 | 2026-10-19 | **T-AI0 落地并实测**：新增 `spring-ai-bom:1.1.8` + `spring-ai-starter-model-openai`；`ai/` 包（`AiCodes` 42220/42221/42902/50020、`AiProperties`、`AiConnectivityService`、`AiController` 的 `/ai/status` 与 `/ai/ping`）；配置改为「Spring AI 原生前缀 `spring.ai.openai.*` + 总开关 `pinliao.ai.enabled`」，key 走 6 个用户级环境变量并以占位默认值保证无 key 也能启动。**修正原方案两处**：① 错误码 `43xxx` 不可用（契约规定前 3 位=HTTP 状态），改为 `42220/42221/42902/50020`；② 对话模型按用户指定定为 `qwen3.5-122b-a10b`（思考型，`enable_thinking=false`）。实测：chat 1005ms/44 tokens、embedding 1024 维/538ms；`mvnw test` 176/176；e2e 63/63 无回归 |
+| v1.2 | 2026-10-20 | **T-AI1 索引入库落地并实测**：`ResumeChunker`（五段式 + 上下文头 + 800 字续写 + 手机号不入库）、`AiEmbeddingModel` SPI、`SpringAiEmbeddingAdapter`（≤10 切批）/ `FakeEmbeddingModel`、V9 `resume_chunks`、`ResumeIndexService`（全量 / 单份 / 状态）、`AiIndexController`（rebuild + index-status）、`smoke-ai.mjs`（17 项，带真实上游安全闸）。**定稿三处**：① 索引不冗余 `company_id`，检索用 `applications` 前置过滤（§5.3）；② 唯一键改 `(resume_id, section, ordinal, model)`，跨简历复用靠 `(content_hash, model)` 查询（§6.4）；③ 向量复用与状态统计都以 `model` 隔离，换 provider / 换模型不复用旧向量。实测：假向量 35 块 / 二次 0 调用；真实 `text-embedding-v4` 单份 950ms、全量 2.1s、1024 维；`mvnw test` 199/199、`verify-seed` 16/16（flyway=9） |
+| v1.3 | 2026-10-20 | **T-AI2 单简历问答落地并实测**：自研 `AiChatClient` SPI（`SpringAiChatAdapter` 关闭思考 / `FakeChatClient`）+ `RetrievalService`（可见性前置过滤 + 余弦 topK）+ `PromptBuilder`（资料/指令分区）+ `CitationAssembler`（`[n]` 解析与漏标兜底）+ `HrResumeQaService`（低分不调模型、按需建索引）+ `AiQuotaService`（HR/日配额，Redis 故障放行）；`POST /api/v1/hr/applications/{id}/ai/qa`；前端候选人详情「AI 简历助手」抽屉 + `src/api/ai.ts`/`mock/ai.ts` 双分支，入口按 `/ai/status.enabled` 显隐。实测：`mvnw test` **230/230**、`smoke-ai.mjs` **31/31**、e2e **65/65**（真实 fake provider + Mock 各一轮）；AI 关闭 `42220` 且入口隐藏。**新增红线**：无依据不编造引用（固定「简历中没有相关信息。」且 `citations=[]`），审计不落简历原文 |

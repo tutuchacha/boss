@@ -615,3 +615,43 @@ export type WsEvent =
   | { kind: 'typing'; data: { conversationId: string; userId?: string; hrId?: string; isTyping: boolean } }
   | { kind: 'presence'; data: { conversationId: string; userId?: string; hrId?: string; online: boolean } }
   | { kind: 'read'; data: { conversationId: string; messageId: string; readBy: 'USER' | 'HR' } }
+
+// ============================================================
+// AI（Step 4：简历问答）
+// ============================================================
+
+/** GET /api/v1/ai/status：只回显配置，不发起上游调用 */
+export interface AiStatus {
+  enabled: boolean
+  provider: string
+  chatModel: string
+  embeddingModel: string
+}
+
+/** 回答中的一条引用（对应简历分块） */
+export interface AiCitation {
+  /** 回答正文中的引用序号，从 1 开始 */
+  index: number
+  chunkId: string
+  resumeId: string
+  /** basics / educations / experiences / projects / skills */
+  section: string
+  title: string
+  /** 证据原文片段（截断） */
+  snippet: string
+  /** 余弦相似度（0~1） */
+  score: number
+}
+
+/** POST /api/v1/hr/applications/{id}/ai/qa */
+export interface AiQaAnswer {
+  answer: string
+  /** 是否在简历中找到依据；false 时 citations 为空 */
+  grounded: boolean
+  citations: AiCitation[]
+  chatModel: string
+  elapsedMs: number
+  totalTokens?: number | null
+  /** 检索命中的分块数 */
+  retrieved: number
+}

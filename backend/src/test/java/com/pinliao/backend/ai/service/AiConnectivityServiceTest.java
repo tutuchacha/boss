@@ -47,7 +47,9 @@ class AiConnectivityServiceTest {
     private EmbeddingModel embeddingModel;
 
     private AiConnectivityService service(boolean enabled) {
-        return new AiConnectivityService(chatModel, embeddingModel, new AiProperties(enabled), CHAT_MODEL, EMBEDDING_MODEL);
+        return new AiConnectivityService(chatModel, embeddingModel,
+                new AiProperties(enabled, AiProperties.PROVIDER_SPRING_AI, 800, 10, 6, 0.2, 700, 100),
+                CHAT_MODEL, EMBEDDING_MODEL);
     }
 
     @Test

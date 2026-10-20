@@ -1,6 +1,6 @@
 # 聘聊 · API 接口清单
 
-> 版本：v0.3.7 · 最后更新：2026-10-19
+> 版本：v0.3.9 · 最后更新：2026-10-20
 > 通用规范见 `docs/api-contract.md`。本文件列出全部业务接口。
 > 类型定义见 `src/types/api.ts`。
 >
@@ -19,6 +19,8 @@
 > （真实调用一次 chat + embedding），**需登录**、不计账、不改变任何模块的接口条数。
 > Step 4 正式 AI 接口（简历问答 / 索引状态 / 重建 / 语义检索）将在 T-AI1~T-AI4 落地时
 > 新增独立的「§AI」模块并计入账目（方案见 `step4-ai-plan.md` §6.3）。
+> **T-AI1 / T-AI2 已落地 4 条契约外接口**（重建、索引状态、单简历问答，连同既有 status/ping
+> 共 5 条）：当前仍不计入 70 条账目，待用户确认是否并入正式契约（见 §14）。
 >
 > **T8 出参口径（2026-10-18 用户拍板）**：§4.3 / §4.4 直接返回前端 service 使用的
 > **超集**结构（`HrJobRecord[]` / `HrApplicationView[]`），而非契约文字的 `Job[]` /
@@ -611,7 +613,52 @@
 
 ---
 
-## 14. 修订记录
+## 14. AI 模块（契约外扩展，不计入 70 条账目）
+
+> 方案见 `docs/step4-ai-plan.md`；错误码 `42220`（AI 未启用）/ `42221`（索引未就绪）/
+> `42902`（问答配额超限）/ `50020`（上游失败）。所有接口需登录；下标 `{applicationId}`
+> 必须先通过 `applications.company_id` 校验，跨公司 / 不存在统一 `404 + 40401`。
+> 密钥、模型与开关全部走用户级环境变量 `PINLIAO_AI_*`（仓库零命中）。
+
+### 14.1 AI 状态
+`GET /api/v1/ai/status`
+- 鉴权：是
+- 出参：`{ enabled, provider, chatModel, embeddingModel }`
+- 行为：只回显配置，不调用上游；前端据此决定「AI 助手」入口显隐
+
+### 14.2 连通性自检
+`GET /api/v1/ai/ping`
+- 鉴权：是
+- 出参：`{ chatModel, answer, chatLatencyMs, totalTokens, embeddingModel, embeddingDim, embeddingLatencyMs }`
+- 行为：真实调用一次 chat + embedding，会消耗少量额度
+
+### 14.3 重建简历索引
+`POST /api/v1/ai/index/rebuild`
+- 鉴权：HR / 管理员
+- 入参：`{}`（全量）或 `{ resumeId: string }`（单份）
+- 出参：`{ scope: "all" | "resume", resumes, chunks, embedded, reused, skipped, elapsedMs }`
+- 行为：按 `content_hash + model` 复用旧向量；同一内容二次重建 `embedded=0`
+
+### 14.4 投递简历索引状态
+`GET /api/v1/hr/applications/{applicationId}/ai/index-status`
+- 鉴权：HR / 管理员
+- 出参：`{ resumeId, indexed, chunkCount, model, dim, updatedAt }`
+- 行为：按投递校验可见性；索引缺失时 `indexed=false`（不报错）
+
+### 14.5 单简历问答（带引用）
+`POST /api/v1/hr/applications/{applicationId}/ai/qa`
+- 鉴权：HR / 管理员
+- 入参：`{ question: string }`（去空格后 1~500 字，否则 `422 + 42201`）
+- 出参：`{ answer, grounded, citations[{ index, chunkId, resumeId, section, title, snippet, score }],
+  chatModel, elapsedMs, totalTokens, retrieved }`
+- 行为：向量检索 topK → 低于 `qa-min-score` 直接回答「简历中没有相关信息。」且 `grounded=false`、
+  `citations=[]`，不调用对话模型；回答中的 `[n]` 与 `citations[].index` 一一对应
+- 配额：按 HR / 按日限制（默认 100 次，`42902`；Redis 故障降级放行）
+- 审计：只记录问题长度 / 命中数 / 引用数 / 回答长度 / token / 耗时，不记录简历原文与完整 Prompt
+
+---
+
+## 15. 修订记录
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
@@ -625,3 +672,4 @@
 | v0.3.6 | 2026-10-18 | 接口账目定稿（用户拍板）：正文 70 条为准；总览表鉴权 6→7、职位 9→10（§6.7 close/reopen）、消息 8→9（§8.7 send-resume / invite-interview），分模块合计 70 |
 | v0.3.7 | 2026-10-19 | T9 / T9 追加落地补注（不改账目）：实测真实后端下前端 `npm run e2e` 63/63；求职者职位列表 / 详情切真实（`GET /jobs`，`limit=100`） |
 | v0.3.8 | 2026-10-19 | Step 4 T-AI0：登记两个**契约外** AI 自检接口 `GET /api/v1/ai/status` / `GET /api/v1/ai/ping`（需登录、不计账）；正式 AI 接口（问答 / 索引 / 语义检索）留待 T-AI1~T-AI4 新增 §AI 模块时计入账目；错误码 `42220/42221/42902/50020`（**原草案 `43xxx` 作废**，契约 §5 前 3 位须为 HTTP 状态） |
+| v0.3.9 | 2026-10-20 | Step 4 T-AI1 / T-AI2：新增 §14「AI 模块（契约外扩展）」共 5 条（status / ping / rebuild / index-status / qa），仍不计入 70 条账目；qa 明确入参 1~500 字、无依据固定话术、`[n]` 与 citations 对应、按 HR/日配额 42902 |

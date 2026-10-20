@@ -447,6 +447,51 @@ async function main() {
     push('候选人详情可打开', openedCand && /候选人详情/.test(t) && /简历完善度/.test(t))
     push('候选人详情提供约面试', /约面试/.test(t))
 
+    // ---- AI 助手：入口显隐与后端开关一致，问答带引用 ----
+    // 探针从 Node 侧登录并查询 /ai/status：Mock 模式下接口 404（null）→ 入口按 Mock 默认开启校验；
+    // 真实后端下按 status.enabled 严格校验，避免「开关关了入口还在」。
+    let aiEnabled = null
+    try {
+      const loginRes = await fetch(`${BASE_URL}/api/v1/auth/login/password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ account: HR.phone, password: HR.password }),
+      })
+      if (loginRes.ok) {
+        const loginJson = await loginRes.json()
+        if (loginJson?.code === 0 && loginJson?.data?.accessToken) {
+          const statusRes = await fetch(`${BASE_URL}/api/v1/ai/status`, {
+            headers: { Authorization: `Bearer ${loginJson.data.accessToken}` },
+          })
+          if (statusRes.ok) {
+            const statusJson = await statusRes.json()
+            if (statusJson?.code === 0) aiEnabled = !!statusJson.data.enabled
+          }
+        }
+      }
+    } catch {
+      aiEnabled = null
+    }
+    const hasAiEntry = /AI 简历助手/.test(t)
+    push('AI 入口与开关一致', aiEnabled === false ? !hasAiEntry : hasAiEntry,
+      `enabled=${aiEnabled} entry=${hasAiEntry}`)
+
+    if (hasAiEntry && aiEnabled !== false) {
+      await cdp.click('开始提问')
+      await sleep(900)
+      await cdp.setInput('input[aria-label="向 AI 提问"]', '候选人的技能包括 React 和 TypeScript 吗？')
+      await cdp.eval(`(() => {
+        const el = document.querySelector('form button[type="submit"]')
+        if (!el) return false
+        el.click(); return true
+      })()`)
+      await sleep(1500)
+      const aiText = await cdp.text()
+      push('AI 问答返回带引用的回答', /技能/.test(aiText) && /\[1\]/.test(aiText))
+      await cdp.clickAria('关闭')
+      await sleep(700)
+    }
+
     await cdp.click('约面试')
     await sleep(1300)
     t = await cdp.text()
