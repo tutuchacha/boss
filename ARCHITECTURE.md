@@ -175,9 +175,9 @@ src/
   固定验证码 `123456`；注册写内存注册表，HR 注册自动创建未认证新公司；写 token 到 localStorage）
   → store 写入 `user / profile / company / member` → `RootGate` 按角色渲染对应外壳。
 - 登录成功统一重置双端落地页签（`setTab('jobs')`），避免落回上次停留页签
-  （`docs/AI-CONTINUE.md` §6.7）。
+  （`docs/pitfalls/frontend.md` §6.7）。
 - **身份校验必须在写登录态之前**（不符时抛 `RoleMismatchError`，登录页可提示切换身份）——
-  详见 `docs/AI-CONTINUE.md` §6.4。
+  详见 `docs/pitfalls/frontend.md` §6.4。
 - token 键：`pinliao.accessToken` / `pinliao.refreshToken`；auth store 只持久化身份信息。
 
 ### 4.5 状态归属（哪个 store 管什么）
@@ -189,7 +189,7 @@ src/
 | `hr` | HR tab / pageStack / 职位筛选 / 表单草稿 / dataVersion / toast | 不持久化 |
 
 约定：**选择器只返回稳定引用或原始值**（需要派生对象时在组件内 `useMemo` 组装），
-否则会触发无限重渲染（`docs/AI-CONTINUE.md` §6.2）。
+否则会触发无限重渲染（`docs/pitfalls/frontend.md` §6.2）。
 
 ### 4.6 水合安全与数据渲染边界
 
@@ -213,7 +213,7 @@ src/
 2. **service 层隔离**：组件不直接 `fetch`；`USE_MOCK` 控制 Mock / 真实接口切换。
 3. **前端最终选型未定**：Next.js 当前只是验收沙箱；目标架构见 `docs/architecture.md`。
 4. **多租户**：业务表带 `companyId`；生产由 MyBatis-Plus 租户拦截器落实（MySQL 8；
-   求职者跨租户查询不注入，详情见 `docs/AI-CONTINUE.md` §6.9）。
+   求职者跨租户查询不注入，详情见 `docs/pitfalls/backend-core.md` §6.9）。
 5. **水合安全**：见 §4.6，禁止在模块初始化阶段读取浏览器私有状态。
 
 ---
@@ -296,7 +296,7 @@ demo/        `_demo` 调试接口（保留）
 - 表都带 `company_id` 租户列；MyBatis-Plus `TenantLineInnerInterceptor` 对 HR 端查询注入
   `company_id`，求职者侧（跨租户）不注入 → **查询必须显式过滤 `user_id`**。
 - 少数表**不在**注入集合内（如 `hr_profiles` 按 `user_id` 唯一、`flyway_schema_history`）：
-  写这类查询前先读 `docs/AI-CONTINUE.md` §6.9 / §6.17。
+  写这类查询前先读 `docs/pitfalls/backend-core.md` §6.9 与 `docs/pitfalls/backend-collab.md` §6.17。
 - 归属隔离统一 `40410`（不存在 / 非本人 / 非本公司，不泄露存在性）；角色不符才是 `40301`。
 - 新记录 id 一律**递增派生**（`job-new-{seq}` / `app-new-{seq}` / `int-new-{seq}` / `conv-new-{seq}` /
   `msg-new-{seq}`），序号查询需 `@InterceptorIgnore(tenantLine="true")`。
@@ -333,7 +333,7 @@ demo/        `_demo` 调试接口（保留）
 - 验收：`mvnw.cmd test` **176/176**（含 Step 4 T-AI0 的 AI 自检 3 项）；冒烟 `smoke-auth` 20 / `smoke-jobs` 49 / `smoke-applications` 51 /
   `smoke-company` 26 / `smoke-messages` 40 / `smoke-user` 64 / `smoke-recruiter` 50；`verify-seed` 16/16；
   前端 `npm run e2e` **63/63**。
-- 仍是 mock 驱动的前端路径（求职者分类字典 / 消息会话）：见 `PROGRESS.md` §6.3。
+- 仍是 mock 驱动的前端路径（求职者分类字典 / 消息会话）：见 `docs/state/backend-facts.md`。
 - 求职者职位列表 / 详情已切真实（T9 追加）：`JobsView` 用 `listJobs()`（`GET /jobs`，`limit=100`、
   计数取后端 `pagination.total`），HR 发布 / 编辑 / 关闭职位对求职者立即生效。
 

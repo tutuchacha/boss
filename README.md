@@ -12,12 +12,13 @@
 > 方案与任务板见 `docs/step4-ai-plan.md`（**T-AI0 ✅**：Spring AI 1.1.8 + 百炼 DashScope 兼容模式打通；
 > **T-AI1 ✅**：简历结构化分块入库 —— 7 份种子简历 → 35 块，真实 `text-embedding-v4` 1024 维，
 > 内容未变二次重建 **0 次上游调用**；**T-AI2 ✅**：HR 候选人详情「AI 简历助手」抽屉 ——
-> 检索 + 引用 `[n]` + 无依据固定话术 + 跨公司 404 / 配额 42902；下一步 T-AI3 流式输出）。
+> 检索 + 引用 `[n]` + 无依据固定话术 + 跨公司 404 / 配额 42902；**T-AI3 ✅**：SSE 流式 + 打字机 +
+> 引用双向定位，流式不可用自动退回非流式；下一步 T-AI4 语义人才检索）。
 >
 > **可观测性（T-OBS）✅ 链路已打通**：接入阿里云 ARMS **应用监控**（Java 探针）——
 > 控制台「应用监控 → 应用列表」可见 `pinliao-backend`，响应包络里的 `traceId` **就是**链路 TraceId
 > （可到控制台按 TraceId 反查 HTTP + MySQL/Redis 子调用）；带探针 `mvnw test` 199/199、真实后端 e2e 63/63（T-OBS 时点基线）。
-> 方案与踩坑见 `docs/arms-plan.md`、`docs/AI-CONTINUE.md` §6.20。
+> 方案与踩坑见 `docs/arms-plan.md`、`docs/pitfalls/ai.md` §6.20。
 
 ### 进度速览
 
@@ -27,11 +28,11 @@
 | Step 1 前端开发 | ✅ | 求职者端 + HR 端 + 登录/注册（单页 SPA） |
 | Step 2 前端验收 | ✅ 五项验收功能 + 人才筛选增量 | `npm run e2e` **65/65**（Mock 与真实后端一致） |
 | Step 3 后端 + 联调 | ✅ T0~T9 | `backend/` Spring Boot 3.5 + MySQL 3307 + Redis 6379；`mvnw test` **230/230** |
-| Step 4 AI / RAG | 🔄 T-AI0 ✅ + T-AI1 ✅ + T-AI2 ✅ | 自检 `ai/status\|ping`（1024 维）+ 简历索引 `ai/index/rebuild`（35 块 / 二次 0 调用）+ 单简历问答 `hr/applications/{id}/ai/qa`（带引用） |
+| Step 4 AI / RAG | 🔄 T-AI0 ✅ + T-AI1 ✅ + T-AI2 ✅ + T-AI3 ✅ | 自检 `ai/status\|ping`（1024 维）+ 简历索引 `ai/index/rebuild`（35 块 / 二次 0 调用）+ 单简历问答 `hr/applications/{id}/ai/qa`（带引用）+ SSE 流式 `.../ai/qa/stream`（打字机 + 引用双向定位） |
 | 可观测性 T-OBS | ✅ T-OBS1 + T-OBS2 | ARMS 应用监控可见、traceId 对齐、带探针 e2e 63/63（T-OBS 时点） |
 
 > 每一步的「为什么 / 踩过的坑 / 下一步」以 [`PROGRESS.md`](./PROGRESS.md) 为唯一定稿；
-> 换人/换 AI 接手先读 [`docs/AI-CONTINUE.md`](./docs/AI-CONTINUE.md)。
+> 换人/换 AI 接手先读 `PROGRESS.md` 与 [`docs/INDEX.md`](./docs/INDEX.md)。
 
 ---
 
@@ -116,7 +117,7 @@ npm run dev
 | 功能 | 状态 |
 |---|---|
 | 招聘者端桌面 Web 后台 | 未实现（当前仅移动端布局） |
-| 真实后端（其余模块） | Step 3 **T0~T9 已完成**：鉴权（§1）/ 职位（§6/§7）/ 投递与面试（§9/§10）/ 公司（§5）/ 消息与 WebSocket（§8）/ 用户·简历·收藏·上传（§2/§3/§11/§12）/ 招聘者与人才筛选（§4）全部落地，前端已可切 `USE_MOCK=false`（真实后端下 e2e 65/65）；**求职者职位列表 / 详情已切真实**（HR 发布 / 关闭对求职者生效）；**遗留**：求职者端分类字典 / 消息会话仍读 mock（待拍板，见 `PROGRESS.md` §6.3） |
+| 真实后端（其余模块） | Step 3 **T0~T9 已完成**：鉴权（§1）/ 职位（§6/§7）/ 投递与面试（§9/§10）/ 公司（§5）/ 消息与 WebSocket（§8）/ 用户·简历·收藏·上传（§2/§3/§11/§12）/ 招聘者与人才筛选（§4）全部落地，前端已可切 `USE_MOCK=false`（真实后端下 e2e 65/65）；**求职者职位列表 / 详情已切真实**（HR 发布 / 关闭对求职者生效）；**遗留**：求职者端分类字典 / 消息会话仍读 mock（待拍板，见 `docs/state/backend-facts.md`） |
 | HR 语义人才检索 | 未开始（Step 4 T-AI4；当前人才筛选仍是关键词规则版） |
 
 ---
@@ -262,27 +263,31 @@ node scripts\smoke-ai.mjs         # 31 项：索引权限/全量/单份/幂等/�
 
 ## 文档索引
 
-**想让任何 AI / 新开发者接手这个项目？只需要给它看一份文件：**
+**想让任何 AI / 新开发者接手？三份文件就够：**
 
-> **`docs/AI-CONTINUE.md`** —— AI 接续开发指南。充要、自包含、与具体工具无关：
-> 三分钟上手、当前状态、架构约定、运维手册、**已踩过的坑与教训**、协作规范。
-> 换任何环境（换机器 / 换 AI / 隔几个月）都应先读它。
-
-仓库根目录还有一组配套文档（在仓库内工作的 AI / 人按此顺序读，各司其职避免「多份真相」）：
+> 1. **`PROGRESS.md`** —— 当前状态唯一定稿（§0 快照 → §0.1 接续即用 → §3 下一步）
+> 2. **`docs/INDEX.md`** —— 文档地图：想知道什么 → 读哪个文件的哪一节
+> 3. **`AGENTS.md`** —— 硬性约束与文档维护义务
+>
+> 其余文档一律按需检索，**不要整读**（`worklog` / `CHANGELOG` / `docs/archive/` 是归档）。
 
 | 文件 | 内容 |
 |---|---|
 | `PROGRESS.md` | **当前状态唯一定稿**：已完成 / 下一步 / 风险 / 测试结果 |
+| `docs/INDEX.md` | **文档地图 + 读取纪律 + 体积预算** |
+| `AGENTS.md` | 开发约束与规范（硬性约束、验收命令、文档维护义务） |
 | `ARCHITECTURE.md` | 验收版现状架构（技术栈 / 目录 / 模块关系） |
 | `PROJECT.md` | 项目定位、目标与业务范围 |
-| `AGENTS.md` | 开发约束与规范（硬性约束、验收命令、文档维护义务） |
-| `CHANGELOG.md` | 重要代码变更累积记录 |
+| `CHANGELOG.md` | 当前阶段变更记录（更早的已归档） |
 
-`docs/` 下的其余文档是**框架无关**的设计资产，任何前端 / 后端实现都可复用：
+`docs/` 下的其余文档（框架无关的设计资产，按需查阅）：
 
 | 文件 | 内容 |
 |---|---|
-| `AI-CONTINUE.md` | **AI/开发者接续入口（先读这个）** |
+| `AI-CONTINUE.md` | 深读手册：上手 / 目录 / 坑索引 / 代码约定 / 待确认事项 |
+| `pitfalls/*.md` | 踩坑正文（前端 / 后端核心 / 消息·用户·联调 / AI·可观测） |
+| `state/*.md` | 命令与验收、后端接口事实、AI·ARMS 配置、交付明细 |
+| `archive/` | 历史归档（旧 worklog / changelog / 修订记录），**默认不读** |
 | `architecture.md` | 总体架构、多租户、并发/高可用预留、技术栈、部署演进 |
 | `data-model.md` | 表清单、字段说明、索引、ER 图 |
 | `api-contract.md` | API 通用规范（包络 / 错误码 / 分页 / 限流 / WebSocket / 安全） |
@@ -291,7 +296,7 @@ node scripts\smoke-ai.mjs         # 31 项：索引权限/全量/单份/幂等/�
 | `step4-ai-plan.md` | **Step 4 AI / RAG 增量计划**（HR 简历问答 → 语义人才检索；选型、数据流、多租户红线、T-AI0~T-AI7 任务板、测试策略；**T-AI0 + T-AI1 + T-AI2 已完成**，配置与实测见 §6.2/§7） |
 | `arms-plan.md` | **可观测性增量计划（阿里云 ARMS 应用监控）**：路径选型（开源 OTel Agent vs 阿里云 ARMS 探针）、环境变量、脚本用法、**判活三条判据**、T-OBS0~T-OBS3 任务板与本机实测记录；**T-OBS1 + T-OBS2 已完成（链路已打通）** |
 | `dev-notes.md` | 决策记录与路线图 |
-| `HANDOFF.md` | ⚠️ 已降级为「Step 0 决策历史」，当前状态以 `AI-CONTINUE.md` 为准 |
+| `HANDOFF.md` | ⚠️ 已降级为「Step 0 决策历史」，当前状态以 `PROGRESS.md` 为准 |
 | `legacy/` | 原始 HTML 原型与 v0.2 开发笔记 |
 | `../worklog.md` | 协作 Agent 工作日志 |
 
@@ -303,13 +308,14 @@ node scripts\smoke-ai.mjs         # 31 项：索引权限/全量/单份/幂等/�
 - 后端（backend/，Spring Boot 3.5 + MySQL 8 + Redis）已完成 Step 3 全部 T0~T9，`mvnw test` 230/230，
   真实后端下前端 e2e 65/65；
 - Step 4 AI/RAG 已开工（T-AI0 打通 Spring AI + 百炼；T-AI1 简历分块索引入库，V9 `resume_chunks`；
-  T-AI2 HR 候选人详情「AI 简历助手」问答 + 引用 + 配额），
+  T-AI2 HR 候选人详情「AI 简历助手」问答 + 引用 + 配额；T-AI3 SSE 流式 + 打字机 + 引用定位），
   可观测性已接阿里云 ARMS 应用监控（链路已打通）。
 
-请先读 docs/AI-CONTINUE.md（全貌 + 约定 + 踩坑），再看 PROGRESS.md（当前状态唯一定稿），
+请先读 PROGRESS.md（当前状态）与 docs/INDEX.md（文档地图），再按索引读相关代码/文档，
+不要整读 docs/（坑在 docs/pitfalls/，命令在 docs/state/commands.md）。
 读完即可开工，无需再问我背景问题。
 
-本次我想做的是：<你的需求，例如"T-AI3 流式输出"或"核对 ARMS 慢 SQL 大盘">
+本次我想做的是：<你的需求，例如"T-AI4 语义人才检索"或"核对 ARMS 慢 SQL 大盘">
 ```
 
 ---
@@ -320,16 +326,16 @@ node scripts\smoke-ai.mjs         # 31 项：索引权限/全量/单份/幂等/�
 |---|---|---|
 | Step 0 | 框架无关的架构、数据模型、API 契约 | ✅ |
 | Step 1 | 前端开发（Next.js + Mock） | ✅ |
-| Step 2 | 前端验收（五项验收功能 + 人才筛选演示增量） | ✅ 完成（`npm run e2e` 65/65；用户人工验收初步通过 2026-10-16，遗留待拍板项见 `PROGRESS.md` §6.3） |
-| Step 3 | 后端开发 + 全量联调（Spring Boot 3.5 + MySQL/Redis；`USE_MOCK=false` 下真实接口；分块计划 `docs/step3-plan.md`） | ✅ 完成（T0 ✅ / T1 ✅ / T2a ✅ / T2b ✅ / T3a ✅ / T3b ✅ / T4 ✅ / T5 ✅ / T6 ✅ / T7 ✅ / T8 ✅ / T9 ✅，2026-10-19；`mvnw test` 230/230，真实后端下前端 e2e 65/65；遗留见 `PROGRESS.md` §6.3） |
-| Step 4 | **AI / RAG 增量**（HR 简历问答带引用 → 语义人才检索；计划 `docs/step4-ai-plan.md`） | 🔄 T-AI0 ✅（Spring AI 1.1.8 + 百炼 DashScope 打通、`/api/v1/ai/*` 自检、密钥走环境变量）；**T-AI1 ✅（2026-10-20：V9 `resume_chunks` + 结构化分块 + 真实 1024 维嵌入 + 重建 / 状态接口，7 份简历 35 块、二次 0 调用）**；**T-AI2 ✅（2026-10-20：单简历问答 + `[n]` 引用 + 无依据话术 + 配额，HR 候选人详情 AI 抽屉，`mvnw test` 230/230、`smoke-ai` 31/31、e2e 65/65）**；下一步 T-AI3 流式输出 |
+| Step 2 | 前端验收（五项验收功能 + 人才筛选演示增量） | ✅ 完成（`npm run e2e` 65/65；用户人工验收初步通过 2026-10-16，遗留待拍板项见 `docs/state/backend-facts.md`） |
+| Step 3 | 后端开发 + 全量联调（Spring Boot 3.5 + MySQL/Redis；`USE_MOCK=false` 下真实接口；分块计划 `docs/step3-plan.md`） | ✅ 完成（T0 ✅ / T1 ✅ / T2a ✅ / T2b ✅ / T3a ✅ / T3b ✅ / T4 ✅ / T5 ✅ / T6 ✅ / T7 ✅ / T8 ✅ / T9 ✅，2026-10-19；`mvnw test` 230/230，真实后端下前端 e2e 65/65；遗留见 `docs/state/backend-facts.md`） |
+| Step 4 | **AI / RAG 增量**（HR 简历问答带引用 → 语义人才检索；计划 `docs/step4-ai-plan.md`） | 🔄 T-AI0 ✅（Spring AI 1.1.8 + 百炼 DashScope 打通、`/api/v1/ai/*` 自检、密钥走环境变量）；**T-AI1 ✅（2026-10-20：V9 `resume_chunks` + 结构化分块 + 真实 1024 维嵌入 + 重建 / 状态接口，7 份简历 35 块、二次 0 调用）**；**T-AI2 ✅（2026-10-20：单简历问答 + `[n]` 引用 + 无依据话术 + 配额，HR 候选人详情 AI 抽屉）**；**T-AI3 ✅（2026-10-20：SSE 流式 + 打字机 + 引用双向定位，`smoke-ai` 43/43、e2e 65/65）**；下一步 T-AI4 语义人才检索 |
 | 可观测性 | **阿里云 ARMS 应用监控接入**（计划 `docs/arms-plan.md`；任务号 T-OBS0~T-OBS3） | ✅ T-OBS1 + T-OBS2 完成（2026-10-19：控制台可见 `pinliao-backend`、包络 traceId 即链路 TraceId、有上报连接；带探针 `mvnw test` 199/199、e2e 63/63，均为 T-OBS 时点基线）；T-OBS3（慢 SQL/异常分析/前端监控）可选 |
 | 未来 | App / 小程序（若决定多端，复用 API 契约） | — |
 
 ### 接下来的推进建议
 
-1. **Step 4 主线（推荐）**：T-AI3 流式输出（SSE，Next `rewrites` 不通则退 STOMP）+ 打字机 + 引用点击定位；
-   之后 T-AI4 语义人才检索（与关键词版 A/B）、T-AI5 面试问题生成。
+1. **Step 4 主线（推荐）**：T-AI4 语义人才检索（与关键词版并行 A/B，接口 `POST /hr/talent/semantic-search`）；
+   之后 T-AI5 面试问题生成、T-AI6 混合检索 / rerank / 评测集 / 成本看板。
 2. **可观测性可选深化（T-OBS3）**：控制台核对慢 SQL / 异常分析 / JVM 大盘；前端监控（Web SDK）
    建议最后做且加开关（会碰 e2e「零控制台错误」门禁）。
 3. **待用户拍板**（不替用户决定）：`docs/step4-ai-plan.md` §10 五项（向量维度 1024/1536、是否接 Ollama、

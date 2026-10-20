@@ -11,26 +11,33 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 # 聘聊 · 开发约束与规范（AGENTS.md）
 
 > 本文件是给在本仓库工作的 AI Agent（以及人）的**硬性约束与操作规范**。
-> 开工前按此顺序读：`PROGRESS.md`（当前状态与下一步）→ `ARCHITECTURE.md`（结构）→
-> `PROJECT.md`（范围）→ `docs/AI-CONTINUE.md`（命令、坑、规范深读）→ `worklog.md`（历史）。
+> **开工只读三样**：本文件（约束）→ `PROGRESS.md` §0~§3（当前状态 / 下一步）→
+> `docs/INDEX.md`（按需检索表）。**不要整读 `docs/`**：其余文档先 `grep` 定位，再按行段读，单次 ≤ 300 行。
 > 上方 `nextjs-agent-rules` 区块由 `next dev` 自动维护，勿删；允许在其后追加内容。
 
 ## 0. 项目速览
 
-聘聊 = Boss 直聘模式招聘平台原型（求职者端 + HR 端双端 H5），Next.js 16 + Tailwind 4 + Zustand +
-TanStack Query，数据全部为前端 Mock。当前处于 **Step 2 前端验收**：五项验收功能（投递 / 候选人 /
-面试、验证码登录 / 注册、公司资料 / 企业认证）已完成，并新增**人才筛选（演示版）**
-增量，`npm run e2e` **65/65** 通过；用户人工验收初步通过（2026-10-16）。Step 3 后端已开工：**T0 ✅（骨架）、T2a ✅（鉴权：验证码 / 密码·短信登录 / 刷新 / 退出 / me）、T1 ✅（V3 全量业务表 + V4~V8 演示种子）、T2b ✅（注册：§1.2，HR 自动建未认证公司，2026-10-18）、T3a ✅（职位公开读 + 分类字典：§6.1~§6.4/§6.9 + §7，2026-10-18）、T3b ✅（HR 职位写：§6.5~§6.8，2026-10-18）、T4 ✅（投递与面试闭环：§9/§10 + §8.7，2026-10-18）、T5 ✅（公司模块 + 企业认证：§5，2026-10-18）、T6 ✅（消息 + WebSocket：§8，2026-10-18）、T7 ✅（求职者 / 简历 / 收藏 / 上传：§2/§3/§11/§12，2026-10-18）、T8 ✅（招聘者 / 候选人 / 人才筛选：§4，2026-10-19）、T9 ✅（全量联调：`.env.local` 切 `USE_MOCK=false`，真实后端下 `npm run e2e` 63/63，2026-10-19）**，`backend/` + MySQL 3307 / Redis 6379 专用实例；**当前联调态**：前端经 `next.config.ts` rewrites 代理 `/api/v1` 与 `/uploads` 到 :8080，每轮 e2e 前先跑 `backend/scripts/db-reset.ps1` 清库重迁；**求职者职位列表 / 详情已切真实**（HR 发布 / 关闭职位对求职者生效），遗留待用户拍板（求职者端分类字典 / 消息会话仍读 mock），计划见 `docs/step3-plan.md`。**Step 4 AI 已开工**：T-AI0 ✅（Spring AI 1.1.8 + 百炼 DashScope 兼容模式打通、`/api/v1/ai/status|ping` 自检、密钥走用户级环境变量 `PINLIAO_AI_*` 且仓库零命中）、T-AI1 ✅（V9 `resume_chunks` + 结构化分块 + 真实 1024 维嵌入 + 重建 / 状态接口，2026-10-20）、T-AI2 ✅（单简历问答 + `[n]` 引用 + 无依据话术 + 配额 + HR 候选人详情 AI 抽屉，2026-10-20；`mvnw test` **230/230**、`smoke-ai` **31/31**、e2e **65/65**），下一步 T-AI3 流式输出，方案与踩坑见 `docs/step4-ai-plan.md` / `docs/AI-CONTINUE.md` §6.19 / §6.21。
+聘聊 = Boss 直聘模式招聘平台原型（求职者端 + HR 端双端 H5）：Next.js 16 + Tailwind 4 + Zustand +
+TanStack Query；后端 Spring Boot 3.5.16（`backend/`）+ MySQL 3307 / Redis 6379 专用实例，前端默认联调真实后端。
+
+- **Step 2 前端验收**：五项验收功能 + 人才筛选（演示版）完成，e2e 65/65；用户人工验收初步通过（2026-10-16）。
+- **Step 3 后端**：T0~T9 全部完成，含全量联调（`USE_MOCK=false`，e2e 65/65）。
+- **Step 4 AI**：T-AI0~T-AI3 完成（索引 / 单简历问答 / SSE 流式）；下一步 T-AI4 语义人才检索。
+- **可观测性**：T-OBS1 + T-OBS2 完成（阿里云 ARMS 应用监控，链路已打通）。
+
+状态明细见 `PROGRESS.md` §1；每个 T 交付了什么见 `docs/archive/progress-history.md`。
 演示账号：`13800000001`（求职者）/ `13800000002`（HR），密码均 `123456`；短信验证码固定 `123456`。
 
 ## 1. 运行与验收（统一用 npm，不用 bun）
 
 ```powershell
 npm run dev          # dev server，端口 3000（e2e 需要它常驻）；联调态读取 .env.local 的 USE_MOCK=false
-npm run e2e          # 端到端验收（tests/e2e-verify.cjs）；Mock 基线 65/65，真实后端下同为 65/65
+npm run e2e          # 端到端验收（tests/e2e-verify.cjs）；基线 65/65（Mock 与真实后端相同）
 npx tsc --noEmit     # 类型检查；基线仅 3 个既有错误（见 §3）
 npm run lint         # ESLint
 npm run build        # 生产构建（需能访问 Google Fonts）
+./scripts/doc-size.ps1          # 文档体量体检（超软上限告警）
+./scripts/doc-size.ps1 -Strict  # 超硬上限返回非 0；提交前跑一次
 ```
 
 后端（`backend/`，Step 3；详见 `backend/README.md`）：
@@ -39,19 +46,15 @@ npm run build        # 生产构建（需能访问 Google Fonts）
 cd backend
 $env:JAVA_HOME='C:\Program Files\JetBrains\IntelliJ IDEA Community Edition 2025.2.6.2\jbr'  # 必设：本机系统仅 JDK 1.8
 .\scripts\dev-up.ps1        # 起 MySQL 专用实例 3307 + Redis 6379（首次先 .\scripts\db-init.ps1）
-.\scripts\db-reset.ps1      # T9 起：清库重迁（drop+create → Redis FLUSHALL → 起后端 → 等 health UP）
+.\scripts\db-reset.ps1      # 每轮 e2e 前：清库重迁（drop+create → Redis FLUSHALL → 起后端 → 等 health UP）
 .\mvnw.cmd spring-boot:run  # 后端 :8080；收工用 .\scripts\dev-down.ps1
-.\mvnw.cmd test             # 单元测试（包络 / JWT / 种子密码 / 租户策略 / 注册 / 职位 / 职位写 / 字典 / 投递面试 / 公司 / 消息 / 用户 / 简历 / 收藏 / 上传 / 招聘者 / AI 自检 / AI 索引 / AI 问答；基线 230/230）
-node scripts\smoke-auth.mjs # 鉴权接口冒烟（T2a/T2b 起；需后端已启动，20 项含注册）
-node scripts\smoke-jobs.mjs # 职位与字典冒烟（T3a/T3b 起；需后端已启动，49 项含 HR 写）
-node scripts\smoke-applications.mjs # 投递与面试冒烟（T4 起；需后端已启动，51 项，可重复执行）
-node scripts\smoke-company.mjs # 公司模块冒烟（T5 起；需后端已启动，26 项，可重复执行）
-node scripts\smoke-messages.mjs # 消息与 WebSocket 冒烟（T6 起；需后端已启动，40 项，可重复执行）
-node scripts\smoke-user.mjs # 用户 / 简历 / 收藏 / 上传冒烟（T7 起；需后端已启动，64 项，可重复执行）
-node scripts\smoke-recruiter.mjs # 招聘者模块冒烟（T8 起；需后端已启动，50 项，可重复执行）
-node scripts\smoke-ai.mjs   # AI 索引 + 简历问答冒烟（T-AI1/T-AI2 起；需 `PINLIAO_AI_ENABLED=true`，31 项；默认拒绝真实上游防误花额度）
-.\scripts\verify-seed.ps1   # 种子行数抽查（T1 起；需已迁移 V1~V9，16 项）
+.\mvnw.cmd test             # 单元测试；基线 240/240
+node scripts\smoke-ai.mjs   # AI 索引 + 问答冒烟（43 项，需 PINLIAO_AI_ENABLED=true，默认拒绝真实上游）
 ```
+
+其余冒烟脚本（`smoke-auth` 20 / `smoke-jobs` 49 / `smoke-applications` 51 / `smoke-company` 26 /
+`smoke-messages` 40 / `smoke-user` 64 / `smoke-recruiter` 50 / `verify-seed` 16）的逐项说明与验证分级
+→ `docs/state/commands.md`，需要时再查，不要凭记忆跑。
 
 ## 2. 硬性约束（违反会破坏已验收功能）
 
@@ -76,6 +79,8 @@ node scripts\smoke-ai.mjs   # AI 索引 + 简历问答冒烟（T-AI1/T-AI2 起�
    严禁 `Get-Process chrome | Stop-Process -Force`（会杀掉用户全部标签页）。
 10. **求职者可见职位必须走 `listSeekerJobs()` / `jobById()`**（含 HR 关闭/删除/新建联动），
     不要直接读静态 `jobs` 数组。
+11. **文档分层不许打回原形**：状态只写 `PROGRESS.md`，坑只写 `docs/pitfalls/`，
+    历史只进 `docs/archive/`；提交前 `./scripts/doc-size.ps1 -Strict` 必须通过。
 
 ## 3. 已知既有报错（不要试图修）
 
@@ -85,9 +90,28 @@ node scripts\smoke-ai.mjs   # AI 索引 + 简历问答冒烟（T-AI1/T-AI2 起�
 
 ## 4. 文档维护义务
 
-- 有实质进展后更新 `PROGRESS.md`（状态唯一定稿）并在 `worklog.md` 追加条目（Task ID 递增）。
-- 完成增量后更新 `CHANGELOG.md`；契约变化同步 `docs/api-endpoints.md`；踩坑后同步
-  `docs/AI-CONTINUE.md` §6。
+### 4.1 写哪里（单一出处，别复制第二份）
+
+| 内容 | 唯一去处 | 禁止 |
+| --- | --- | --- |
+| 当前状态 / 下一步 / 风险摘要 | `PROGRESS.md`（只写「现在」） | 在这里堆历史 |
+| 某次做了什么 | `worklog.md` 追加一条（Task ID 递增，单条 ≤ 60 行） | 复述全量 diff |
+| 版本变更 | `CHANGELOG.md` 当前阶段条目 | 保留全部历史 |
+| 踩坑 | `docs/pitfalls/<主题>.md` + `AI-CONTINUE.md` §6 索引一行 | 堆进 AI-CONTINUE 正文 |
+| 命令 / 验收 / 测试基线 | `docs/state/commands.md` | README、PROGRESS 各写一份 |
+| 后端接口事实 / 环境坑 | `docs/state/backend-facts.md` | 分散多文件 |
+| 历史（旧日志 / 旧版本 / 旧计划） | `docs/archive/`（原文切片） | 回填进主文件 |
+
+### 4.2 归档触发（达到即做，不要等）
+
+- `worklog.md` 超过 3 个阶段或 200 行 → 把上一阶段整体移到 `docs/archive/worklog-<stage>.md`。
+- `CHANGELOG.md` 超过 5 个版本 → 更早的移到 `docs/archive/changelog-<stage>.md`。
+- 任一非归档 `.md` 超 20 KB → 拆文件，并在 `docs/INDEX.md` 补/改一行。
+- 每次提交前 `./scripts/doc-size.ps1 -Strict`。
+
+### 4.3 其他
+
+- 契约变化同步 `docs/api-endpoints.md`；方案变化同步对应 `docs/*-plan.md` 的任务板。
 - 提交信息用中文，说明「改了什么 + 为什么」；提交时包含 `AGENTS.md` / `CLAUDE.md`
   以保持工作区干净（该区块由 `next dev` 自动重新生成）。
 - 不要为整理文档而重构业务代码；不要提交 `.env` 与本机私有产物。

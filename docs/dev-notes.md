@@ -1,6 +1,6 @@
 # 聘聊 · 开发笔记
 
-> ## ⚠️ 当前状态请看 [`docs/AI-CONTINUE.md`](./AI-CONTINUE.md)
+> ## ⚠️ 当前状态请看根目录 [`PROGRESS.md`](../PROGRESS.md)（文档地图：[`docs/INDEX.md`](./INDEX.md)）
 >
 > 本文件是**阶段性决策记录**（Step 0 时期），其中的项目概述与决策仍然有效，
 > 但「当前阶段」等状态描述已过期。

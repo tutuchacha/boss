@@ -220,7 +220,7 @@
     HR 聊天改定时重取（后端 1.2s 自动回复）
   - e2e 质量门禁只豁免「错误密码」用例必然触发的 1 条 401
   - 遗留（待用户拍板）：求职者端分类字典 / 消息会话仍读 mock；HR「发消息」入口仍为
-    mock 专用（详见 `PROGRESS.md` §6.3、`AI-CONTINUE.md` §6.18）
+    mock 专用（详见 `docs/state/backend-facts.md`、`pitfalls/backend-collab.md` §6.18）
   - **T9 追加（用户选 A，2026-10-19）**：求职者职位列表切真实——`JobsView` 改
     `useQuery + listJobs()`（`GET /jobs`；`limit=100` 单页取全、计数用 `pagination.total`），
     删除 `src/api/mock/filter.ts`。后端 `q` 与 mock 同口径（含公司名），`sort=recommend`
