@@ -97,7 +97,7 @@ class RetrievalServiceTest {
 
     private RetrievalService service(int topK) {
         return new RetrievalService(chunkStore, embeddingModel,
-                new AiProperties(true, AiProperties.PROVIDER_FAKE, 800, 10, topK, 0.2, 700, 100));
+                new AiProperties(true, AiProperties.PROVIDER_FAKE, 800, 10, topK, 0.2, 700, 100, 8, 0.15));
     }
 
     private static ResumeChunkEntity chunk(String id, String title, float[] vector) {

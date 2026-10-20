@@ -373,7 +373,7 @@ class HrResumeQaServiceTest {
     }
 
     private HrResumeQaService service(boolean enabled) {
-        AiProperties properties = new AiProperties(enabled, AiProperties.PROVIDER_FAKE, 800, 10, 6, 0.2, 700, 100);
+        AiProperties properties = new AiProperties(enabled, AiProperties.PROVIDER_FAKE, 800, 10, 6, 0.2, 700, 100, 8, 0.15);
         return new HrResumeQaService(properties, applicationMapper, chunkStore, indexService, embeddingModel,
                 retrievalService, new PromptBuilder(), new CitationAssembler(), chatClient, quotaService);
     }

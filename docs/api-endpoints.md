@@ -19,8 +19,8 @@
 > （真实调用一次 chat + embedding），**需登录**、不计账、不改变任何模块的接口条数。
 > Step 4 正式 AI 接口（简历问答 / 索引状态 / 重建 / 语义检索）将在 T-AI1~T-AI4 落地时
 > 新增独立的「§AI」模块并计入账目（方案见 `step4-ai-plan.md` §6.3）。
-> **T-AI1 / T-AI2 已落地 4 条契约外接口**（重建、索引状态、单简历问答，连同既有 status/ping
-> 共 5 条）：当前仍不计入 70 条账目，待用户确认是否并入正式契约（见 §14）。
+> **T-AI1~T-AI4 已落地 7 条契约外接口**（重建、索引状态、单简历问答、SSE 流式问答、语义人才检索，
+> 连同既有 status/ping 共 7 条）：当前仍不计入 70 条账目，待用户确认是否并入正式契约（见 §14）。
 >
 > **T8 出参口径（2026-10-18 用户拍板）**：§4.3 / §4.4 直接返回前端 service 使用的
 > **超集**结构（`HrJobRecord[]` / `HrApplicationView[]`），而非契约文字的 `Job[]` /
@@ -616,7 +616,7 @@
 ## 14. AI 模块（契约外扩展，不计入 70 条账目）
 
 > 方案见 `docs/step4-ai-plan.md`；错误码 `42220`（AI 未启用）/ `42221`（索引未就绪）/
-> `42902`（问答配额超限）/ `50020`（上游失败）。所有接口需登录；下标 `{applicationId}`
+> `42902`（AI 配额超限，问答与语义检索共用）/ `50020`（上游失败）。所有接口需登录；下标 `{applicationId}`
 > 必须先通过 `applications.company_id` 校验，跨公司 / 不存在统一 `404 + 40401`。
 > 密钥、模型与开关全部走用户级环境变量 `PINLIAO_AI_*`（仓库零命中）。
 
@@ -672,6 +672,25 @@
   `POST /api/ai/qa-stream/{applicationId}`（`src/app/api/ai/qa-stream/[applicationId]/route.ts`），
   因为 Next `rewrites` 会缓冲 SSE。代理路径**不在 `/api/v1` 下、不属于对外契约**，仅前端内部使用。
 
+### 14.7 语义人才检索（T-AI4）
+`POST /api/v1/hr/talent/semantic-search`
+- 鉴权：HR / 管理员（`companyId` 取自登录上下文）
+- 入参：`{ query?: string, tags?: string[], limit?: number }`
+  - `query` 去空格后 ≤200 字；`tags` ≤20 个、单个 ≤40 字；两者至少一个非空（否则 `422 + 42210`）
+  - `limit` 缺省 `pinliao.ai.search-top-k`（8），最大 20；≤0 返回 `42201`
+- 出参：`SemanticMatch[]`，按候选人最高分块的余弦相似度倒序：
+  `{ applicationId, candidate{...}, jobTitle, score, evidences[{ chunkId, section, title, snippet, score }] }`
+- 行为：
+  - 只在「本公司收到的投递」范围内检索（先取 `applications.company_id` 可见的 `resume_id`，
+    再按 `resume_id IN (...)` 查 `resume_chunks`，不做全局检索后过滤）；
+  - 每次检索只向量化一次查询文本（`query + tags`）；相似度低于 `pinliao.ai.search-min-score`
+    （默认 0.15）的候选人不返回；
+  - 同一候选人多条投递 / 多份简历时按最高分去重；每名候选人最多 3 条证据；
+  - 索引缺失时按需补建（单份简历不可索引则跳过，不影响整体）；索引维度与当前模型不一致返回 `42221`；
+  - 与关键词版 §4.5 并行，页面可切换 A/B 对比；语义模式入口仅在 `/ai/status.enabled=true` 时展示。
+- 配额：与 §14.5 / §14.6 共用按 HR / 按日配额（默认 100 次，`42902`；Redis 故障降级放行）
+- 审计：只记录公司 / HR / 查询长度 / 标签数 / 候选人数 / 分块数 / 最高分 / 耗时，不记录简历原文
+
 ---
 
 ## 15. 修订记录
@@ -690,3 +709,4 @@
 | v0.3.8 | 2026-10-19 | Step 4 T-AI0：登记两个**契约外** AI 自检接口 `GET /api/v1/ai/status` / `GET /api/v1/ai/ping`（需登录、不计账）；正式 AI 接口（问答 / 索引 / 语义检索）留待 T-AI1~T-AI4 新增 §AI 模块时计入账目；错误码 `42220/42221/42902/50020`（**原草案 `43xxx` 作废**，契约 §5 前 3 位须为 HTTP 状态） |
 | v0.3.9 | 2026-10-20 | Step 4 T-AI1 / T-AI2：新增 §14「AI 模块（契约外扩展）」共 5 条（status / ping / rebuild / index-status / qa），仍不计入 70 条账目；qa 明确入参 1~500 字、无依据固定话术、`[n]` 与 citations 对应、按 HR/日配额 42902 |
 | v0.3.10 | 2026-10-20 | Step 4 T-AI3：新增 §14.6 **SSE 流式问答**（`delta` / `citation` / `done` / `error`；校验类错误仍在推流前返回 JSON 包络；`Accept` 须含 `application/json`）；前端内部代理 `/api/ai/qa-stream/{applicationId}` 绕过 Next rewrites 缓冲，**不属于对外契约、不计账**（§14 仍为 5+1 条契约外接口） |
+| v0.3.11 | 2026-10-20 | Step 4 T-AI4：新增 §14.7 **语义人才检索** `POST /api/v1/hr/talent/semantic-search`（query+tags 向量化、公司可见范围前置过滤、余弦 topK + 证据片段、与关键词版并行 A/B；与问答共用 42902 配额）；§14 现为 7 条契约外接口，仍不计入 70 条账目 |

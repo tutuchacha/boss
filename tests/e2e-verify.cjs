@@ -552,6 +552,27 @@ async function main() {
     mt = await matchOverlayText()
     push('标签筛选命中测试候选人', mt.includes('沈禾') && mt.includes('回归'))
 
+    // 语义模式（T-AI4）：AI 开启时才出现；关闭时整体跳过，不影响其余断言
+    const hasSemanticMode = await cdp.eval(
+      `[...document.querySelectorAll('button')].some(b => b.textContent.trim() === '语义检索')`,
+    )
+    if (hasSemanticMode) {
+      await cdp.click('自动化测试') // 取消上一个标签，避免干扰语义查询
+      await sleep(300)
+      await cdp.click('语义检索')
+      await sleep(400)
+      await cdp.setInput('input[aria-label="技能需求"]', 'React')
+      await sleep(300)
+      await cdp.click('语义筛选')
+      await sleep(3000)
+      mt = await matchOverlayText()
+      push('语义检索命中前端候选人', /语义 \d+%/.test(mt) && mt.includes('林小满'))
+      push('语义检索展示简历段落证据', /按语义相似度排序/.test(mt) && (mt.includes('技能标签') || mt.includes('项目经历')))
+      push('语义检索不误命中无关候选人', !mt.includes('沈禾'))
+    } else {
+      console.log('  （AI 未开启：跳过语义检索断言）')
+    }
+
     await cdp.clickAria('返回')
     await sleep(1000)
 

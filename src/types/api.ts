@@ -481,8 +481,7 @@ export interface CandidateMatchEvidence {
 }
 
 /** 单个候选人的匹配结果（§4.5 出参，按匹配度倒序） */
-export interface CandidateMatchView {
-  /** 用于跳转候选人详情（同一候选人多条投递时取最近一条） */
+export interface CandidateMatchView {  /** 用于跳转候选人详情（同一候选人多条投递时取最近一条） */
   applicationId: string
   candidate: {
     userId: string
@@ -501,6 +500,37 @@ export interface CandidateMatchView {
   hitTokens: string[]
   /** 关联证据片段（简历原文，前端高亮命中词） */
   evidences: CandidateMatchEvidence[]
+}
+
+// ============================================================
+// 语义人才检索（Step 4 T-AI4：与关键词版并行，供筛选页 A/B）
+// ============================================================
+
+/** 语义检索入参：query / tags 至少一个非空；limit 为返回候选人数上限 */
+export interface SemanticTalentSearchInput extends CandidateMatchInput {
+  limit?: number
+}
+
+/** 语义证据：命中的简历向量分块（段落标题 + 原文片段） */
+export interface SemanticTalentEvidence {
+  chunkId: string
+  /** basics / educations / experiences / projects / skills */
+  section: string
+  title: string
+  /** 去掉标题行后的原文片段 */
+  snippet: string
+  /** 分块余弦相似度（0~1） */
+  score: number
+}
+
+/** 单个候选人的语义命中（按最高分块相似度倒序） */
+export interface SemanticTalentMatchView {
+  applicationId: string
+  candidate: CandidateMatchView['candidate']
+  jobTitle: string
+  /** 候选人最高分块的余弦相似度（0~1） */
+  score: number
+  evidences: SemanticTalentEvidence[]
 }
 
 // ============================================================

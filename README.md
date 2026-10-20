@@ -6,14 +6,15 @@
 > **当前阶段**：Step 2 前端验收版 · Step 3 后端 **T0~T9 全部完成**（鉴权 / 职位 / 投递 / 面试 /
 > 公司 / 消息 + WebSocket / 用户·简历·收藏·上传 / 招聘者与人才筛选 / 全量联调，2026-10-19；任务板见 `docs/step3-plan.md`）。
 > 前端可继续走本地 Mock（无需后端即可运行），也可切真实后端联调：`.env.local` 置
-> `NEXT_PUBLIC_USE_MOCK=false`（`next.config.ts` 已有 `/api/v1` 代理），真实后端下 e2e 同为 65/65。
+> `NEXT_PUBLIC_USE_MOCK=false`（`next.config.ts` 已有 `/api/v1` 代理），真实后端下 e2e 同为 68/68。
 >
 > **进行中（Step 4）**：接入 AI / RAG——HR 基于候选人简历问答（带原文引用）与语义人才检索；
 > 方案与任务板见 `docs/step4-ai-plan.md`（**T-AI0 ✅**：Spring AI 1.1.8 + 百炼 DashScope 兼容模式打通；
 > **T-AI1 ✅**：简历结构化分块入库 —— 7 份种子简历 → 35 块，真实 `text-embedding-v4` 1024 维，
 > 内容未变二次重建 **0 次上游调用**；**T-AI2 ✅**：HR 候选人详情「AI 简历助手」抽屉 ——
 > 检索 + 引用 `[n]` + 无依据固定话术 + 跨公司 404 / 配额 42902；**T-AI3 ✅**：SSE 流式 + 打字机 +
-> 引用双向定位，流式不可用自动退回非流式；下一步 T-AI4 语义人才检索）。
+> 引用双向定位，流式不可用自动退回非流式；**T-AI4 ✅**：语义人才检索 `POST /hr/talent/semantic-search`
+> + 筛选页关键词 / 语义 A/B；下一步 T-AI5 面试问题生成）。
 >
 > **可观测性（T-OBS）✅ 链路已打通**：接入阿里云 ARMS **应用监控**（Java 探针）——
 > 控制台「应用监控 → 应用列表」可见 `pinliao-backend`，响应包络里的 `traceId` **就是**链路 TraceId
@@ -26,9 +27,9 @@
 |---|---|---|
 | Step 0 架构 + 契约 | ✅ | `docs/architecture.md`、`data-model.md`、`api-*.md` |
 | Step 1 前端开发 | ✅ | 求职者端 + HR 端 + 登录/注册（单页 SPA） |
-| Step 2 前端验收 | ✅ 五项验收功能 + 人才筛选增量 | `npm run e2e` **65/65**（Mock 与真实后端一致） |
-| Step 3 后端 + 联调 | ✅ T0~T9 | `backend/` Spring Boot 3.5 + MySQL 3307 + Redis 6379；`mvnw test` **230/230** |
-| Step 4 AI / RAG | 🔄 T-AI0 ✅ + T-AI1 ✅ + T-AI2 ✅ + T-AI3 ✅ | 自检 `ai/status\|ping`（1024 维）+ 简历索引 `ai/index/rebuild`（35 块 / 二次 0 调用）+ 单简历问答 `hr/applications/{id}/ai/qa`（带引用）+ SSE 流式 `.../ai/qa/stream`（打字机 + 引用双向定位） |
+| Step 2 前端验收 | ✅ 五项验收功能 + 人才筛选增量 | `npm run e2e` **68/68**（Mock 与真实后端一致） |
+| Step 3 后端 + 联调 | ✅ T0~T9 | `backend/` Spring Boot 3.5 + MySQL 3307 + Redis 6379；`mvnw test` **253/253** |
+| Step 4 AI / RAG | ✅ T-AI0 ~ T-AI4 | 自检 `ai/status\|ping`（1024 维）+ 简历索引 `ai/index/rebuild`（35 块 / 二次 0 调用）+ 单简历问答 `hr/applications/{id}/ai/qa`（带引用）+ SSE 流式 `.../ai/qa/stream`（打字机 + 引用双向定位）+ 语义检索 `hr/talent/semantic-search`（score + 证据片段、与关键词版 A/B） |
 | 可观测性 T-OBS | ✅ T-OBS1 + T-OBS2 | ARMS 应用监控可见、traceId 对齐、带探针 e2e 63/63（T-OBS 时点） |
 
 > 每一步的「为什么 / 踩过的坑 / 下一步」以 [`PROGRESS.md`](./PROGRESS.md) 为唯一定稿；
@@ -73,7 +74,7 @@ npm run dev
 | 状态 | Zustand（含 persist） | 客户端状态 |
 | 数据 | TanStack Query | 服务端状态（两端新模块均走 Query，旧模块部分同步 Mock） |
 | ORM | Prisma | **当前未接入业务**，见下文 |
-| 后端 | Spring Boot 3.5 + MySQL 8 + Redis（`backend/`） | Step 3 **T0~T9 已完成**（鉴权 / 职位 / 投递 / 面试 / 公司 / 消息 + WebSocket / 用户简历收藏上传 / 招聘者与人才筛选 / 全量联调；`mvnw test` **230/230**，真实后端下前端 e2e 65/65）；计划见 `docs/step3-plan.md`；**Step 4 AI：T-AI0 ✅ + T-AI1 ✅ + T-AI2 ✅**（Spring AI + 百炼打通；简历分块索引 V9 `resume_chunks`；候选人详情 AI 问答带引用 + 配额）；**可观测性 T-OBS1 + T-OBS2 ✅**（阿里云 ARMS 应用监控，链路已打通，见 `docs/arms-plan.md`） |
+| 后端 | Spring Boot 3.5 + MySQL 8 + Redis（`backend/`） | Step 3 **T0~T9 已完成**（鉴权 / 职位 / 投递 / 面试 / 公司 / 消息 + WebSocket / 用户简历收藏上传 / 招聘者与人才筛选 / 全量联调；`mvnw test` **253/253**，真实后端下前端 e2e 68/68）；计划见 `docs/step3-plan.md`；**Step 4 AI：T-AI0 ~ T-AI4 ✅**（Spring AI + 百炼打通；简历分块索引 V9 `resume_chunks`；候选人详情 AI 问答带引用 + 配额；SSE 流式；语义人才检索）；**可观测性 T-OBS1 + T-OBS2 ✅**（阿里云 ARMS 应用监控，链路已打通，见 `docs/arms-plan.md`） |
 
 > `zod`、`react-hook-form` 等已随模板装好但**当前代码尚未使用**，故不列入上表。
 
@@ -117,8 +118,8 @@ npm run dev
 | 功能 | 状态 |
 |---|---|
 | 招聘者端桌面 Web 后台 | 未实现（当前仅移动端布局） |
-| 真实后端（其余模块） | Step 3 **T0~T9 已完成**：鉴权（§1）/ 职位（§6/§7）/ 投递与面试（§9/§10）/ 公司（§5）/ 消息与 WebSocket（§8）/ 用户·简历·收藏·上传（§2/§3/§11/§12）/ 招聘者与人才筛选（§4）全部落地，前端已可切 `USE_MOCK=false`（真实后端下 e2e 65/65）；**求职者职位列表 / 详情已切真实**（HR 发布 / 关闭对求职者生效）；**遗留**：求职者端分类字典 / 消息会话仍读 mock（待拍板，见 `docs/state/backend-facts.md`） |
-| HR 语义人才检索 | 未开始（Step 4 T-AI4；当前人才筛选仍是关键词规则版） |
+| 真实后端（其余模块） | Step 3 **T0~T9 已完成**：鉴权（§1）/ 职位（§6/§7）/ 投递与面试（§9/§10）/ 公司（§5）/ 消息与 WebSocket（§8）/ 用户·简历·收藏·上传（§2/§3/§11/§12）/ 招聘者与人才筛选（§4）全部落地，前端已可切 `USE_MOCK=false`（真实后端下 e2e 68/68）；**求职者职位列表 / 详情已切真实**（HR 发布 / 关闭对求职者生效）；**遗留**：求职者端分类字典 / 消息会话仍读 mock（待拍板，见 `docs/state/backend-facts.md`） |
+| HR 语义人才检索 | ✅ 已完成（Step 4 T-AI4）：与关键词版并行 A/B，入口按 AI 开关显隐；`provider=fake` / Mock 分支仅验证管道，不代表语义质量 |
 
 ---
 
@@ -200,7 +201,7 @@ $env:JAVA_HOME='C:\Program Files\JetBrains\IntelliJ IDEA Community Edition 2025.
 .\scripts\dev-up.ps1         # 起 MySQL 3307 + Redis 6379（首次先 .\scripts\db-init.ps1）
 .\scripts\db-reset.ps1       # 清库重迁（每轮前端 e2e 前必跑）
 .\mvnw.cmd spring-boot:run   # 后端服务 :8080（无探针）
-.\mvnw.cmd test              # 单元测试（基线 230/230）
+.\mvnw.cmd test              # 单元测试（基线 253/253）
 node scripts\smoke-auth.mjs  # 鉴权接口冒烟（T2a/T2b，20 项含注册）
 node scripts\smoke-jobs.mjs  # 职位与字典冒烟（T3a/T3b，49 项）
 node scripts\smoke-applications.mjs  # 投递与面试冒烟（T4，51 项）
@@ -229,24 +230,25 @@ node scripts\smoke-ai.mjs   # AI 索引 + 简历问答冒烟（T-AI1/T-AI2，31 
 > 小提示：探针只挂 `spring-boot:run` **fork 出的应用 JVM**，不要用 `JAVA_TOOL_OPTIONS`（否则 Maven 也挂，
 > 控制台会出现两个同名应用）；`.apsara-apm\java\<版本>\status` 文件不刷新，不能当作是否授权的判据。
 
-### AI 简历索引 + 简历问答（Step 4 T-AI1 / T-AI2，可选）
+### AI 简历索引 + 简历问答 + 语义检索（Step 4 T-AI1 ~ T-AI4，可选）
 
 ```powershell
 $env:PINLIAO_AI_ENABLED='true'
 $env:PINLIAO_AI_PROVIDER='fake'   # 零费用假向量 + 假对话；要测真实上游就不设这项
 .\mvnw.cmd spring-boot:run
-node scripts\smoke-ai.mjs         # 31 项：索引权限/全量/单份/幂等/状态 + 问答权限/引用/无依据
+node scripts\smoke-ai.mjs         # 54 项：索引 + 问答 + SSE + 语义检索
 ```
 
 真实上游下用 HR token 调 `POST /api/v1/ai/index/rebuild`：7 份种子简历 → **35 块**写入
 `resume_chunks`（`text-embedding-v4`，1024 维）；内容未变的二次重建 `embedded=0`，不再调用上游。
 问答走 `POST /api/v1/hr/applications/{applicationId}/ai/qa`，回答必须带 `[n]` 引用；相似度低于
 `qa-min-score` 时直接返回「简历中没有相关信息。」且 `citations=[]`（不调用对话模型）。
-分块规则、多租户前置过滤与实测数据见 `docs/step4-ai-plan.md` §5 / §7。
+语义检索走 `POST /api/v1/hr/talent/semantic-search`，按分块余弦返回候选人 + score + 证据片段，
+与关键词版并行 A/B。分块规则、多租户前置过滤与实测数据见 `docs/step4-ai-plan.md` §5 / §7。
 
 前端联调（Step 3 T9）：仓库根目录 `.env.local`（不提交）置 `NEXT_PUBLIC_USE_MOCK=false` +
 `NEXT_PUBLIC_API_BASE_URL=/api/v1`，`next.config.ts` 已把 `/api/v1` 与 `/uploads` 代理到
-`http://localhost:8080`；改后重启 dev server，`npm run e2e` 在真实后端下同为 65/65。
+`http://localhost:8080`；改后重启 dev server，`npm run e2e` 在真实后端下同为 68/68。
 
 ### 数据库说明
 
@@ -304,18 +306,18 @@ node scripts\smoke-ai.mjs         # 31 项：索引权限/全量/单份/幂等/�
 
 ```
 我有一个招聘平台项目「聘聊」，当前状态是：
-- 前端（Next.js 16 + Zustand + TanStack Query）已完成 Step 2 验收，e2e 65/65；
-- 后端（backend/，Spring Boot 3.5 + MySQL 8 + Redis）已完成 Step 3 全部 T0~T9，`mvnw test` 230/230，
-  真实后端下前端 e2e 65/65；
-- Step 4 AI/RAG 已开工（T-AI0 打通 Spring AI + 百炼；T-AI1 简历分块索引入库，V9 `resume_chunks`；
-  T-AI2 HR 候选人详情「AI 简历助手」问答 + 引用 + 配额；T-AI3 SSE 流式 + 打字机 + 引用定位），
+- 前端（Next.js 16 + Zustand + TanStack Query）已完成 Step 2 验收，e2e 68/68；
+- 后端（backend/，Spring Boot 3.5 + MySQL 8 + Redis）已完成 Step 3 全部 T0~T9，`mvnw test` 253/253，
+  真实后端下前端 e2e 68/68；
+- Step 4 AI/RAG 已完成 T-AI0 ~ T-AI4（Spring AI + 百炼；V9 `resume_chunks` 分块索引；
+  HR 候选人详情 AI 问答 + 引用 + 配额；SSE 流式；语义人才检索与关键词版 A/B），
   可观测性已接阿里云 ARMS 应用监控（链路已打通）。
 
 请先读 PROGRESS.md（当前状态）与 docs/INDEX.md（文档地图），再按索引读相关代码/文档，
 不要整读 docs/（坑在 docs/pitfalls/，命令在 docs/state/commands.md）。
 读完即可开工，无需再问我背景问题。
 
-本次我想做的是：<你的需求，例如"T-AI4 语义人才检索"或"核对 ARMS 慢 SQL 大盘">
+本次我想做的是：<你的需求，例如"T-AI5 面试问题生成"或"核对 ARMS 慢 SQL 大盘">
 ```
 
 ---
@@ -326,16 +328,16 @@ node scripts\smoke-ai.mjs         # 31 项：索引权限/全量/单份/幂等/�
 |---|---|---|
 | Step 0 | 框架无关的架构、数据模型、API 契约 | ✅ |
 | Step 1 | 前端开发（Next.js + Mock） | ✅ |
-| Step 2 | 前端验收（五项验收功能 + 人才筛选演示增量） | ✅ 完成（`npm run e2e` 65/65；用户人工验收初步通过 2026-10-16，遗留待拍板项见 `docs/state/backend-facts.md`） |
-| Step 3 | 后端开发 + 全量联调（Spring Boot 3.5 + MySQL/Redis；`USE_MOCK=false` 下真实接口；分块计划 `docs/step3-plan.md`） | ✅ 完成（T0 ✅ / T1 ✅ / T2a ✅ / T2b ✅ / T3a ✅ / T3b ✅ / T4 ✅ / T5 ✅ / T6 ✅ / T7 ✅ / T8 ✅ / T9 ✅，2026-10-19；`mvnw test` 230/230，真实后端下前端 e2e 65/65；遗留见 `docs/state/backend-facts.md`） |
-| Step 4 | **AI / RAG 增量**（HR 简历问答带引用 → 语义人才检索；计划 `docs/step4-ai-plan.md`） | 🔄 T-AI0 ✅（Spring AI 1.1.8 + 百炼 DashScope 打通、`/api/v1/ai/*` 自检、密钥走环境变量）；**T-AI1 ✅（2026-10-20：V9 `resume_chunks` + 结构化分块 + 真实 1024 维嵌入 + 重建 / 状态接口，7 份简历 35 块、二次 0 调用）**；**T-AI2 ✅（2026-10-20：单简历问答 + `[n]` 引用 + 无依据话术 + 配额，HR 候选人详情 AI 抽屉）**；**T-AI3 ✅（2026-10-20：SSE 流式 + 打字机 + 引用双向定位，`smoke-ai` 43/43、e2e 65/65）**；下一步 T-AI4 语义人才检索 |
+| Step 2 | 前端验收（五项验收功能 + 人才筛选演示增量） | ✅ 完成（`npm run e2e` 68/68；用户人工验收初步通过 2026-10-16，遗留待拍板项见 `docs/state/backend-facts.md`） |
+| Step 3 | 后端开发 + 全量联调（Spring Boot 3.5 + MySQL/Redis；`USE_MOCK=false` 下真实接口；分块计划 `docs/step3-plan.md`） | ✅ 完成（T0 ✅ / T1 ✅ / T2a ✅ / T2b ✅ / T3a ✅ / T3b ✅ / T4 ✅ / T5 ✅ / T6 ✅ / T7 ✅ / T8 ✅ / T9 ✅，2026-10-19；`mvnw test` 253/253，真实后端下前端 e2e 68/68；遗留见 `docs/state/backend-facts.md`） |
+| Step 4 | **AI / RAG 增量**（HR 简历问答带引用 → 语义人才检索；计划 `docs/step4-ai-plan.md`） | ✅ T-AI0 ~ T-AI4 完成：T-AI0（Spring AI 1.1.8 + 百炼 DashScope、`/api/v1/ai/*` 自检、密钥走环境变量）；T-AI1（V9 `resume_chunks` + 结构化分块 + 1024 维嵌入 + 重建 / 状态接口）；T-AI2（单简历问答 + `[n]` 引用 + 无依据话术 + 配额）；T-AI3（SSE 流式 + 打字机 + 引用双向定位）；**T-AI4（2026-10-20：语义人才检索 + 筛选页关键词 / 语义 A/B，`smoke-ai` 54/54、e2e 68/68）**；下一步 T-AI5 面试问题生成 |
 | 可观测性 | **阿里云 ARMS 应用监控接入**（计划 `docs/arms-plan.md`；任务号 T-OBS0~T-OBS3） | ✅ T-OBS1 + T-OBS2 完成（2026-10-19：控制台可见 `pinliao-backend`、包络 traceId 即链路 TraceId、有上报连接；带探针 `mvnw test` 199/199、e2e 63/63，均为 T-OBS 时点基线）；T-OBS3（慢 SQL/异常分析/前端监控）可选 |
 | 未来 | App / 小程序（若决定多端，复用 API 契约） | — |
 
 ### 接下来的推进建议
 
-1. **Step 4 主线（推荐）**：T-AI4 语义人才检索（与关键词版并行 A/B，接口 `POST /hr/talent/semantic-search`）；
-   之后 T-AI5 面试问题生成、T-AI6 混合检索 / rerank / 评测集 / 成本看板。
+1. **Step 4 主线（推荐）**：T-AI5 面试问题生成（基于候选人简历 + 职位，输出结构化问题 + 人工可改）；
+   之后 T-AI6 混合检索 / rerank / 评测集 / 成本看板。
 2. **可观测性可选深化（T-OBS3）**：控制台核对慢 SQL / 异常分析 / JVM 大盘；前端监控（Web SDK）
    建议最后做且加开关（会碰 e2e「零控制台错误」门禁）。
 3. **待用户拍板**（不替用户决定）：`docs/step4-ai-plan.md` §10 五项（向量维度 1024/1536、是否接 Ollama、

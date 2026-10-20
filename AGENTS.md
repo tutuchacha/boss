@@ -20,9 +20,9 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 聘聊 = Boss 直聘模式招聘平台原型（求职者端 + HR 端双端 H5）：Next.js 16 + Tailwind 4 + Zustand +
 TanStack Query；后端 Spring Boot 3.5.16（`backend/`）+ MySQL 3307 / Redis 6379 专用实例，前端默认联调真实后端。
 
-- **Step 2 前端验收**：五项验收功能 + 人才筛选（演示版）完成，e2e 65/65；用户人工验收初步通过（2026-10-16）。
-- **Step 3 后端**：T0~T9 全部完成，含全量联调（`USE_MOCK=false`，e2e 65/65）。
-- **Step 4 AI**：T-AI0~T-AI3 完成（索引 / 单简历问答 / SSE 流式）；下一步 T-AI4 语义人才检索。
+- **Step 2 前端验收**：五项验收功能 + 人才筛选（演示版）完成，e2e 68/68；用户人工验收初步通过（2026-10-16）。
+- **Step 3 后端**：T0~T9 全部完成，含全量联调（`USE_MOCK=false`，e2e 68/68）。
+- **Step 4 AI**：T-AI0~T-AI4 完成（索引 / 单简历问答 / SSE 流式 / 语义人才检索）；下一步 T-AI5 面试问题生成。
 - **可观测性**：T-OBS1 + T-OBS2 完成（阿里云 ARMS 应用监控，链路已打通）。
 
 状态明细见 `PROGRESS.md` §1；每个 T 交付了什么见 `docs/archive/progress-history.md`。
@@ -32,7 +32,7 @@ TanStack Query；后端 Spring Boot 3.5.16（`backend/`）+ MySQL 3307 / Redis 6
 
 ```powershell
 npm run dev          # dev server，端口 3000（e2e 需要它常驻）；联调态读取 .env.local 的 USE_MOCK=false
-npm run e2e          # 端到端验收（tests/e2e-verify.cjs）；基线 65/65（Mock 与真实后端相同）
+npm run e2e          # 端到端验收（tests/e2e-verify.cjs）；基线 68/68（Mock 与真实后端相同）
 npx tsc --noEmit     # 类型检查；基线仅 3 个既有错误（见 §3）
 npm run lint         # ESLint
 npm run build        # 生产构建（需能访问 Google Fonts）
@@ -48,8 +48,8 @@ $env:JAVA_HOME='C:\Program Files\JetBrains\IntelliJ IDEA Community Edition 2025.
 .\scripts\dev-up.ps1        # 起 MySQL 专用实例 3307 + Redis 6379（首次先 .\scripts\db-init.ps1）
 .\scripts\db-reset.ps1      # 每轮 e2e 前：清库重迁（drop+create → Redis FLUSHALL → 起后端 → 等 health UP）
 .\mvnw.cmd spring-boot:run  # 后端 :8080；收工用 .\scripts\dev-down.ps1
-.\mvnw.cmd test             # 单元测试；基线 240/240
-node scripts\smoke-ai.mjs   # AI 索引 + 问答冒烟（43 项，需 PINLIAO_AI_ENABLED=true，默认拒绝真实上游）
+.\mvnw.cmd test             # 单元测试；基线 253/253
+node scripts\smoke-ai.mjs   # AI 索引 + 问答 + SSE + 语义检索冒烟（54 项，需 PINLIAO_AI_ENABLED=true，默认拒绝真实上游）
 ```
 
 其余冒烟脚本（`smoke-auth` 20 / `smoke-jobs` 49 / `smoke-applications` 51 / `smoke-company` 26 /

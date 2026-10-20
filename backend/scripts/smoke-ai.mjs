@@ -1,4 +1,4 @@
-// 聘聊 · T-AI1/T-AI2/T-AI3 AI 冒烟（Step 4）：简历索引 + 单简历问答（非流式 / SSE 流式）
+// 聘聊 · T-AI1~T-AI4 AI 冒烟（Step 4）：索引 + 单简历问答（非流式 / SSE 流式）+ 语义人才检索
 // 用法：后端启动后运行 `node scripts/smoke-ai.mjs`（可用 PINLIAO_BASE 覆盖地址）
 // 前置：Flyway V1~V9 已迁移；MySQL + Redis 运行中；后端以「假向量」启动：
 //         $env:PINLIAO_AI_ENABLED='true'
@@ -13,6 +13,7 @@
 //    真实 provider 下问答会产生对话费用，同样受 --allow-real 保护。
 //  - T-AI3 流式段断言「delta → citation → done」事件序列与拼接正文，
 //    并校验校验类错误仍是普通 JSON 包络（不是半截 SSE）。
+//  - T-AI4 语义检索段断言权限 / 入参 / 相似度排序 / 证据结构 / 标签单独可用 / limit / 跨公司不可见。
 const base = process.env.PINLIAO_BASE || 'http://localhost:8080';
 const allowReal = process.argv.includes('--allow-real');
 
@@ -375,6 +376,68 @@ const parse = (e) => {
       s.status === 200 && nsDone.length === 1 && nsAnswer?.answer === '简历中没有相关信息。'
       && nsAnswer?.grounded === false && nsCitations.length === 0 && nsDeltas.length >= 1,
       `answer=${nsAnswer?.answer} grounded=${nsAnswer?.grounded} citation=${nsCitations.length}`);
+
+    // ============================== T-AI4 §语义人才检索 ==============================
+    console.log('== §语义人才检索：权限与入参校验 ==');
+    const semanticPath = '/api/v1/hr/talent/semantic-search';
+    const semanticBody = (query, tags, limit) => ({ body: { query, tags, limit } });
+
+    r = await POST(semanticPath, semanticBody('React', [], null));
+    check('未登录语义检索 → 401 + 40101', r.status === 401 && codeOf(r) === 40101,
+      `HTTP ${r.status} code=${codeOf(r)}`);
+
+    r = await POST(semanticPath, { token: seekerToken, ...semanticBody('React', [], null) });
+    check('求职者语义检索 → 403 + 40301', r.status === 403 && codeOf(r) === 40301,
+      `HTTP ${r.status} code=${codeOf(r)}`);
+
+    r = await POST(semanticPath, { token: hrToken, ...semanticBody('  ', [' '], null) });
+    check('语义检索条件为空 → 422 + 42210', r.status === 422 && codeOf(r) === 42210,
+      `HTTP ${r.status} code=${codeOf(r)}`);
+
+    r = await POST(semanticPath, { token: hrToken, ...semanticBody('需'.repeat(201), [], null) });
+    check('语义检索需求过长（>200 字）→ 422 + 42201', r.status === 422 && codeOf(r) === 42201,
+      `HTTP ${r.status} code=${codeOf(r)}`);
+
+    console.log('== §语义人才检索：结果与证据 ==');
+    r = await POST(semanticPath, { token: hrToken, ...semanticBody('React', ['前端'], null) });
+    const semanticResults = dataOf(r);
+    const semanticFirst = Array.isArray(semanticResults) ? semanticResults[0] || {} : {};
+    const semanticEvidence = Array.isArray(semanticFirst.evidences) ? semanticFirst.evidences[0] || {} : {};
+    check('语义检索成功：200 + 返回候选人数组', r.status === 200 && codeOf(r) === 0
+      && Array.isArray(semanticResults) && semanticResults.length >= 1,
+      `HTTP ${r.status} count=${Array.isArray(semanticResults) ? semanticResults.length : 'n/a'}`);
+    check('命中简历含 React 的候选人（林小满）',
+      semanticFirst.applicationId === 'app-hr-01' && semanticFirst.candidate?.name === '林小满'
+      && typeof semanticFirst.jobTitle === 'string' && semanticFirst.jobTitle.length > 0,
+      `applicationId=${semanticFirst.applicationId} name=${semanticFirst.candidate?.name}`);
+    check('候选人分值为 0~1 的余弦相似度且按倒序排列',
+      typeof semanticFirst.score === 'number' && semanticFirst.score > 0 && semanticFirst.score <= 1
+      && semanticResults.every((item, i) => i === 0 || item.score <= semanticResults[i - 1].score),
+      `top=${semanticFirst.score}`);
+    check('证据结构完整（chunkId / section / title / snippet / score）',
+      typeof semanticEvidence.chunkId === 'string'
+      && ['basics', 'educations', 'experiences', 'projects', 'skills'].includes(semanticEvidence.section)
+      && typeof semanticEvidence.title === 'string' && semanticEvidence.title.length > 0
+      && typeof semanticEvidence.snippet === 'string' && semanticEvidence.snippet.length > 0
+      && typeof semanticEvidence.score === 'number' && semanticEvidence.score > 0,
+      `section=${semanticEvidence.section} score=${semanticEvidence.score} title=${semanticEvidence.title}`);
+
+    r = await POST(semanticPath, { token: hrToken, ...semanticBody('', ['React'], null) });
+    const tagOnly = dataOf(r);
+    check('仅选择技能标签也可语义检索', r.status === 200 && Array.isArray(tagOnly) && tagOnly.length >= 1,
+      `count=${Array.isArray(tagOnly) ? tagOnly.length : 'n/a'}`);
+
+    r = await POST(semanticPath, { token: hrToken, ...semanticBody('React', [], 1) });
+    const limited = dataOf(r);
+    check('limit=1 时只返回 1 位候选人', r.status === 200 && Array.isArray(limited) && limited.length === 1,
+      `count=${Array.isArray(limited) ? limited.length : 'n/a'}`);
+
+    r = await POST(semanticPath, { token: hrToken, ...semanticBody('营销活动页脚手架', [], null) });
+    const crossCompany = dataOf(r);
+    check('跨公司简历不可见（搜不到其他公司候选人的独有经历）',
+      r.status === 200 && Array.isArray(crossCompany)
+      && !crossCompany.some((item) => item.candidate?.name === '林晓'),
+      `count=${Array.isArray(crossCompany) ? crossCompany.length : 'n/a'}`);
 
     // ============================== T-AI2 §问答后索引仍就绪 ==============================
     r = await GET('/api/v1/hr/applications/app-hr-01/ai/index-status', { token: hrToken });

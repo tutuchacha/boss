@@ -16,6 +16,7 @@ import java.time.ZoneOffset;
  * AI 问答配额（Step 4 T-AI2）。
  *
  * <p>按「HR / 自然日（UTC）」在 Redis 计数，超过 {@code pinliao.ai.qa-daily-limit} 返回 42902。
+ * 问答与语义人才检索共用同一份额度（两者都会调用上游）。
  * 计数在调用上游**之前**自增，失败请求也会计入（防止被失败请求绕过配额）。
  * Redis 不可用时降级放行并打 WARN：AI 是可选能力，不能因缓存故障阻断业务。</p>
  */
@@ -48,7 +49,7 @@ public class AiQuotaService {
             }
             if (count != null && count > limit) {
                 throw new BusinessException(AiCodes.QUOTA_EXCEEDED,
-                        "今日 AI 问答次数已达上限（" + limit + " 次），请明天再试");
+                        "今日 AI 调用次数已达上限（" + limit + " 次），请明天再试");
             }
         } catch (BusinessException e) {
             throw e;

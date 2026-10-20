@@ -10,13 +10,24 @@
  * =====================================================================
  */
 
-import type { CandidateMatchInput, CandidateMatchView } from '@/types/api'
+import type {
+  CandidateMatchInput,
+  CandidateMatchView,
+  SemanticTalentMatchView,
+  SemanticTalentSearchInput,
+} from '@/types/api'
 import { USE_MOCK } from '@/config/env'
 import { ApiError, request } from './client'
-import { matchCandidatesForCompany, TALENT_MATCH_TAGS } from './mock/talentMatch'
+import {
+  matchCandidatesForCompany,
+  matchCandidatesSemantic,
+  TALENT_MATCH_TAGS,
+} from './mock/talentMatch'
 
 /** 匹配结果查询键前缀（供 TanStack Query 使用） */
 export const HR_TALENT_MATCH_KEY = ['hr', 'talent-match'] as const
+/** 语义检索查询键前缀（T-AI4；与关键词版分开展示，便于 A/B 对比） */
+export const HR_SEMANTIC_TALENT_MATCH_KEY = ['hr', 'talent-semantic-match'] as const
 /** 标签词表查询键 */
 export const HR_TALENT_MATCH_TAGS_KEY = ['hr', 'talent-match-tags'] as const
 
@@ -49,4 +60,35 @@ export async function matchTalentCandidates(
 export async function listTalentMatchTags(): Promise<string[]> {
   if (USE_MOCK) return [...TALENT_MATCH_TAGS]
   return request<string[]>('/hr/candidates/match/tags')
+}
+
+/**
+ * 语义人才检索（Step 4 T-AI4，契约外接口 `POST /api/v1/hr/talent/semantic-search`）。
+ *
+ * 与关键词版并行：同一组条件可切换两种模式做 A/B 对比。
+ * AI 关闭时后端返回 42220，前端按 `/ai/status.enabled` 隐藏「语义检索」入口。
+ */
+export async function semanticSearchTalentCandidates(
+  companyId: string,
+  input: SemanticTalentSearchInput,
+): Promise<SemanticTalentMatchView[]> {
+  const query = (input.query ?? '').trim()
+  const tags = input.tags ?? []
+  const limit = input.limit
+
+  if (!query && tags.length === 0) {
+    throw new ApiError({ code: 42210, message: '请先输入技能需求或勾选技能标签', status: 422 })
+  }
+  if (query.length > 200) {
+    throw new ApiError({ code: 42201, message: '技能需求过长（最多 200 字）', status: 422 })
+  }
+
+  if (USE_MOCK) {
+    return matchCandidatesSemantic(companyId, query, tags, limit ?? 8)
+  }
+
+  return request<SemanticTalentMatchView[]>('/hr/talent/semantic-search', {
+    method: 'POST',
+    body: { query, tags, limit },
+  })
 }

@@ -20,7 +20,12 @@
  * =====================================================================
  */
 
-import type { CandidateMatchEvidence, CandidateMatchView, ResumeContent } from '@/types/api'
+import type {
+  CandidateMatchEvidence,
+  CandidateMatchView,
+  ResumeContent,
+  SemanticTalentMatchView,
+} from '@/types/api'
 import { companyApplicationViews, type HrApplicationView } from './applications'
 import { resumeContentOfUser } from './resumes'
 
@@ -248,4 +253,143 @@ export function matchCandidatesForCompany(
   return results.sort(
     (a, b) => b.score - a.score || b.candidate.resumeCompleteness - a.candidate.resumeCompleteness,
   )
+}
+
+// ============================================================
+// 语义人才检索（Step 4 T-AI4；Mock 分支）
+// ============================================================
+
+/** 语义模式的近似最低分：低于该值视为不相关（真实后端由 search-min-score 控制） */
+const SEMANTIC_MIN_SCORE = 0.35
+const SEMANTIC_SNIPPET_MAX = 100
+
+interface SemanticChunk {
+  chunkId: string
+  section: string
+  title: string
+  text: string
+}
+
+/** 与后端 ResumeChunker 同构的段落分块（标题 + 换行 + 正文） */
+function buildSemanticChunks(userId: string, content: ResumeContent): SemanticChunk[] {
+  const chunks: SemanticChunk[] = []
+  const push = (section: string, ordinal: number, title: string, body: string): void => {
+    const text = body ? `${title}\n${body}` : title
+    chunks.push({ chunkId: `mock-sem-${userId}-${section}-${ordinal}`, section, title, text })
+  }
+
+  const { basics } = content
+  push('basics', 0, ['基本信息', basics.name, basics.city].filter(Boolean).join(' · '), basics.summary ?? '')
+
+  content.educations.forEach((edu, i) => {
+    push(
+      'educations',
+      i,
+      `教育经历 · ${edu.school}`,
+      [edu.major, edu.degree, `${edu.startDate} - ${edu.endDate}`].filter(Boolean).join(' · '),
+    )
+  })
+  content.experiences.forEach((exp, i) => {
+    push(
+      'experiences',
+      i,
+      `工作经历 · ${exp.company} · ${exp.title}`,
+      `${exp.description ?? ''} · ${exp.startDate} - ${exp.endDate}`,
+    )
+  })
+  content.projects.forEach((pr, i) => {
+    push(
+      'projects',
+      i,
+      `项目经历 · ${pr.name} · ${pr.role}`,
+      `${pr.description ?? ''} · ${pr.startDate} - ${pr.endDate}`,
+    )
+  })
+  push('skills', 0, '技能标签', content.skills.join('、'))
+  return chunks
+}
+
+/**
+ * 近似相似度（Mock 专用）：关键词命中 + 字符重叠。
+ *
+ * <p><b>诚实口径</b>：这不是 embedding 语义相似度，只是让 Mock 分支的交互 / 排序可演示；
+ * 真正的语义效果以真实后端（`provider=springai`）为准。</p>
+ */
+function semanticScoreOf(query: string, tags: string[], chunk: SemanticChunk): number {
+  const raw = `${query} ${tags.join(' ')}`.trim()
+  if (!raw) return 0
+  const hay = chunk.text.toLowerCase()
+  const tokens = extractRequirementTokens(query, tags)
+
+  let score = 0
+  for (const token of tokens) {
+    const tk = token.toLowerCase()
+    if (tk.length >= 2 && hay.includes(tk)) {
+      score += /[a-z]/i.test(tk) ? 0.35 : 0.25
+    }
+  }
+
+  const queryChars = new Set([...raw.toLowerCase()].filter(ch => /[\u4e00-\u9fa5a-z0-9]/i.test(ch)))
+  const chunkChars = new Set([...hay].filter(ch => /[\u4e00-\u9fa5a-z0-9]/i.test(ch)))
+  if (queryChars.size > 0) {
+    let overlap = 0
+    queryChars.forEach(ch => {
+      if (chunkChars.has(ch)) overlap += 1
+    })
+    score += (overlap / queryChars.size) * 0.25
+  }
+  return Math.min(0.95, Number(score.toFixed(4)))
+}
+
+/** 去掉标题行、压缩空白并截断（与后端 snippetOf 同口径） */
+function semanticSnippetOf(text: string): string {
+  const lineBreak = text.indexOf('\n')
+  const body = (lineBreak >= 0 ? text.slice(lineBreak + 1) : text).replace(/\s+/g, ' ').trim()
+  return body.length <= SEMANTIC_SNIPPET_MAX ? body : `${body.slice(0, SEMANTIC_SNIPPET_MAX)}…`
+}
+
+/**
+ * 语义人才检索（Mock 分支）。
+ * 仅在公司收到的投递候选人范围内检索；同一候选人只保留分数最高的一条投递。
+ */
+export function matchCandidatesSemantic(
+  companyId: string,
+  query: string,
+  tags: string[],
+  limit = 8,
+): SemanticTalentMatchView[] {
+  const byUser = new Map<string, HrApplicationView>()
+  for (const v of companyApplicationViews(companyId)) {
+    if (!byUser.has(v.candidate.userId)) byUser.set(v.candidate.userId, v)
+  }
+
+  const results: SemanticTalentMatchView[] = []
+  for (const v of byUser.values()) {
+    const content = resumeContentOfUser(v.candidate.userId)
+    if (!content) continue
+
+    const scored = buildSemanticChunks(v.candidate.userId, content)
+      .map(chunk => ({ chunk, score: semanticScoreOf(query, tags, chunk) }))
+      .filter(item => item.score >= SEMANTIC_MIN_SCORE)
+      .sort((a, b) => b.score - a.score)
+    if (scored.length === 0) continue
+
+    results.push({
+      applicationId: v.application.id,
+      candidate: { ...v.candidate },
+      jobTitle: v.job.title,
+      score: scored[0].score,
+      evidences: scored.slice(0, 3).map(item => ({
+        chunkId: item.chunk.chunkId,
+        section: item.chunk.section,
+        title: item.chunk.title,
+        snippet: semanticSnippetOf(item.chunk.text),
+        score: item.score,
+      })),
+    })
+  }
+
+  return results
+    .sort((a, b) => b.score - a.score || b.candidate.resumeCompleteness - a.candidate.resumeCompleteness)
+    .slice(0, Math.max(1, Math.min(20, limit)))
 }

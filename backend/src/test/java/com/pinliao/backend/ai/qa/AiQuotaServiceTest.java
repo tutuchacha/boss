@@ -65,6 +65,6 @@ class AiQuotaServiceTest {
 
     private AiQuotaService service(int dailyLimit) {
         return new AiQuotaService(redis,
-                new AiProperties(true, AiProperties.PROVIDER_FAKE, 800, 10, 6, 0.2, 700, dailyLimit));
+                new AiProperties(true, AiProperties.PROVIDER_FAKE, 800, 10, 6, 0.2, 700, dailyLimit, 8, 0.15));
     }
 }

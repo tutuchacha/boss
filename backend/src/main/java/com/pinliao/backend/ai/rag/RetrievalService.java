@@ -85,7 +85,8 @@ public class RetrievalService {
         return vectors.get(0);
     }
 
-    private static float[] parseVector(String json) {
+    /** 向量 JSON → float[]（T-AI4 语义检索复用；损坏时 42221）。 */
+    public static float[] parseVector(String json) {
         try {
             return JSON.readValue(json, float[].class);
         } catch (Exception e) {
@@ -93,8 +94,8 @@ public class RetrievalService {
         }
     }
 
-    /** 余弦相似度；任一向量为零向量时返回 0（不抛错，交给最低分阈值处理）。 */
-    static double cosine(float[] a, float[] b) {
+    /** 余弦相似度；任一向量为零向量时返回 0（不抛错，交给最低分阈值处理）。T-AI4 语义检索复用。 */
+    public static double cosine(float[] a, float[] b) {
         double dot = 0;
         double normA = 0;
         double normB = 0;

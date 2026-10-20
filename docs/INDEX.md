@@ -28,7 +28,7 @@
 | 踩坑：前端 | `docs/pitfalls/frontend.md` | §6.1~6.7 |
 | 踩坑：后端核心 | `docs/pitfalls/backend-core.md` | §6.8~6.14 |
 | 踩坑：消息 / 用户 / 招聘者 / 联调 | `docs/pitfalls/backend-collab.md` | §6.15~6.18 |
-| 踩坑：AI / 可观测性 | `docs/pitfalls/ai.md` | §6.19~6.22 |
+| 踩坑：AI / 可观测性 | `docs/pitfalls/ai.md` | §6.19~6.23 |
 | 代码约定、协作规范、待用户确认 | `docs/AI-CONTINUE.md` §7~§9 | 其「导航」有分流 |
 | API 契约（70 条） | `docs/api-endpoints.md` | 按模块 grep `§x.y` |
 | 数据模型 | `docs/data-model.md` + `prisma/schema.prisma` | — |

@@ -11,7 +11,7 @@
 ```powershell
 # —— Mock 基线（USE_MOCK=true，不依赖后端）——
 npm run dev            # 端口 3000；另开终端保持运行
-npm run e2e            # 端到端验收（需 dev server）；Mock 基线 65/65
+npm run e2e            # 端到端验收（需 dev server）；Mock 基线 68/68
 npx tsc --noEmit       # 仅 3 个既有错误，新文件零错误
 npm run lint           # ESLint（存量告警见 §6.1）
 npm run build          # 生产构建（需 Google Fonts 可达；构建脚本自带产物自检）
@@ -21,13 +21,13 @@ npm start              # 生产启动（node .next/standalone/server.js；可用
 cd backend; .\scripts\db-reset.ps1   # 每轮 e2e 前：止后端 → 清库重迁 → Redis FLUSHALL → 起后端 → 等 health
 cd ..
 npm run dev            # .env.local 已置 NEXT_PUBLIC_USE_MOCK=false / API_BASE_URL=/api/v1；改后必须重启
-npm run e2e            # 真实后端下 65/65（2026-10-20，fake AI provider；Mock 分支同 65/65）
+npm run e2e            # 真实后端下 68/68（2026-10-20，fake AI provider；Mock 分支同 68/68）
 ```
 
 可覆盖的环境变量：`npm run e2e` 支持 `BASE_URL` / `CHROME_PATH` / `CDP_PORT`；
 `next.config.ts` 代理目标支持 `API_PROXY_TARGET`（默认 `http://localhost:8080`）。
 
-### 7.2 后端 `backend/`（2026-10-20 实测，Step 3 T0~T9 + Step 4 T-AI0/T-AI1/T-AI2/T-AI3 + 可观测性 T-OBS1/T-OBS2）
+### 7.2 后端 `backend/`（2026-10-20 实测，Step 3 T0~T9 + Step 4 T-AI0/T-AI1/T-AI2/T-AI3/T-AI4 + 可观测性 T-OBS1/T-OBS2）
 
 ```powershell
 cd backend
@@ -43,7 +43,7 @@ node scripts\smoke-company.mjs  # 公司模块冒烟（26 项；需后端已启�
 node scripts\smoke-messages.mjs  # 消息与 WebSocket 冒烟（40 项；需后端已启动，T6，可重复执行）
 node scripts\smoke-user.mjs  # 用户 / 简历 / 收藏 / 上传冒烟（64 项；需后端已启动，T7，可重复执行）
 node scripts\smoke-recruiter.mjs  # 招聘者模块冒烟（50 项；需后端已启动，T8，可重复执行）
-node scripts\smoke-ai.mjs    # AI 冒烟（43 项：索引 + 问答 + SSE 流式；需 PINLIAO_AI_ENABLED=true + PROVIDER=fake；默认拒绝真实上游）
+node scripts\smoke-ai.mjs    # AI 冒烟（54 项：索引 + 问答 + SSE 流式 + 语义人才检索；需 PINLIAO_AI_ENABLED=true + PROVIDER=fake；默认拒绝真实上游）
 .\scripts\verify-seed.ps1    # 种子行数抽查（16 项；需 Flyway 已迁移至 v9）
 .\scripts\dev-with-arms.ps1 -DryRun   # 可观测性：ARMS 探针配置自检（需 PINLIAO_ARMS_ENABLED=true；密钥打码）
 .\scripts\dev-with-arms.ps1           # 带 ARMS 应用监控探针启动（收工用 .\scripts\db-reset.ps1 恢复无探针）
@@ -52,7 +52,7 @@ node scripts\smoke-ai.mjs    # AI 冒烟（43 项：索引 + 问答 + SSE 流式
 
 | 检查 | 结果 |
 | --- | --- |
-| `mvnw.cmd test` | **240/240 通过**（包络 3 + JwtService 4 + 种子密码 hash 1 + 租户策略 6 + 注册 4 + 职位 13 + 职位写 15 + 公开路径 2 + 字典 3 + 投递面试写 22 + 投递面试读 5 + 公司 12 + 消息 24 + 用户 13 + 简历 10 + 收藏 5 + 上传 9 + 招聘者 22 + **AI 自检 3**（T-AI0）+ **traceId 优先级 6**（T-OBS2）+ **AI 分块 / 索引 17**（T-AI1）+ **AI 问答 31**（T-AI2：`SpringAiChatAdapterTest` 3 断言思考模式与 token 上限；`PromptBuilderTest` 1 断言资料/指令分区与无依据话术；`CitationAssemblerTest` 5 断言 `[n]` 解析 / 越界过滤 / 去重 / 漏标兜底；`RetrievalServiceTest` 5 断言余弦排序 / min-score / 空库 / 可见性参数；`AiQuotaServiceTest` 3 断言计数 / 超限 42902 / Redis 故障放行；`HrResumeQaServiceTest` 14 断言关闭 42220 / 角色 40301 / 空与超长 42201 / 跨公司 40401 / 低分不调模型 / 索引按需重建 / 引用与审计 / 配额顺序）+ **AI 流式 10**（T-AI3：`FakeChatClientTest` 2 断言分段回调与拼接一致；`SpringAiChatAdapterTest` 3 断言逐块 / 空块跳过 / 空流转 50020；`HrResumeQaServiceTest` 5 断言 `prepare` 校验顺序 / `stream` 的 done 与 error 事件 / 索引按需重建）+ 公开路径加 2 项断言） |
+| `mvnw.cmd test` | **253/253 通过**（包络 3 + JwtService 4 + 种子密码 hash 1 + 租户策略 6 + 注册 4 + 职位 13 + 职位写 15 + 公开路径 2 + 字典 3 + 投递面试写 22 + 投递面试读 5 + 公司 12 + 消息 24 + 用户 13 + 简历 10 + 收藏 5 + 上传 9 + 招聘者 22 + **AI 自检 3**（T-AI0）+ **traceId 优先级 6**（T-OBS2）+ **AI 分块 / 索引 17**（T-AI1）+ **AI 问答 31**（T-AI2：`SpringAiChatAdapterTest` 3 断言思考模式与 token 上限；`PromptBuilderTest` 1 断言资料/指令分区与无依据话术；`CitationAssemblerTest` 5 断言 `[n]` 解析 / 越界过滤 / 去重 / 漏标兜底；`RetrievalServiceTest` 5 断言余弦排序 / min-score / 空库 / 可见性参数；`AiQuotaServiceTest` 3 断言计数 / 超限 42902 / Redis 故障放行；`HrResumeQaServiceTest` 14 断言关闭 42220 / 角色 40301 / 空与超长 42201 / 跨公司 40401 / 低分不调模型 / 索引按需重建 / 引用与审计 / 配额顺序）+ **AI 流式 10**（T-AI3：`FakeChatClientTest` 2 断言分段回调与拼接一致；`SpringAiChatAdapterTest` 3 断言逐块 / 空块跳过 / 空流转 50020；`HrResumeQaServiceTest` 5 断言 `prepare` 校验顺序 / `stream` 的 done 与 error 事件 / 索引按需重建）+ **AI 语义检索 13**（T-AI4：`SemanticTalentSearchServiceTest` 断言开关 42220 / 角色 40301 / 空条件 42210 / 超长 42201 / 公司范围 / 按需索引 / 分数阈值 / 同人去重 / 证据条数 / 维度不一致 42221 / 配额顺序 / limit 上限 20 / snippet 截断）+ 公开路径加 2 项断言） |
 | `spring-boot:run` | **约 3.5s 启动**（T7 重启实测，schema 已最新无需迁移；T1 首迁为 3.3s）；Flyway 校验 **V1~V9** 通过 |
 | `/actuator/health` | `{"status":"UP"}`（200） |
 | `/api/v1/_demo/*` 包络 | 与 T0 一致：`traceId`、`42201/40401` 等码位不变 |
@@ -72,7 +72,8 @@ node scripts\smoke-ai.mjs    # AI 冒烟（43 项：索引 + 问答 + SSE 流式
 | **AI 简历索引（Step 4 T-AI1）** | **实测通过**：假向量 `provider=fake` → `smoke-ai.mjs` **17/17**（未登录 40101 / 求职者 40301 / 全量 7 份简历 **35 块** / 二次 `embedded=0` / 单份 `resume-u-cand-1` 5 块 / 跨公司投递 40401 / 不存在简历 40401）；真实 `text-embedding-v4` → 单份 5 块 **950ms**、全量 35 块 **2.1s**、二次 **0 调用** 185ms；库内抽查 `model=text-embedding-v4`、`dim=1024`、单行 `embedding` 约 12.7KB、**手机号 0 命中**；`GET /api/v1/ai/status` 的 `provider` 回显 `springai` / `fake` |
 | **AI 单简历问答（Step 4 T-AI2）** | **实测通过**：fake 向量 + fake 对话 → `smoke-ai.mjs` **31/31**（未登录 40101 / 求职者 40301 / 空问题与超长 42201 / 跨公司与不存在投递 40401 / 有依据回答 `grounded=true` + `[1]` + 引用结构完整 / 简历外问题固定「简历中没有相关信息。」且 `citations=[]`）；AI 关闭实例（`PINLIAO_AI_ENABLED=false`）→ `/ai/status.enabled=false`、`/ai/qa` **422 + 42220**、前端无入口；`mvnw test` **230/230** |
 | **AI 流式问答（Step 4 T-AI3）** | **实测通过**：`smoke-ai.mjs` **43/43**（新增 12 项：流式鉴权 / 入参 / 跨公司仍是 JSON 包络、200 + `text/event-stream`、`Cache-Control` / `X-Accel-Buffering`、`delta→citation→done` 且无 `error`、delta 拼接含 `[1]` 且与 `done.answer` 一致、无依据无 citation）；直连 :8080 ttfb **151ms** / delta 逐条 152-279ms；经 Next 代理 ttfb **54ms** / 逐条 55-189ms（直连 `rewrites` 会一次性缓冲，故改用站点根路径代理）；浏览器实测打字机在 109/167/219ms 递增、引用双向定位与高亮、断网提示与截断自动兜底；`mvnw test` **240/240** |
-| **前端 e2e（真实后端，`USE_MOCK=false`）** | **65/65 通过（2026-10-20）**：真实后端 + `PINLIAO_AI_PROVIDER=fake`（零对话费用）一轮、Mock 分支一轮；新增「AI 入口与开关一致」「AI 问答返回带引用的回答」（不依赖流式内容）；AI 关闭时 **64/64**（入口隐藏、问答用例跳过）；零控制台错误（仅豁免「错误密码」用例的 1 条预期 401）、零 hydration 报错；Chrome 进程数前后不变 |
+| **AI 语义人才检索（Step 4 T-AI4）** | **实测通过**：`smoke-ai.mjs` **54/54**（新增 11 项：未登录 40101 / 求职者 40301 / 空条件 42210 / 超长 42201 / 正常检索 200 且按 score 倒序 / 首位为林小满 `app-hr-01` / 证据结构含五段 section / 仅标签命中 / `limit=1` 生效 / 跨公司独有经历搜不到 / 检索后索引仍就绪）；`provider=fake` 下 `React` 命中林小满，分数 0~1；`mvnw test` **253/253**（新增 13 项） |
+| **前端 e2e（真实后端，`USE_MOCK=false`）** | **68/68 通过（2026-10-20）**：真实后端 + `PINLIAO_AI_PROVIDER=fake`（零对话费用）一轮、Mock 分支一轮；新增「AI 入口与开关一致」「AI 问答返回带引用的回答」「语义检索入口 / score 结果 / 无关候选不出现」；AI 关闭时语义与问答用例随入口隐藏跳过；零控制台错误（仅豁免「错误密码」用例的 1 条预期 401）、零 hydration 报错；Chrome 进程数前后不变 |
 
 运行数据在 `.local/`（已 gitignore）；MySQL / Redis 起停详见 `backend/README.md` 与 `backend/scripts/`。
 

@@ -226,7 +226,7 @@ class ResumeIndexServiceTest {
 
     private ResumeIndexService service(boolean enabled) {
         return new ResumeIndexService(resumeMapper, chunkStore, new ResumeChunker(800), embeddingModel,
-                new AiProperties(enabled, AiProperties.PROVIDER_FAKE, 800, 10, 6, 0.2, 700, 100));
+                new AiProperties(enabled, AiProperties.PROVIDER_FAKE, 800, 10, 6, 0.2, 700, 100, 8, 0.15));
     }
 
     private static ResumeEntity resume(String id, String content) {

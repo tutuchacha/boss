@@ -57,6 +57,24 @@ public class ResumeChunkStore {
                 .orderByAsc(ResumeChunkEntity::getOrdinal));
     }
 
+    /**
+     * 多份简历在当前模型下的全部分块（T-AI4 语义人才检索用）。
+     *
+     * <p>调用方必须先通过 {@code applications.company_id} 得到可见 resumeId 集合，
+     * 本方法只做 {@code IN} 前置过滤，不做任何租户判断（见 §5.3）。</p>
+     */
+    public List<ResumeChunkEntity> findByResumesAndModel(Collection<String> resumeIds, String model) {
+        if (resumeIds == null || resumeIds.isEmpty()) {
+            return List.of();
+        }
+        return mapper.selectList(Wrappers.<ResumeChunkEntity>lambdaQuery()
+                .in(ResumeChunkEntity::getResumeId, resumeIds)
+                .eq(ResumeChunkEntity::getModel, model)
+                .orderByAsc(ResumeChunkEntity::getResumeId)
+                .orderByAsc(ResumeChunkEntity::getSection)
+                .orderByAsc(ResumeChunkEntity::getOrdinal));
+    }
+
     /** 最近一次索引时间（仅统计当前模型）；未建索引返回 null。 */
     public LocalDateTime latestUpdatedAt(String resumeId, String model) {
         ResumeChunkEntity latest = mapper.selectOne(new LambdaQueryWrapper<ResumeChunkEntity>()

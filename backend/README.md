@@ -104,14 +104,16 @@ npm run e2e     # 真实后端下 63/63
   `POST /uploads/sign|confirm`（上传直传为 `PUT /api/v1/uploads/local/{objectKey}?expires=&sig=`）。
   偏好存 Redis（`pinliao:user:prefs:{userId}`）；上传目录默认 `target/uploads`，可用
   `PINLIAO_UPLOAD_DIR` 覆盖，URL 有效期 `pinliao.upload.url-ttl`（默认 10m）；静态地址 `/uploads/**`
-- AI（Step 4 T-AI0~T-AI3，登录 token）：`GET /api/v1/ai/status`（只回显配置）、
+- AI（Step 4 T-AI0~T-AI4，登录 token）：`GET /api/v1/ai/status`（只回显配置）、
   `GET /api/v1/ai/ping`（真实调用一次 chat + embedding，返回耗时 / token / 向量维度）、
   `POST /api/v1/ai/index/rebuild`（HR / 管理员；`{}` 全量或 `{ resumeId }` 单份）、
   `GET /api/v1/hr/applications/{applicationId}/ai/index-status`（按投递校验可见性）、
   `POST /api/v1/hr/applications/{applicationId}/ai/qa`（单简历问答：回答 + `[n]` 引用；
   无依据时固定「简历中没有相关信息。」且 `citations=[]`；按 HR/日配额 42902）、
   `POST /api/v1/hr/applications/{applicationId}/ai/qa/stream`（同上，SSE 流式：`delta` / `citation` /
-  `done` / `error`，校验类错误仍是 JSON 包络）。
+  `done` / `error`，校验类错误仍是 JSON 包络）、
+  `POST /api/v1/hr/talent/semantic-search`（T-AI4 语义人才检索：`query?` / `tags?` / `limit?`，
+  在本公司可见投递内按分块余弦返回候选人 + score + 证据；与问答共用配额）。
   全部**受鉴权拦截器保护**（非公开），避免未授权调用产生费用；配置见下节「AI 配置」
 
 ## AI 配置（Step 4 T-AI0）
@@ -133,6 +135,9 @@ npm run e2e     # 真实后端下 63/63
 [Environment]::SetEnvironmentVariable('PINLIAO_AI_PROVIDER',        'springai',                                         'User')   # springai=真实上游 / fake=零费用假模型
 [Environment]::SetEnvironmentVariable('PINLIAO_AI_QA_MIN_SCORE',    '0.2',                                              'User')   # 低于此相似度直接答「没有相关信息」
 [Environment]::SetEnvironmentVariable('PINLIAO_AI_QA_DAILY_LIMIT',  '100',                                              'User')   # 每 HR 每日问答次数上限
+# T-AI4（可选，均有默认值）
+[Environment]::SetEnvironmentVariable('PINLIAO_AI_SEARCH_TOP_K',     '8',                                                'User')   # 语义检索默认返回人数（最大 20）
+[Environment]::SetEnvironmentVariable('PINLIAO_AI_SEARCH_MIN_SCORE', '0.15',                                             'User')   # 语义检索最低余弦，低于则不召回
 ```
 
 改完**重启后端**（环境变量在进程启动时读取），然后自检：
@@ -162,6 +167,9 @@ Invoke-RestMethod http://localhost:8080/api/v1/ai/ping   -Headers @{ Authorizati
   校验类错误（42220 / 40301 / 42201 / 40401 / 42902）仍是普通 JSON 包络，只接受 SSE 时 Spring 无法
   写出错误正文（500 空响应）。前端走站点根路径代理 `/api/ai/qa-stream/{id}`，因为 Next `rewrites`
   会缓冲 SSE（详见 `docs/pitfalls/ai.md` §6.22）。
+- 语义人才检索（T-AI4）：`PINLIAO_AI_SEARCH_TOP_K`（默认 8，最大 20）/ `PINLIAO_AI_SEARCH_MIN_SCORE`
+  （0.15）。只在**本公司收到投递**的简历分块内检索（先取可见 `resume_id`，再 `IN (...)`）；
+  与问答共用每日配额。`provider=fake` 的向量是词袋哈希、无语义，仅用于验证管道。
 
 ## ARMS 链路（可选，T-OBS1）
 
@@ -244,19 +252,19 @@ Invoke-RestMethod http://localhost:8080/api/v1/ai/ping   -Headers @{ Authorizati
 | `smoke-messages.mjs` | 消息与 WebSocket 冒烟（T6；会话 / 消息 / 发起 / 发送 / 幂等 / 已读 / typing / 发送简历 / 关闭 + STOMP 推送 / 错误队列，40 项断言，可重复执行） |
 | `smoke-user.mjs` | 用户 / 简历 / 收藏 / 上传冒烟（T7；画像 / 密码 / 手机号 / 偏好 / 注销 / 简历默认切换 / 收藏分页 / 预签名直传与静态读回，64 项断言，可重复执行） |
 | `smoke-recruiter.mjs` | 招聘者模块冒烟（T8；HR 画像读改 / 我发布的职位（含 CLOSED 可见）/ 我收到的投递超集 / 人才筛选关键词与证据 / 词表，50 项断言，可重复执行） |
-| `smoke-ai.mjs` | AI 冒烟（T-AI1/T-AI2/T-AI3；索引全量 / 单份 / 幂等 / 状态 + 问答权限 / 入参 / 跨公司 / 引用 / 无依据 + SSE `delta→citation→done` / 校验类错误仍是 JSON 包络，43 项断言，需 `provider=fake`，可重复执行） |
+| `smoke-ai.mjs` | AI 冒烟（T-AI1~T-AI4；索引全量 / 单份 / 幂等 / 状态 + 问答权限 / 入参 / 跨公司 / 引用 / 无依据 + SSE `delta→citation→done` / 校验类错误仍是 JSON 包络 + 语义检索权限 / 入参 / 排序 / 证据 / 租户隔离，54 项断言，需 `provider=fake`，可重复执行） |
 | `verify-seed.ps1` | 种子行数抽查（16 项断言，对齐 step3-plan §3 数字；须先完成迁移；已排除冒烟 / 注册产物前缀、T7 软删简历） |
 | `fetch-arms-agent.ps1` | **T-OBS1**：下载阿里云 ARMS Java 探针到 `.local/arms/AliyunJavaAgent/`（默认华东1-杭州公网，`-Region` 换地域、`-ZipPath` 用控制台下载的包、`-Force` 重下） |
 | `dev-with-arms.ps1` | **T-OBS1**：带 ARMS 探针启动后端（只挂应用 JVM）。`-DryRun` 配置自检（密钥打码）、`-Background` 后台起 + 等 health UP、`-AllowMissingLicenseKey` 仅验证探针能加载。**T-OBS2 修**：`-Background` 改为传单个带引号的参数字符串（原先 `Start-Process -ArgumentList` 数组会丢引号，`-Darms.*` 进不了应用 JVM）。默认关闭时请用 `db-reset.ps1` / `mvnw spring-boot:run` |
 
-当前验收基线（2026-10-20）：`mvnw test` **240/240**（T-AI0 新增 3 项 AI 自检；T-AI1 新增 16 项分块 / 假向量 / 索引；
+当前验收基线（2026-10-20）：`mvnw test` **253/253**（T-AI0 新增 3 项 AI 自检；T-AI1 新增 16 项分块 / 假向量 / 索引；
 T-AI2 新增 31 项对话适配 / Prompt / 引用 / 检索 / 配额 / 问答编排；T-AI3 新增 10 项流式适配 / 服务编排；
-T-OBS2 新增 6 项 traceId 优先级）；
+T-AI4 新增 13 项语义检索服务；T-OBS2 新增 6 项 traceId 优先级）；
 `smoke-auth` 20/20；`smoke-jobs` 49/49；
 `smoke-applications` 51/51；`smoke-company` 26/26；`smoke-messages` 40/40（连续两次）；
-`smoke-user` 64/64（连续两次）；`smoke-recruiter` 50/50；`smoke-ai` **43/43**（fake；可重复执行）；`verify-seed` 16/16；
-前端 `npm run e2e` **65/65**（真实后端 + fake AI provider；Mock 分支同为 65/65；
-AI 关闭时 64/64 —— 问答用例随入口隐藏而跳过；每轮真实 e2e 前先 `db-reset.ps1`）。
+`smoke-user` 64/64（连续两次）；`smoke-recruiter` 50/50；`smoke-ai` **54/54**（fake；可重复执行）；`verify-seed` 16/16；
+前端 `npm run e2e` **68/68**（真实后端 + fake AI provider；Mock 分支同为 68/68；
+AI 关闭时语义 / 问答用例随入口隐藏而跳过；每轮真实 e2e 前先 `db-reset.ps1`）。
 
 另有 `scripts/seed-gen/`（开发期工具）：从仓库 `src/api/mock/*` 生成 `V4~V8` 种子迁移，
 杜绝手抄漂移；**勿手改 `V4~V8` 迁移文件**，改演示数据请改 mock 后重跑生成脚本（用法见脚本头部注释）。

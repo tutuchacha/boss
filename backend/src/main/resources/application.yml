@@ -53,6 +53,9 @@ pinliao:
     qa-min-score: ${PINLIAO_AI_QA_MIN_SCORE:0.2}
     qa-max-tokens: ${PINLIAO_AI_QA_MAX_TOKENS:700}
     qa-daily-limit: ${PINLIAO_AI_QA_DAILY_LIMIT:100}
+    # 语义人才检索（T-AI4）：返回候选人数上限 / 最低余弦相似度（低于该值不出现在结果里）
+    search-top-k: ${PINLIAO_AI_SEARCH_TOP_K:8}
+    search-min-score: ${PINLIAO_AI_SEARCH_MIN_SCORE:0.15}
   auth:
     # HS256 签名密钥（≥32 字节）；生产用环境变量 PINLIAO_AUTH_SECRET 覆盖
     secret: ${PINLIAO_AUTH_SECRET:pinliao-local-dev-secret-0123456789abcdef}

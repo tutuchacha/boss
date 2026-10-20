@@ -131,7 +131,7 @@ class SpringAiChatAdapterTest {
 
     private SpringAiChatAdapter adapter() {
         return new SpringAiChatAdapter(chatModel,
-                new AiProperties(true, AiProperties.PROVIDER_SPRING_AI, 800, 10, 6, 0.2, 700, 100),
+                new AiProperties(true, AiProperties.PROVIDER_SPRING_AI, 800, 10, 6, 0.2, 700, 100, 8, 0.15),
                 MODEL);
     }
 }

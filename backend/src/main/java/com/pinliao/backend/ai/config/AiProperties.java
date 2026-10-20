@@ -19,6 +19,8 @@ import java.util.Locale;
  * @param qaMinScore         最低余弦相似度；低于该值直接回答「简历中没有相关信息」，不调用对话模型
  * @param qaMaxTokens        单次问答生成 token 上限（默认 700，防止一次回答产生不可控费用）
  * @param qaDailyLimit       每 HR 每日问答次数上限（Redis 计数；≤0 表示不限制）
+ * @param searchTopK         语义人才检索返回的候选人上限（默认 8）
+ * @param searchMinScore     语义人才检索的最低余弦相似度（默认 0.15；低于该值的候选人不出现在结果里）
  */
 @ConfigurationProperties(prefix = "pinliao.ai")
 public record AiProperties(boolean enabled,
@@ -28,7 +30,9 @@ public record AiProperties(boolean enabled,
                            @DefaultValue("6") int qaTopK,
                            @DefaultValue("0.2") double qaMinScore,
                            @DefaultValue("700") int qaMaxTokens,
-                           @DefaultValue("100") int qaDailyLimit) {
+                           @DefaultValue("100") int qaDailyLimit,
+                           @DefaultValue("8") int searchTopK,
+                           @DefaultValue("0.15") double searchMinScore) {
 
     /** 真实上游：Spring AI OpenAI 兼容协议。 */
     public static final String PROVIDER_SPRING_AI = "springai";
@@ -53,6 +57,12 @@ public record AiProperties(boolean enabled,
         }
         if (qaMaxTokens <= 0) {
             qaMaxTokens = 700;
+        }
+        if (searchTopK <= 0) {
+            searchTopK = 8;
+        }
+        if (searchMinScore < 0 || searchMinScore > 1) {
+            searchMinScore = 0.15;
         }
     }
 

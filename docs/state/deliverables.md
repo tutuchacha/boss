@@ -20,11 +20,14 @@
 | `src/components/pinliao/JobDetailPage.tsx` | 修改 | 底部「发送简历」改为「投递简历」（ApplySheet、已投递态） |
 | `src/components/pinliao/LoginPage.tsx` | 重写 | 密码 / 验证码 / 注册三模式 + 60s 倒计时 + 登录落地页签重置 |
 | `src/api/mock/hrJobs.ts` / `src/api/hrJobs.ts` | 修改 | 新建职位归属从硬编码云杉改为按登录上下文注入 |
-| `tests/e2e-verify.cjs` | 重写扩展 | 63 项断言（含人才筛选 6 项）；新增 `clickAria` / `clickSubmit` / `waitText` / `matchOverlayText` 助手；注册认证段落改轮询等待；修复聊天覆盖层未退出问题 |
+| `tests/e2e-verify.cjs` | 重写扩展 | 68 项断言（含人才筛选 6 项 + T-AI4 语义检索 3 项）；新增 `clickAria` / `clickSubmit` / `waitText` / `matchOverlayText` 助手；注册认证段落改轮询等待；修复聊天覆盖层未退出问题 |
 | `src/api/mock/resumes.ts` | 新增 | 简历正文字段种子（7 份：6 位演示候选人 + 求职者测试账号）；简历 id 沿用 `resume-{userId}` 约定 |
 | `src/api/mock/talentMatch.ts` | 新增 | 人才筛选演示引擎：标签词表 / 英文技术词 / 中文去停用词 → 关键词提取 → 检索简历 → 加权排序 + 证据片段 |
 | `src/api/hrTalentMatch.ts` | 新增 | §4.5 候选人匹配 / §4.6 标签词表 service（USE_MOCK 双分支；空条件 42210） |
-| `src/components/pinliao/hr/HrTalentMatchPage.tsx` | 新增 | 筛选页：需求输入 + 标签 chips + 结果卡片（命中词 / 证据高亮 / 进候选人详情） |
+| `src/components/pinliao/hr/HrTalentMatchPage.tsx` | 新增 | 筛选页：需求输入 + 标签 chips + 结果卡片（命中词 / 证据高亮 / 进候选人详情）；T-AI4 起增「关键词 / 语义检索」模式切换 |
+| `backend/.../ai/search/SemanticTalentSearchService.java` | 新增（T-AI4） | 语义人才检索：query+tags 一次向量化 → 公司可见投递的简历分块余弦 → 按候选人聚合最高分 + 最多 3 条证据；缺失索引按需补建、维度不一致 42221、共用配额 |
+| `backend/.../ai/web/AiSearchController.java` / `ai/dto/AiSearchRequests.java` / `ai/view/AiSearchViews.java` | 新增（T-AI4） | `POST /api/v1/hr/talent/semantic-search` 的接线与出入参 |
+| `src/api/hrTalentMatch.ts` / `src/api/mock/talentMatch.ts` / `src/types/api.ts` | 修改（T-AI4） | 语义检索 service（USE_MOCK 双分支）+ 独立 Query key；Mock 分支词面近似打分（非 embedding）+ `SemanticTalentMatchView` 类型 |
 | 文档 | 新增 / 修改 | 根目录五件套 + `docs/AI-CONTINUE.md`（v1.6）+ `docs/api-endpoints.md`（v0.3.2，§4.5/§4.6）+ `README.md` + `worklog.md` |
 
 ---
@@ -34,6 +37,7 @@
 - e2e 已覆盖五项功能主链路（见 §2 表）；**未覆盖边界**：注册仅测 HR 角色、认证仅测
   通过态；「标记录用 / 不合适」「婉拒面试」「撤回投递」等已实现且有 UI，但未纳入
   e2e 断言，需要时先补脚本再采信。
-- 人才筛选为**无 AI 关键词匹配**（同义词不识别、包含式命中）；e2e 覆盖 6 项主链路；简历种子仅
-  7 份，无简历的候选人不会出现在匹配结果（候选人列表不受影响）。
+- 人才筛选：关键词版为**无 AI 关键词匹配**（同义词不识别、包含式命中）；T-AI4 语义版按向量余弦召回，
+  不理解「必须 / 优先」等约束，`provider=fake` 与 Mock 分支都只是词面近似、不代表语义能力；
+  e2e 覆盖关键词 6 项 + 语义 3 项；简历种子仅 7 份，无简历的候选人不会出现在匹配结果（候选人列表不受影响）。
 - Mock 全部为内存态，刷新即重置；以上通过均指本轮提交代码的自动化验收结果。

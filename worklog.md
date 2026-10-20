@@ -4,94 +4,10 @@
 >
 > - Step 0~2（Task 0~15）→ [`docs/archive/worklog-step0-2.md`](./docs/archive/worklog-step0-2.md)
 > - Step 3（Task 16~31）→ [`docs/archive/worklog-step3.md`](./docs/archive/worklog-step3.md)
-> - Step 4 / 可观测性（Task 32~35）→ [`docs/archive/worklog-step4.md`](./docs/archive/worklog-step4.md)
+> - Step 4 / 可观测性（Task 32~38）→ [`docs/archive/worklog-step4.md`](./docs/archive/worklog-step4.md)
 >
 > 追溯某次决定时用 `grep`（如 `grep -n "Task ID: 24" docs/archive/worklog-step3.md`）。
 > 新条目模板：`Task ID` 递增 + `Agent` + `Task` + `Work Log` + `验证` + `遗留`，单条建议 ≤ 60 行。
-
-Task ID: 36
-Agent: orchestrator (main)
-Title: 进度存档 + README 展示更新（方便后续接续）
-Status: 完成（2026-10-19）
-
-Work:
-- `README.md`（仓库根）：头部改为真实状态（Step 2/3 完成、T-AI0 ✅、T-OBS1+T-OBS2 ✅）；新增「进度速览」表；
-  技术栈行补 ARMS 已打通；后端命令区基线 176/176 → **182/182**，并补 `dev-up.ps1` 首次初始化提示；
-  新增「可观测性（阿里云 ARMS，可选）」小节（fetch / DryRun / Background 三步 + 控制台反查 + 默认关闭 + 判活提示）；
-  项目结构补 `backend/` 目录树；文档索引与「开发路线」表更新到 T-OBS2 完成；新增「接下来的推进建议」；
-  接续提示词改为当前真实状态。
-- `PROGRESS.md`：新增 §0.1「接续即用」（HEAD/远端、运行态、已验基线、环境变量、恢复干净环境命令、
-  下一步推荐序、判活自检入口）；修订记录 v1.24。
-- `CHANGELOG.md`：T-OBS2 条目的 Docs 分组补 README / PROGRESS §0.1。
-- 说明：本轮只改文档，无代码变更，不重跑测试（上一轮刚跑过 `mvnw test` 182/182、带探针 e2e 63/63）。
-
-Stage Summary:
-- 进度已落盘到「换个人/换个 AI 打开仓库就能续做」的程度：README 负责展示，PROGRESS §0.1 负责交接，
-  arms-plan §4 与 AI-CONTINUE §6.20 负责防重复踩坑。
-- 下一步仍是 Step 4 T-AI1 索引入库（主线）或 T-OBS3（可观测性深化，可选）。
-
----
-
-Task ID: 37
-Agent: orchestrator (main)
-Title: Step 4 T-AI1 简历索引入库（V9 + 分块 + 嵌入 + 重建 / 状态接口）
-Status: 完成（2026-10-20）
-
-Work:
-- **表**：`V9__ai_resume_chunks.sql` 新增 `resume_chunks`（`resume_id/section/ordinal/title/content/content_hash/model/dim/embedding`，
-  唯一键 `(resume_id, section, ordinal, model)`，`resume_id` 外键级联删除；**不冗余 `company_id`**）。
-- **分块**：`ResumeChunker` 结构化五段式（basics / educations / experiences / projects / skills），
-  块首带上下文标题；单块 800 字上限按句续写「（续 n）」；**手机号等联系方式不入库**。
-- **向量**：自研 SPI `AiEmbeddingModel`；`SpringAiEmbeddingAdapter`（`text-embedding-v4`，1024 维，DashScope ≤10 条切批，
-  异常转 `50020`）+ `FakeEmbeddingModel`（中文单字 / 拉丁词的确定性词袋哈希 + L2 归一化，零费用）；
-  按 `content_hash + model` 复用旧向量，换 provider / 模型不复用。
-- **服务 / 接口**：`ResumeIndexService`（全量 / 单份 / 状态 + `rebuildOne` 供问答按需调用）、
-  `POST /api/v1/ai/index/rebuild`（HR / 管理员）、`GET /api/v1/hr/applications/{id}/ai/index-status`
-  （按投递校验可见性，跨公司 40401）。
-- **冒烟**：`smoke-ai.mjs` 17 项（权限 / 全量 / 幂等 / 单份 / 状态 / 跨公司），带真实上游安全闸（`--allow-real` 才跑真实）。
-- **实测**：fake 7 份简历 35 块、二次 `embedded=0`；真实 `text-embedding-v4` 单份 5 块 950ms、全量 30 块 2.1s、1024 维；
-  `mvnw test` **199/199**（新增 16 项）；`verify-seed` 16/16（flyway=9）。
-
-Stage Summary:
-- 索引管道打通且可重复执行不重复计费；分块针对结构化简历 JSON，天然优于定长切分。
-- 关键红线：索引表不带租户列，检索必须先经 `applications.company_id` 取可见 `resumeId`。
-- 下一步 T-AI2：检索 topK → Prompt → 回答 + `[n]` 引用，并在 HR 候选人详情接 AI 抽屉。
-
----
-
-Task ID: 38
-Agent: orchestrator (main)
-Title: Step 4 T-AI2 单简历问答 MVP（带引用）+ HR 候选人详情 AI 助手抽屉
-Status: 完成（2026-10-20）
-
-Work:
-- **对话 SPI**：`AiChatClient`；`SpringAiChatAdapter`（`enable_thinking=false`、token 上限，失败转 `50020`）+
-  `FakeChatClient`（固定模板 + 引用 `[1]`，零费用）。
-- **RAG**：`RetrievalService`（可见 `resumeId` 范围 + 内存余弦 topK / `qaMinScore`）、
-  `PromptBuilder`（资料与指令分区、资料声明为纯数据、无依据固定话术）、
-  `CitationAssembler`（解析 `[n]`、合法性过滤、按首次出现去重、漏标兜底 `来源：[1]`）。
-- **编排**：`HrResumeQaService`：开关 42220 → HR/管理员 40301 → 问题 1~500 字 42201 →
-  投递归属 40401 → 配额 → 索引缺失自动 `rebuildOne` → 检索 → 低分直接「简历中没有相关信息。」不调模型 →
-  生成 → 引用；审计只记长度 / 条数 / token / 耗时，不落原文。
-- **配额**：`AiQuotaService` 按 HR / 自然日 Redis 计数（默认 100，`42902`；Redis 故障降级放行）。
-- **接口**：`POST /api/v1/hr/applications/{applicationId}/ai/qa`（`AiQaController`）。
-- **前端**：`src/types/api.ts` 新增 `AiStatus/AiCitation/AiQaAnswer`；`src/api/ai.ts` 双分支；
-  `src/api/mock/ai.ts` 按段落意图 + 原文命中生成带引用回答（无命中同样「简历中没有相关信息。」）；
-  `HrAiAssistantSheet`（BottomSheet：快捷问题 / 对话 / 引用卡片 / 错误态 / 免责声明）；
-  候选人详情新增「AI 简历助手」入口，按 `/ai/status.enabled` 显隐（查询失败也不显示）。
-- **冒烟 / e2e**：`smoke-ai.mjs` 扩到 **31/31**；`tests/e2e-verify.cjs` 新增 2 项（入口与开关一致、问答带引用），
-  63 → **65**。
-- **实测**：`mvnw test` **230/230**（新增 31）；e2e 真实后端（`provider=fake`）65/65、Mock 65/65、
-  AI 关闭 64/64（入口隐藏、问答用例跳过）；关闭时 `/ai/qa` → `422/42220`。
-- **坑**：CDP `eval` 外层同步 `JSON.stringify`，不能跑 async IIFE（探针曾得到 `[object Object]`），
-  改为 Node 侧登录后探测；fake 向量无语义，e2e 问题需强字面重合。
-
-Stage Summary:
-- 单简历问答闭环完成：回答有引用、无依据会承认、跨租户零泄漏、关 AI 不影响任何既有功能。
-- 费用保护三层：fake 单测 / 冒烟默认拒绝真实上游 / 低分不调模型 + 每日配额。
-- 下一步 T-AI3 流式输出（SSE / STOMP + 打字机 + 引用点击定位）；T-AI4 语义人才检索。
-
----
 
 Task ID: 39
 Agent: orchestrator (main)
@@ -157,3 +73,40 @@ Work Log:
 
 遗留：
 - T-AI3 代码仍是未提交状态（以 `git status` 为准）；本轮文档重构建议与之一同提交
+
+---
+
+Task ID: 41
+Agent: orchestrator (main)
+Title: Step 4 T-AI4 —— 语义人才检索（与关键词版 A/B）
+Status: 完成（2026-10-20）
+
+Work:
+- 后端新增 `ai/search/SemanticTalentSearchService`：`query + tags` 只向量化一次 → 在**本公司可见投递**
+  的简历分块内做余弦 → 按候选人最高分聚合（同人多投递去重）→ 倒序取 topK；低于 `search-min-score`
+  不返回，每人最多 3 条证据；缺失索引按需补建，维度不一致 `42221`。
+- 多租户红线：先用 `applications.company_id = 当前公司 AND deleted_at IS NULL` 取 resumeId 集合，
+  再 `resume_chunks.resume_id IN (...)` 前置过滤；不存在「先全局检索再丢弃」。
+- 接口 `POST /api/v1/hr/talent/semantic-search`：`{query?, tags?, limit?}`（至少一个非空），
+  出参 `SemanticMatch[]`（candidate + score + evidences）；`AiSearchController` / DTO / View 新建。
+- 配置 `pinliao.ai.search-top-k`（8）/ `search-min-score`（0.15）；与问答共用 `AiQuotaService`
+  配额（42902）；`ResumeChunkStore.findByResumesAndModel` 批量查询；`RetrievalService.parseVector/cosine` 复用。
+- 前端：`HrTalentMatchPage` 增「关键词 / 语义检索」切换（仅 AI 开启时显示），两种模式各自 Query hook；
+  语义卡片展示 score 百分比 + 证据片段，含加载 / 空结果 / 错误态；Mock 分支用词面近似（非 embedding）。
+- 文档：`docs/api-endpoints.md` §14.7 + v0.3.11；`docs/step4-ai-plan.md` T-AI4 ✅；PROGRESS / CHANGELOG /
+  worklog / pitfalls 6.23 / AI-CONTINUE 索引 / commands / ai-config / deliverables / backend README 同步。
+
+验证：
+- `mvnw test` **253/253**（新增 `SemanticTalentSearchServiceTest` 13 项）。
+- `smoke-ai.mjs` **54/54**（新增 11 项语义检索，`provider=fake`，可重复执行）。
+- `npm run e2e` **68/68**（真实后端 fake provider 一轮、Mock 分支一轮；新增 3 项语义断言）。
+- `npx tsc --noEmit` 仅 3 个既有错误；本轮改动文件 ESLint 0 告警；Chrome 进程数前后不变。
+
+Key findings：
+- 语义模式不理解「必须 / 优先」等约束，只按余弦排序；`provider=fake` 是词袋哈希、无语义，冒烟只验管道。
+- 语义检索也是「一次查询一次配额」，与问答共用日限；索引补建本身不再额外扣配额。
+- Mock 语义分支阈值 0.35 与后端 0.15 不同口径（Mock 分数是近似值），文档已注明不可当作语义质量依据。
+
+Stage Summary:
+- 人才筛选从关键词单模式升级为可 A/B 的双模式；语义链路的租户隔离、配额、错误码与前端降级均有测试覆盖。
+- 下一步 T-AI5 面试问题生成；T-OBS3 与 T10 仍待排期。
