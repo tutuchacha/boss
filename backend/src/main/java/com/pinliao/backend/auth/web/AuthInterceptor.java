@@ -9,7 +9,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.stereotype.Component;
 import org.springframework.util.AntPathMatcher;
-import org.springframework.web.servlet.HandlerInterceptor;
+import org.springframework.web.servlet.AsyncHandlerInterceptor;
 
 /**
  * 登录态拦截器：解析 {@code Authorization: Bearer <accessToken>} 并写入 {@link UserContext}。
@@ -19,9 +19,13 @@ import org.springframework.web.servlet.HandlerInterceptor;
  * <p><b>公开接口</b>（契约 §5.1~§5.2、§6.1~§6.4、§6.9、§7）：未携带 token 时放行（UserContext 保持空）；
  * 携带 token 时按正常流程解析——求职者浏览职位时 recommend 排序要用期望岗位加权。
  * 白名单按「HTTP 方法 + 路径」精确到接口，例如 POST {@code /api/v1/jobs}（发布职位）仍需鉴权。</p>
+ *
+ * <p><b>异步请求（T-AI3 SSE）</b>：进入 async 模式时 Spring 不会调用 {@code afterCompletion}，
+ * 而是调用 {@link #afterConcurrentHandlingStarted}；这里补一次 {@code UserContext.clear()}，
+ * 否则请求线程池里的 ThreadLocal 会把上一个 HR 的身份带给后续请求（越权风险）。</p>
  */
 @Component
-public class AuthInterceptor implements HandlerInterceptor {
+public class AuthInterceptor implements AsyncHandlerInterceptor {
 
     private static final String BEARER_PREFIX = "Bearer ";
     private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
@@ -88,6 +92,13 @@ public class AuthInterceptor implements HandlerInterceptor {
     @Override
     public void afterCompletion(HttpServletRequest request, HttpServletResponse response,
                                 Object handler, Exception ex) {
+        UserContext.clear();
+    }
+
+    /** 异步请求（SSE）开始：请求线程不再回调 afterCompletion，这里清理 ThreadLocal。 */
+    @Override
+    public void afterConcurrentHandlingStarted(HttpServletRequest request, HttpServletResponse response,
+                                               Object handler) {
         UserContext.clear();
     }
 }

@@ -3,8 +3,8 @@
 > 状态唯一定稿在 `PROGRESS.md`；本文件是 AI 增量的**方案与任务板**（进度以 §7 任务表为准）。
 > 前置：Step 3 后端 + T9 全量联调已完成（`USE_MOCK=false` 下 `npm run e2e` **63/63**）。
 > 编号说明：本增量编号为 **Step 4（AI / RAG）**；`PROGRESS.md` §1 中旧的「Step 4 联调」已并入 Step 3 T9。
-> 最后更新：2026-10-20 · 状态：**T-AI0 ✅ + T-AI1 ✅ + T-AI2 ✅（单简历问答：检索 / 引用 / 无依据 / 配额 / HR 候选人详情 AI 抽屉全部落地并实测）**，
-> 下一步 T-AI3 流式输出（决策见 §1，实测结论见 §7，待确认子项见 §10）
+> 最后更新：2026-10-20 · 状态：**T-AI0 ✅ + T-AI1 ✅ + T-AI2 ✅ + T-AI3 ✅（索引入库 / 单简历问答 / SSE 流式 + 打字机 + 引用定位全部落地并实测）**，
+> 下一步 T-AI4 语义人才检索（决策见 §1，实测结论见 §7，待确认子项见 §10）
 
 ---
 
@@ -53,7 +53,7 @@
 | `applications` 带 `company_id`，`resumes` 只有 `user_id`（无租户列） | 向量检索**必须显式做可见性过滤**（§5.3），不能依赖 `PinliaoTenantLineHandler` |
 | 已有 `TalentMatchService`（词典 + 权重 + 证据片段） | 可作混合检索的关键词侧与 A/B 对照组 |
 | 已有 `usage_logs(company_id, type, day, count)` 与 `tenant_configs.features`（JSON） | 现成的 AI 用量统计位与租户级开关位 |
-| 已有 STOMP WebSocket（`message/realtime`，4 主题） | 流式输出可走 STOMP；另有 SSE 备选（§6.3） |
+| 已有 STOMP WebSocket（`message/realtime`，4 主题） | 流式输出最终选 **SSE + 站点根路径代理**（§6.3）；STOMP 不再作为回退方案 |
 | Flyway 已到 **V8** | AI 相关表从 **V9** 起 |
 | 前端 `USE_MOCK` 全局开关 + service 双分支 + e2e「零控制台错误」门禁 | AI 新页面/接口必须沿用双分支 + 独立开关，否则 e2e 直接挂 |
 | 本机无 Docker、无 Ollama、i5-1135G7 / 16G 内存 / 无独显；Redis 为原生 `redis-server.exe` | 不引入向量库服务；本地跑对话大模型体验不可接受，**对话走 API** |
@@ -259,15 +259,24 @@ Invoke-RestMethod http://localhost:8080/api/v1/ai/ping   -Headers @{ Authorizati
 |---|---|---|
 | GET | `/api/v1/ai/status` | **已落地**（契约外自检）：回显 enabled / provider（`springai` / `fake`）/ 模型名，不调用上游 |
 | GET | `/api/v1/ai/ping` | **已落地**（契约外自检）：真实调用一次 chat + embedding，返回耗时 / token / 向量维度 |
-| POST | `/api/v1/hr/applications/{applicationId}/ai/qa` | 简历问答（v1 非流式 JSON；v2 SSE `text/event-stream`：`delta` / `citation` / `done` / `error`） |
+| POST | `/api/v1/hr/applications/{applicationId}/ai/qa` | 简历问答（**已落地**：v1 非流式 JSON；v2 SSE `text/event-stream`：`delta` / `citation` / `done` / `error`，见 §14.5 / §14.6） |
 | GET | `/api/v1/hr/applications/{applicationId}/ai/index-status` | **已落地（T-AI1）**：该候选人简历索引状态（`indexed` / `chunkCount` / `model` / `dim` / `updatedAt`）；按投递记录校验可见性，跨公司 404 |
 | POST | `/api/v1/ai/index/rebuild` | **已落地（T-AI1）**：全量或单份重建（body `{resumeId?}`）；需 HR / 管理员；返回 `resumes/skipped/chunks/embedded/reused/elapsedMs` |
 | POST | `/api/v1/hr/talent/semantic-search` | 阶段 T-AI4：语义人才检索 |
 
 - 两个自检端点同样受 `WebAuthConfig` 拦截器保护（`/api/v1/**` 默认需登录），避免未授权调用产生费用
   （单测 `AuthInterceptorPublicEndpointTest` 已断言非公开）。
-- 流式方案：**优先 SSE**；若 Next `rewrites` 代理对 SSE 有阻断（T-AI3 实测），退回既有 STOMP
-  主题（`/topic/hr/ai/{sessionId}`），复用现成的握手与鉴权拦截器。
+- 流式方案（**T-AI3 已定稿并落地**）：**SSE**。Next `rewrites`（`/api/v1/:path*` → Spring Boot）
+  会**缓冲响应体**，实测直连 :8080 的 delta 在 150/180/210ms 逐条到达，经 rewrites 后一次性吐出
+  （首字延迟 = 总耗时）；且 rewrites 的优先级高于同路径 Route Handler。故流式单独走**站点根路径代理**
+  `/api/ai/qa-stream/{applicationId}`（`src/app/api/ai/qa-stream/[applicationId]/route.ts` 用 Web Streams
+  透传 `upstream.body`），不在 `/api/v1` 下；其余接口继续走 rewrites。**不需要 STOMP 回退。**
+- SSE 事件：`delta`（`{text}`）→ `citation`（引用对象，逐条）→ `done`（完整 `Answer`，以此覆盖已累积文本）
+  / `error`（`{code,message}`）。**校验类错误**（42220 / 40301 / 42201 / 40401 / 42902）仍在推流前以
+  **普通 JSON 包络 + HTTP 状态**返回；流开始后的失败才走 `error` 事件。
+- SSE 客户端（含代理）的 `Accept` 必须同时包含 `application/json`：只写 `text/event-stream` 时，
+  Spring 无法把校验类错误写成 JSON（`HttpMediaTypeNotAcceptableException` → 500 空响应）。
+
 - 错误码：**`42220` AI 未启用 / `42221` 索引未就绪 / `42902` 超出调用配额 / `50020` 上游调用失败或超时**
   （定义在 `ai/AiCodes.java`）。
   注意：原方案的 `43xxx` 段**不可用**——契约 §5 规定「5 位数字，前 3 位对应 HTTP 状态码」，
@@ -293,7 +302,7 @@ resume_chunks(
 --      否则引用会指向别人的简历；跨简历复用向量靠 (content_hash, model) 查询，不靠唯一键；
 --   3) 阶段 1「只存文本」与阶段 2「加 embedding」合并为一次建表（演示规模无需两段迁移）。
 
--- 尚未落地（T-AI2 / T-AI3）：
+-- 尚未落地（多轮会话留待 T-AI5 之后；T-AI2/T-AI3 的问答均为无状态单轮）：
 ai_chat_sessions(id, company_id, hr_id, application_id, title, created_at, updated_at)
 ai_chat_messages(id, session_id, role, content, citations_json, tokens, latency_ms, created_at)
 ```
@@ -307,7 +316,7 @@ ai_chat_messages(id, session_id, role, content, citations_json, tokens, latency_
 | T-AI0 | 依赖与连通性：BOM + starter + `AiProperties` + `/ai/ping` | ✅ **完成（2026-10-19）**：`spring-ai-bom:1.1.8` + `spring-ai-starter-model-openai`；`AiCodes` / `AiProperties` / `AiConnectivityService` / `AiController`；`/api/v1/ai/status` + `/ping` 实测通过（chat 1005ms / 44 tokens、embedding 538ms / dim 1024）；`mvnw test` **176/176**；key 走用户级环境变量且已核查仓库零泄漏；`backend/README.md` 已加「AI 配置」 | 0.5 天 | 是 | ✅ |
 | T-AI1 | 索引入库：`ResumeChunker` + `AiEmbeddingModel` + `resume_chunks`(V9) + 重建接口 | 单测（FakeEmbedding）断言分块规则；`smoke-ai.mjs`：12 份简历 → N 个 chunk；重复执行幂等 | 1~2 天 | 否 | ✅ **完成（2026-10-20）**：`ResumeChunker`（basics/educations/experiences/projects/skills 五段式 + 上下文头 + 800 字按句续写，手机号不入库）、`AiEmbeddingModel` SPI + `SpringAiEmbeddingAdapter`（≤10 条切批、失败转 50020）/ `FakeEmbeddingModel`（确定性词袋向量）、V9 `resume_chunks`、`ResumeIndexService`（全量 / 单份 / 状态，按 model 复用向量）、`AiIndexController`；单测新增 17 项，`mvnw test` **199/199**；`smoke-ai.mjs` **17/17**（fake：7 份简历 35 块、二次 `embedded=0`；真实：单份 5 块 950ms、`text-embedding-v4` 1024 维、二次 0 调用）；`verify-seed.ps1` 16/16（flyway=9） |
 | T-AI2 | **单简历问答 MVP**（非流式）+ 引用 + HR 候选人详情「AI 助手」抽屉 | §0 的 5 条 DoD 全过；前端走 mock 分支；e2e 仅新增「入口存在 / 开关关闭时隐藏」断言 | 1~2 天 | 是（人工验收时） | ✅ **完成（2026-10-20）**：`AiChatClient` SPI + `SpringAiChatAdapter`（`enable_thinking=false`，失败转 50020）/ `FakeChatClient`；`RetrievalService` 余弦 topK（`resumeId` 先经 `applications.company_id` 过滤）、`PromptBuilder`（资料 / 指令分区 + 无依据话术）、`CitationAssembler`（`[n]` 解析 + 漏标兜底）、`HrResumeQaService`（开关 / 角色 / 归属 / 按需建索引 / 低分不调模型）、`AiQuotaService`（HR/日 100 次，42902；Redis 故障放行）；`POST /hr/applications/{id}/ai/qa`；前端 `src/api/ai.ts` + `mock/ai.ts` 双分支、候选人详情「AI 简历助手」抽屉（入口按 `/ai/status.enabled` 显隐）；`mvnw test` **230/230**、`smoke-ai.mjs` **31/31**、e2e **65/65**（真实后端 fake 向量 + Mock 分支各一轮）；AI 关闭下接口 42220、入口隐藏 |
-| T-AI3 | 流式输出（SSE 或 STOMP）+ 打字机 + 引用点击定位 | 首字延迟、中断、错误态；e2e 不依赖流式内容 | 1 天 | 是 | ⬜ |
+| T-AI3 | 流式输出（SSE 或 STOMP）+ 打字机 + 引用点击定位 | 首字延迟、中断、错误态；e2e 不依赖流式内容 | 1 天 | 是 | ✅ **完成（2026-10-20）**：SSE `delta` / `citation` / `done` / `error`；后端 `AiChatClient.stream` + `SpringAiChatAdapter`（Flux → toIterable）/ `FakeChatClient`（8 字一段 + 30ms）、`HrResumeQaService.prepare/answer/stream` 复用校验链路、`SseEmitter` 120s + 4 线程 daemon executor、`AiQaSseSink`（JSON 单行化、断连即停）；前端 `requestStream` + SSE 解析（`\r\n` 归一 / 多行 data / 未收到 done 自动退回非流式）、`HrAiAssistantSheet` 打字机 + 光标 + `[n]`↔来源卡片双向定位与 1.2s 高亮、错误保留已输出部分；**站点根路径代理** `/api/ai/qa-stream/{applicationId}` 绕过 rewrites 缓冲；`mvnw test` **240/240**、`smoke-ai` **43/43**、e2e **65/65**（真实 fake provider + Mock） |
 | T-AI4 | 语义人才检索（与关键词版并行 A/B） | 同一组查询两边对比记录（相关性、命中率）；人才筛选页加「语义模式」 | 2 天 | 是 | ⬜ |
 | T-AI5 | 面试问题生成（结构化输出 + 人工可改） | HR 面试准备页；输出 schema 校验 | 1~2 天 | 是 | ⬜ |
 | T-AI6 | 工程化：混合检索（复用 `TalentMatchService` 权重）/ rerank / 评测集 / 成本看板 | 评测报告（10~20 题小集）；`usage_logs` 看板 | 持续 | 是 | ⬜ |
@@ -338,7 +347,28 @@ ai_chat_messages(id, session_id, role, content, citations_json, tokens, latency_
 - e2e **65/65**：真实后端（`provider=fake`，避免真实对话费用）与 Mock 分支各跑一轮；新增
   「AI 入口与开关一致」「AI 问答返回带引用的回答」2 项。
 - AI 关闭（`PINLIAO_AI_ENABLED=false`）：`POST .../ai/qa` → **422 + 42220**，前端入口隐藏，
-  e2e 其余 64 项不受影响（实测见 `docs/AI-CONTINUE.md` §6.21）。
+  e2e 其余 64 项不受影响（实测见 `docs/pitfalls/ai.md` §6.21）。
+
+**T-AI3 实测记录（2026-10-20）**：
+
+- `mvnw test` **240/240**（新增 10：`FakeChatClientTest` 2 断言流式拼接与非流式一致 /
+  `SpringAiChatAdapterTest` 3 断言逐块回调 / 空块跳过 / 空流转 50020 / `HrResumeQaServiceTest` 5 断言
+  `prepare` 与 `stream` 的校验顺序、done 事件、错误事件、索引按需重建）。全部假模型，不联网。
+- `smoke-ai.mjs` **43/43**（fake）：新增 12 项 —— 流式未登录 40101 / 求职者 40301 / 空问题 42201 /
+  跨公司 40401（均为 JSON 包络而非半截 SSE）、200 + `text/event-stream`、`Cache-Control` /
+  `X-Accel-Buffering`、`delta → citation → done` 序列且无 `error`、每个 delta 非空、拼接正文含 `[1]`、
+  `done.answer` 与拼接一致且 `grounded=true`、citation 先于 done 且结构一致、无依据固定话术且无 citation。
+- 链路实测：
+  - 直连 :8080：ttfb **151ms**，delta 逐条 **152 / 179 / 212 / 245 / 279ms**，共 7 个事件；
+  - 经 `rewrites`（`/api/v1/...`）：所有事件在结束时一次性到达（首字延迟 = 总耗时）→ **不可用**；
+  - 同路径 Route Handler（`/api/v1` 下）**不会执行**（rewrites 优先，响应头无自定义标记）；
+  - 站点根路径代理（`/api/ai/qa-stream/{id}`）：ttfb **54ms**，delta **55 / 90 / 124 / 156 / 189ms** → **采用**。
+- 浏览器实测（HR 候选人详情抽屉）：打字机在 **109 / 167 / 219ms** 递增；`[n]` ↔ 来源卡片双向滚动 +
+  高亮，1.2s 后自动清除；无依据问题只出「简历中没有相关信息。」且不新增来源卡片；
+  断网（拦截 fetch）→ 提示「AI 服务暂时不可用，请稍后重试」且空占位气泡被移除；流被截断（无 `done`）→
+  自动退回非流式接口并得到完整回答（「打字机不可用 ≠ 问答不可用」）；控制台零错误。
+- e2e **65/65**：真实后端（`provider=fake`）与 Mock 分支各一轮；AI 相关断言仍只看「入口显隐 + 回答含
+  `技能` 与 `[1]`」，**不依赖流式内容**（流式失败会自动退回非流式，不会让 e2e 变红）。
 
 ## 8. 测试策略（保证不破坏现有基线）
 
@@ -350,7 +380,9 @@ ai_chat_messages(id, session_id, role, content, citations_json, tokens, latency_
 - **`smoke-ai.mjs`** 走 `provider=fake`（或本地 Ollama 向量），断言分块数、幂等、过滤边界
   （他人公司的简历检索不到）；`node scripts/smoke-ai.mjs` 纳入 `backend/README.md` 冒烟清单。
   **安全闸**：脚本检测到 `provider=springai` 会直接退出（避免误花额度），确认要测真实链路加 `--allow-real`。
-- **e2e 只加不变量断言**：入口显隐、开关关闭时不可见、回答带 `[n]` 引用；**不**断言模型具体输出。
+  T-AI3 起同时覆盖 SSE：事件序列 / 拼接正文 / done 一致性 / 校验类错误仍是 JSON 包络（43 项）。
+- **e2e 只加不变量断言**：入口显隐、开关关闭时不可见、回答带 `[n]` 引用；**不**断言模型具体输出，
+  也不依赖「是否走了流式」。
 - **回归门禁**：每轮改动后仍须 `npm run e2e` **65/65**（真实后端 / Mock 各一轮）、`mvnw test` 全绿、
   `verify-seed.ps1` 16/16；AI 表新增不影响既有种子计数（V9 只建表不插演示数据）。
 - **契约与文档义务**：`docs/api-endpoints.md` 新增 §AI 并更新账目数；
@@ -404,3 +436,4 @@ ai_chat_messages(id, session_id, role, content, citations_json, tokens, latency_
 | v1.1 | 2026-10-19 | **T-AI0 落地并实测**：新增 `spring-ai-bom:1.1.8` + `spring-ai-starter-model-openai`；`ai/` 包（`AiCodes` 42220/42221/42902/50020、`AiProperties`、`AiConnectivityService`、`AiController` 的 `/ai/status` 与 `/ai/ping`）；配置改为「Spring AI 原生前缀 `spring.ai.openai.*` + 总开关 `pinliao.ai.enabled`」，key 走 6 个用户级环境变量并以占位默认值保证无 key 也能启动。**修正原方案两处**：① 错误码 `43xxx` 不可用（契约规定前 3 位=HTTP 状态），改为 `42220/42221/42902/50020`；② 对话模型按用户指定定为 `qwen3.5-122b-a10b`（思考型，`enable_thinking=false`）。实测：chat 1005ms/44 tokens、embedding 1024 维/538ms；`mvnw test` 176/176；e2e 63/63 无回归 |
 | v1.2 | 2026-10-20 | **T-AI1 索引入库落地并实测**：`ResumeChunker`（五段式 + 上下文头 + 800 字续写 + 手机号不入库）、`AiEmbeddingModel` SPI、`SpringAiEmbeddingAdapter`（≤10 切批）/ `FakeEmbeddingModel`、V9 `resume_chunks`、`ResumeIndexService`（全量 / 单份 / 状态）、`AiIndexController`（rebuild + index-status）、`smoke-ai.mjs`（17 项，带真实上游安全闸）。**定稿三处**：① 索引不冗余 `company_id`，检索用 `applications` 前置过滤（§5.3）；② 唯一键改 `(resume_id, section, ordinal, model)`，跨简历复用靠 `(content_hash, model)` 查询（§6.4）；③ 向量复用与状态统计都以 `model` 隔离，换 provider / 换模型不复用旧向量。实测：假向量 35 块 / 二次 0 调用；真实 `text-embedding-v4` 单份 950ms、全量 2.1s、1024 维；`mvnw test` 199/199、`verify-seed` 16/16（flyway=9） |
 | v1.3 | 2026-10-20 | **T-AI2 单简历问答落地并实测**：自研 `AiChatClient` SPI（`SpringAiChatAdapter` 关闭思考 / `FakeChatClient`）+ `RetrievalService`（可见性前置过滤 + 余弦 topK）+ `PromptBuilder`（资料/指令分区）+ `CitationAssembler`（`[n]` 解析与漏标兜底）+ `HrResumeQaService`（低分不调模型、按需建索引）+ `AiQuotaService`（HR/日配额，Redis 故障放行）；`POST /api/v1/hr/applications/{id}/ai/qa`；前端候选人详情「AI 简历助手」抽屉 + `src/api/ai.ts`/`mock/ai.ts` 双分支，入口按 `/ai/status.enabled` 显隐。实测：`mvnw test` **230/230**、`smoke-ai.mjs` **31/31**、e2e **65/65**（真实 fake provider + Mock 各一轮）；AI 关闭 `42220` 且入口隐藏。**新增红线**：无依据不编造引用（固定「简历中没有相关信息。」且 `citations=[]`），审计不落简历原文 |
+| v1.4 | 2026-10-20 | **T-AI3 流式输出落地并实测（SSE）**：后端 `AiChatClient.stream` + `SpringAiChatAdapter`（Flux → `toIterable`）/ `FakeChatClient`（8 字一段）、`HrResumeQaService.prepare/answer/stream`（校验链路与非流式共用）、`SseEmitter` + `AiQaSseSink`（`delta`→`citation`→`done`），`AuthInterceptor` 改 `AsyncHandlerInterceptor` 清 ThreadLocal；前端 `requestStream` + SSE 解析（未收到 `done` 自动退回非流式）、打字机 + 光标 + `[n]`↔来源双向定位/高亮。**关键决策**：Next `rewrites` 会缓冲 SSE 且优先于同路径 Route Handler，故新增**站点根路径代理** `/api/ai/qa-stream/{applicationId}`（Web Streams 透传），**不退回 STOMP**；SSE 客户端 `Accept` 须含 `application/json` 才能拿到校验类错误的 JSON 包络。实测：直连 ttfb 151ms / 逐条 150-279ms；经代理 ttfb 54ms / 逐条 55-189ms；`mvnw test` **240/240**、`smoke-ai.mjs` **43/43**、e2e **65/65**（真实 fake provider + Mock 各一轮） |

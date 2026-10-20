@@ -18,6 +18,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * 真实对话模型适配器（{@code pinliao.ai.provider=springai}，默认）。
@@ -51,14 +52,7 @@ public class SpringAiChatAdapter implements AiChatClient {
 
     @Override
     public ChatResult chat(String systemPrompt, String userPrompt) {
-        OpenAiChatOptions options = OpenAiChatOptions.builder()
-                .model(modelId)
-                .maxTokens(maxTokens)
-                .extraBody(Map.of("enable_thinking", false))
-                .build();
-        Prompt prompt = new Prompt(List.of(
-                new SystemMessage(systemPrompt),
-                new UserMessage(userPrompt)), options);
+        Prompt prompt = buildPrompt(systemPrompt, userPrompt);
 
         ChatResponse response;
         try {
@@ -78,5 +72,64 @@ public class SpringAiChatAdapter implements AiChatClient {
                 ? null
                 : response.getMetadata().getUsage().getTotalTokens();
         return new ChatResult(text.trim(), totalTokens);
+    }
+
+    /**
+     * 流式对话（T-AI3）：转发上游增量，结束后返回完整文本。
+     *
+     * <p>用量说明：DashScope 兼容模式通常只在最后一个 chunk 带 usage，这里取「最后一次非空值」；
+     * 全程没有 usage 时返回 {@code null}（与 {@link #chat} 口径一致）。</p>
+     */
+    @Override
+    public ChatResult stream(String systemPrompt, String userPrompt, Consumer<String> onDelta) {
+        Prompt prompt = buildPrompt(systemPrompt, userPrompt);
+        StringBuilder full = new StringBuilder();
+        Integer totalTokens = null;
+        try {
+            for (ChatResponse chunk : delegate.stream(prompt).toIterable()) {
+                if (chunk == null) {
+                    continue;
+                }
+                if (chunk.getMetadata() != null && chunk.getMetadata().getUsage() != null
+                        && chunk.getMetadata().getUsage().getTotalTokens() != null) {
+                    totalTokens = chunk.getMetadata().getUsage().getTotalTokens();
+                }
+                String delta = textOf(chunk);
+                if (delta == null || delta.isEmpty()) {
+                    continue;
+                }
+                full.append(delta);
+                onDelta.accept(delta);
+            }
+        } catch (BusinessException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            log.warn("AI 流式对话失败（model={}）：{}", modelId, e.toString());
+            throw new BusinessException(AiCodes.UPSTREAM_FAILED, "AI 对话调用失败：" + e.getMessage());
+        }
+        String text = full.toString().trim();
+        if (text.isEmpty()) {
+            throw new BusinessException(AiCodes.UPSTREAM_FAILED, "AI 上游返回空回答");
+        }
+        return new ChatResult(text, totalTokens);
+    }
+
+    private Prompt buildPrompt(String systemPrompt, String userPrompt) {
+        OpenAiChatOptions options = OpenAiChatOptions.builder()
+                .model(modelId)
+                .maxTokens(maxTokens)
+                .extraBody(Map.of("enable_thinking", false))
+                .build();
+        return new Prompt(List.of(
+                new SystemMessage(systemPrompt),
+                new UserMessage(userPrompt)), options);
+    }
+
+    /** 取 chunk 的增量文本；纯用量 / 空结果 chunk 返回 null。 */
+    private static String textOf(ChatResponse chunk) {
+        if (chunk.getResult() == null || chunk.getResult().getOutput() == null) {
+            return null;
+        }
+        return chunk.getResult().getOutput().getText();
     }
 }

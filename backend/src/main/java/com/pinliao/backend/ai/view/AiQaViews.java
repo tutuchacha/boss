@@ -52,4 +52,23 @@ public final class AiQaViews {
                          Integer totalTokens,
                          int retrieved) {
     }
+
+    /**
+     * SSE 增量事件（T-AI3）：{@code event: delta}。
+     *
+     * @param text 本次新增的文本片段（前端直接追加）
+     */
+    public record StreamDelta(String text) {
+    }
+
+    /**
+     * SSE 错误事件（T-AI3）：{@code event: error}。
+     *
+     * <p>只用于「流已经开始后」的失败（上游中断 / 超时）；校验类错误仍以普通 JSON 包络 + HTTP 状态返回。</p>
+     *
+     * @param code    业务码（与 {@code AiCodes} 一致，例如 50020）
+     * @param message 可直接展示给 HR 的说明
+     */
+    public record StreamError(int code, String message) {
+    }
 }

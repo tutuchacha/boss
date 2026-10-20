@@ -656,6 +656,22 @@
 - 配额：按 HR / 按日限制（默认 100 次，`42902`；Redis 故障降级放行）
 - 审计：只记录问题长度 / 命中数 / 引用数 / 回答长度 / token / 耗时，不记录简历原文与完整 Prompt
 
+### 14.6 单简历问答（SSE 流式，T-AI3）
+`POST /api/v1/hr/applications/{applicationId}/ai/qa/stream`
+- 鉴权：HR / 管理员；入参 / 校验 / 配额与 §14.5 完全一致（共用同一套 `prepare`）
+- 响应：`200 + text/event-stream`（`Cache-Control: no-cache`、`X-Accel-Buffering: no`），事件按序：
+  - `event: delta` + `data: {"text":"…"}` —— 增量正文，逐条到达；
+  - `event: citation` + `data: { index, chunkId, resumeId, section, title, snippet, score }` —— 逐条引用；
+  - `event: done` + `data: { answer, grounded, citations[], chatModel, elapsedMs, totalTokens, retrieved }`
+    —— 完整回答（`answer` 可能含模型漏标时补的「来源：[1]」，前端以它覆盖已累积文本）；
+  - `event: error` + `data: {"code":…,"message":"…"}` —— **仅**流开始后的失败（如上游 50020）。
+- **校验类错误**（`42220` / `40301` / `42201` / `40401` / `42902`）在推流**之前**返回普通 JSON 包络 +
+  对应 HTTP 状态（不是半截 SSE）；超时 120s。
+- 客户端约定：`Accept` 须同时包含 `text/event-stream` 与 `application/json`（否则 Spring 无法写出
+  错误包络，会变 500 空响应）；浏览器侧统一走站点根路径代理
+  `POST /api/ai/qa-stream/{applicationId}`（`src/app/api/ai/qa-stream/[applicationId]/route.ts`），
+  因为 Next `rewrites` 会缓冲 SSE。代理路径**不在 `/api/v1` 下、不属于对外契约**，仅前端内部使用。
+
 ---
 
 ## 15. 修订记录
@@ -673,3 +689,4 @@
 | v0.3.7 | 2026-10-19 | T9 / T9 追加落地补注（不改账目）：实测真实后端下前端 `npm run e2e` 63/63；求职者职位列表 / 详情切真实（`GET /jobs`，`limit=100`） |
 | v0.3.8 | 2026-10-19 | Step 4 T-AI0：登记两个**契约外** AI 自检接口 `GET /api/v1/ai/status` / `GET /api/v1/ai/ping`（需登录、不计账）；正式 AI 接口（问答 / 索引 / 语义检索）留待 T-AI1~T-AI4 新增 §AI 模块时计入账目；错误码 `42220/42221/42902/50020`（**原草案 `43xxx` 作废**，契约 §5 前 3 位须为 HTTP 状态） |
 | v0.3.9 | 2026-10-20 | Step 4 T-AI1 / T-AI2：新增 §14「AI 模块（契约外扩展）」共 5 条（status / ping / rebuild / index-status / qa），仍不计入 70 条账目；qa 明确入参 1~500 字、无依据固定话术、`[n]` 与 citations 对应、按 HR/日配额 42902 |
+| v0.3.10 | 2026-10-20 | Step 4 T-AI3：新增 §14.6 **SSE 流式问答**（`delta` / `citation` / `done` / `error`；校验类错误仍在推流前返回 JSON 包络；`Accept` 须含 `application/json`）；前端内部代理 `/api/ai/qa-stream/{applicationId}` 绕过 Next rewrites 缓冲，**不属于对外契约、不计账**（§14 仍为 5+1 条契约外接口） |

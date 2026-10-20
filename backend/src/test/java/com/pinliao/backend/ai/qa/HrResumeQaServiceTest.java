@@ -254,6 +254,124 @@ class HrResumeQaServiceTest {
         verifyNoInteractions(retrievalService, chatClient);
     }
 
+    // ==================== T-AI3 流式 ====================
+
+    @Test
+    void 流式_逐段回调_结束后给出引用与完整回答() {
+        when(applicationMapper.selectById("app-1")).thenReturn(application("app-1", COMPANY_ID, "resume-1"));
+        when(chunkStore.countByResume("resume-1", MODEL)).thenReturn(5L);
+        when(retrievalService.retrieve("resume-1", "他做过高并发吗？")).thenReturn(List.of(hit(0.9)));
+        when(chatClient.stream(anyString(), anyString(), any()))
+                .thenAnswer(invocation -> {
+                    java.util.function.Consumer<String> onDelta = invocation.getArgument(2);
+                    onDelta.accept("他在电商核心链路");
+                    onDelta.accept("做过高并发 [1]。");
+                    return new AiChatClient.ChatResult("他在电商核心链路做过高并发 [1]。", 88);
+                });
+
+        CollectingSink sink = new CollectingSink();
+        HrResumeQaService service = service(true);
+        service.stream(service.prepare("app-1", "  他做过高并发吗？  "), sink);
+
+        assertEquals(List.of("他在电商核心链路", "做过高并发 [1]。"), sink.deltas);
+        assertEquals(1, sink.citations.size());
+        assertEquals(1, sink.citations.get(0).index());
+        assertTrue(sink.done.grounded());
+        assertEquals("他在电商核心链路做过高并发 [1]。", sink.done.answer());
+        assertEquals(88, sink.done.totalTokens());
+        assertEquals(1, sink.done.retrieved());
+        verify(quotaService).consume("u-hr-1");
+    }
+
+    @Test
+    void 流式_无依据时只发一次固定话术且不调用对话模型() {
+        when(applicationMapper.selectById("app-1")).thenReturn(application("app-1", COMPANY_ID, "resume-1"));
+        when(chunkStore.countByResume("resume-1", MODEL)).thenReturn(5L);
+        when(retrievalService.retrieve("resume-1", "他会潜水吗？")).thenReturn(List.of(hit(0.1)));
+
+        CollectingSink sink = new CollectingSink();
+        HrResumeQaService service = service(true);
+        service.stream(service.prepare("app-1", "他会潜水吗？"), sink);
+
+        assertEquals(List.of(NO_EVIDENCE), sink.deltas);
+        assertTrue(sink.citations.isEmpty());
+        assertFalse(sink.done.grounded());
+        assertEquals(NO_EVIDENCE, sink.done.answer());
+        assertNull(sink.done.totalTokens());
+        verify(chatClient, never()).stream(anyString(), anyString(), any());
+        verify(chatClient, never()).chat(anyString(), anyString());
+    }
+
+    @Test
+    void 流式_模型漏标引用时以done中的兜底正文为准() {
+        when(applicationMapper.selectById("app-1")).thenReturn(application("app-1", COMPANY_ID, "resume-1"));
+        when(chunkStore.countByResume("resume-1", MODEL)).thenReturn(5L);
+        when(retrievalService.retrieve("resume-1", "问题")).thenReturn(List.of(hit(0.9)));
+        when(chatClient.stream(anyString(), anyString(), any()))
+                .thenAnswer(invocation -> {
+                    java.util.function.Consumer<String> onDelta = invocation.getArgument(2);
+                    onDelta.accept("他有 6 年经验。");
+                    return new AiChatClient.ChatResult("他有 6 年经验。", 50);
+                });
+
+        CollectingSink sink = new CollectingSink();
+        HrResumeQaService service = service(true);
+        service.stream(service.prepare("app-1", "问题"), sink);
+
+        assertEquals(List.of("他有 6 年经验。"), sink.deltas);
+        assertTrue(sink.done.answer().endsWith("来源：[1]"));
+        assertEquals(1, sink.citations.size());
+    }
+
+    @Test
+    void 流式_上游失败透传50020() {
+        when(applicationMapper.selectById("app-1")).thenReturn(application("app-1", COMPANY_ID, "resume-1"));
+        when(chunkStore.countByResume("resume-1", MODEL)).thenReturn(5L);
+        when(retrievalService.retrieve("resume-1", "问题")).thenReturn(List.of(hit(0.9)));
+        when(chatClient.stream(anyString(), anyString(), any()))
+                .thenThrow(new BusinessException(AiCodes.UPSTREAM_FAILED, "boom"));
+
+        HrResumeQaService service = service(true);
+        HrResumeQaService.Prepared prepared = service.prepare("app-1", "问题");
+        CollectingSink sink = new CollectingSink();
+
+        assertEquals(AiCodes.UPSTREAM_FAILED,
+                assertThrows(BusinessException.class, () -> service.stream(prepared, sink)).getCode());
+        assertTrue(sink.done == null, "失败时不应发 done，由 Web 层发 error 事件");
+    }
+
+    @Test
+    void 流式前置校验与非流式一致_关闭时42220() {
+        CollectingSink sink = new CollectingSink();
+
+        assertEquals(AiCodes.AI_DISABLED,
+                assertThrows(BusinessException.class,
+                        () -> service(false).prepare("app-1", "问题")).getCode());
+        assertTrue(sink.deltas.isEmpty());
+    }
+
+    /** 收集流式事件（顺序：delta → citation → done）。 */
+    private static final class CollectingSink implements AiStreamSink {
+        private final List<String> deltas = new java.util.ArrayList<>();
+        private final List<AiQaViews.Citation> citations = new java.util.ArrayList<>();
+        private AiQaViews.Answer done;
+
+        @Override
+        public void delta(String text) {
+            deltas.add(text);
+        }
+
+        @Override
+        public void citation(AiQaViews.Citation citation) {
+            citations.add(citation);
+        }
+
+        @Override
+        public void done(AiQaViews.Answer answer) {
+            done = answer;
+        }
+    }
+
     private HrResumeQaService service(boolean enabled) {
         AiProperties properties = new AiProperties(enabled, AiProperties.PROVIDER_FAKE, 800, 10, 6, 0.2, 700, 100);
         return new HrResumeQaService(properties, applicationMapper, chunkStore, indexService, embeddingModel,

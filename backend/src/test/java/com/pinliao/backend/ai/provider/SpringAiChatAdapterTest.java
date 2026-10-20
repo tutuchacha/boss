@@ -19,7 +19,9 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.openai.OpenAiChatOptions;
+import reactor.core.publisher.Flux;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -78,6 +80,53 @@ class SpringAiChatAdapterTest {
 
         assertEquals(AiCodes.UPSTREAM_FAILED,
                 assertThrows(BusinessException.class, () -> adapter().chat("系统", "用户")).getCode());
+    }
+
+    @Test
+    void 流式_逐段回调且拼接一致_并沿用思考模式与token上限() {
+        when(chatModel.stream(any(Prompt.class))).thenReturn(Flux.just(
+                chunk("他在电商"), chunk("核心链路"), chunk("做过高并发 [1]。")));
+
+        List<String> deltas = new ArrayList<>();
+        AiChatClient.ChatResult result = adapter().stream("系统规则", "资料 [1]\n问题", deltas::add);
+
+        assertEquals(List.of("他在电商", "核心链路", "做过高并发 [1]。"), deltas);
+        assertEquals("他在电商核心链路做过高并发 [1]。", result.text());
+        ArgumentCaptor<Prompt> captor = ArgumentCaptor.forClass(Prompt.class);
+        verify(chatModel).stream(captor.capture());
+        OpenAiChatOptions options = (OpenAiChatOptions) captor.getValue().getOptions();
+        assertEquals(MODEL, options.getModel());
+        assertEquals(Integer.valueOf(700), options.getMaxTokens());
+        assertEquals(Boolean.FALSE, options.getExtraBody().get("enable_thinking"));
+    }
+
+    @Test
+    void 流式_跳过空chunk_但全部为空时转50020() {
+        when(chatModel.stream(any(Prompt.class))).thenReturn(Flux.just(
+                chunk(""), chunk("回答 [1]"), chunk("")));
+
+        List<String> deltas = new ArrayList<>();
+        assertEquals("回答 [1]", adapter().stream("系统", "用户", deltas::add).text());
+        assertEquals(List.of("回答 [1]"), deltas);
+
+        when(chatModel.stream(any(Prompt.class))).thenReturn(Flux.empty());
+        assertEquals(AiCodes.UPSTREAM_FAILED,
+                assertThrows(BusinessException.class,
+                        () -> adapter().stream("系统", "用户", text -> { })).getCode());
+    }
+
+    @Test
+    void 流式_上游异常转50020() {
+        when(chatModel.stream(any(Prompt.class)))
+                .thenReturn(Flux.error(new IllegalStateException("stream boom")));
+
+        assertEquals(AiCodes.UPSTREAM_FAILED,
+                assertThrows(BusinessException.class,
+                        () -> adapter().stream("系统", "用户", text -> { })).getCode());
+    }
+
+    private static ChatResponse chunk(String text) {
+        return new ChatResponse(List.of(new Generation(new AssistantMessage(text))));
     }
 
     private SpringAiChatAdapter adapter() {

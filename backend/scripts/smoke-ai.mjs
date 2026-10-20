@@ -1,4 +1,4 @@
-// 聘聊 · T-AI1/T-AI2 AI 冒烟（Step 4）：简历索引 + 单简历问答
+// 聘聊 · T-AI1/T-AI2/T-AI3 AI 冒烟（Step 4）：简历索引 + 单简历问答（非流式 / SSE 流式）
 // 用法：后端启动后运行 `node scripts/smoke-ai.mjs`（可用 PINLIAO_BASE 覆盖地址）
 // 前置：Flyway V1~V9 已迁移；MySQL + Redis 运行中；后端以「假向量」启动：
 //         $env:PINLIAO_AI_ENABLED='true'
@@ -11,6 +11,8 @@
 //  - 幂等判据：同一份内容第二次重建 embedded=0、reused=chunks（不重复计费）。
 //  - T-AI2 问答段使用假对话模型（provider=fake）验证「检索 → 引用 → 无依据」链路；
 //    真实 provider 下问答会产生对话费用，同样受 --allow-real 保护。
+//  - T-AI3 流式段断言「delta → citation → done」事件序列与拼接正文，
+//    并校验校验类错误仍是普通 JSON 包络（不是半截 SSE）。
 const base = process.env.PINLIAO_BASE || 'http://localhost:8080';
 const allowReal = process.argv.includes('--allow-real');
 
@@ -48,6 +50,77 @@ const GET = (path, opts) => http('GET', path, opts);
 const POST = (path, opts) => http('POST', path, opts);
 const dataOf = (r) => (r.json && typeof r.json === 'object' ? r.json.data : undefined);
 const codeOf = (r) => (r.json && typeof r.json === 'object' ? r.json.code : undefined);
+
+/**
+ * SSE 请求（T-AI3）：返回状态、响应头与逐条解析后的事件。
+ * 校验类错误仍是普通 JSON 包络（非 2xx、非 text/event-stream），此时只回 json、events 为空。
+ * Accept 必须同时包含 application/json —— 只接受 text/event-stream 时 Spring 无法写出错误包络（406 → 500）。
+ */
+async function sse(path, { token, body } = {}) {
+  const h = { Accept: 'text/event-stream, application/json' };
+  if (token) h.Authorization = 'Bearer ' + token;
+  if (body !== undefined) h['Content-Type'] = 'application/json';
+  const res = await fetch(base + path, {
+    method: 'POST',
+    headers: h,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const contentType = res.headers.get('content-type') || '';
+  if (!res.ok || !contentType.includes('text/event-stream')) {
+    const text = await res.text();
+    let json = null;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      /* 非 JSON */
+    }
+    return { status: res.status, contentType, json, events: [], ttfbMs: null, totalMs: null };
+  }
+
+  const t0 = Date.now();
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  const events = [];
+  let buffer = '';
+  let ttfbMs = null;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (ttfbMs === null) ttfbMs = Date.now() - t0;
+    buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n');
+    let idx;
+    while ((idx = buffer.indexOf('\n\n')) >= 0) {
+      const block = buffer.slice(0, idx);
+      buffer = buffer.slice(idx + 2);
+      const evt = { event: 'message', data: '', atMs: Date.now() - t0 };
+      const dataLines = [];
+      for (const line of block.split('\n')) {
+        if (line.startsWith('event:')) evt.event = line.slice(6).trim();
+        else if (line.startsWith('data:')) dataLines.push(line.slice(5).replace(/^ /, ''));
+      }
+      if (dataLines.length) {
+        evt.data = dataLines.join('\n');
+        events.push(evt);
+      }
+    }
+  }
+  return {
+    status: res.status,
+    contentType,
+    cacheControl: res.headers.get('cache-control'),
+    noBuffer: res.headers.get('x-accel-buffering'),
+    events,
+    ttfbMs,
+    totalMs: Date.now() - t0,
+  };
+}
+const parse = (e) => {
+  try {
+    return JSON.parse(e.data);
+  } catch {
+    return null;
+  }
+};
 
 (async () => {
   let hrToken = null;
@@ -228,6 +301,80 @@ const codeOf = (r) => (r.json && typeof r.json === 'object' ? r.json.code : unde
     check('无依据时不编造引用（citations 为空）',
       Array.isArray(noEvidence.citations) && noEvidence.citations.length === 0,
       `citations=${Array.isArray(noEvidence.citations) ? noEvidence.citations.length : 'n/a'}`);
+
+    // ============================== T-AI3 §流式问答：权限与校验（普通 JSON 包络） ==============================
+    console.log('== §流式问答：校验类错误仍是 JSON 包络 ==');
+    const streamPath = '/api/v1/hr/applications/app-hr-01/ai/qa/stream';
+
+    let s = await sse(streamPath, askBody('候选人的技能包括 React 和 TypeScript 吗？'));
+    check('未登录流式问答 → 401 + 40101（非 SSE）', s.status === 401 && codeOf(s) === 40101
+      && !s.contentType.includes('text/event-stream') && s.events.length === 0,
+      `HTTP ${s.status} code=${codeOf(s)} ct=${s.contentType}`);
+
+    s = await sse(streamPath, { token: seekerToken, ...askBody('候选人的技能包括 React 和 TypeScript 吗？') });
+    check('求职者流式问答 → 403 + 40301', s.status === 403 && codeOf(s) === 40301 && s.events.length === 0,
+      `HTTP ${s.status} code=${codeOf(s)}`);
+
+    s = await sse(streamPath, { token: hrToken, ...askBody('   ') });
+    check('流式空问题 → 422 + 42201', s.status === 422 && codeOf(s) === 42201 && s.events.length === 0,
+      `HTTP ${s.status} code=${codeOf(s)}`);
+
+    s = await sse('/api/v1/hr/applications/app-seek-01/ai/qa/stream',
+      { token: hrToken, ...askBody('候选人的技能是什么？') });
+    check('流式跨公司投递 → 404 + 40401', s.status === 404 && codeOf(s) === 40401 && s.events.length === 0,
+      `HTTP ${s.status} code=${codeOf(s)}`);
+
+    // ============================== T-AI3 §流式问答：事件序列 ==============================
+    console.log('== §流式问答：delta → citation → done ==');
+    const hrApp = '/api/v1/hr/applications/app-hr-01/ai/qa/stream';
+    s = await sse(hrApp, { token: hrToken, ...askBody('候选人的技能包括 React 和 TypeScript 吗？') });
+    const deltas = s.events.filter((e) => e.event === 'delta');
+    const citationEvents = s.events.filter((e) => e.event === 'citation');
+    const doneEvents = s.events.filter((e) => e.event === 'done');
+    const errorEvents = s.events.filter((e) => e.event === 'error');
+    const done = doneEvents.length === 1 ? parse(doneEvents[0]) : null;
+    const streamedText = deltas.map((e) => (parse(e) || {}).text || '').join('');
+    const lastEvent = s.events.length ? s.events[s.events.length - 1].event : null;
+
+    check('流式问答 → 200 + text/event-stream', s.status === 200 && s.contentType.includes('text/event-stream'),
+      `HTTP ${s.status} ct=${s.contentType} ttfb=${s.ttfbMs}ms total=${s.totalMs}ms`);
+    check('响应头禁用缓冲（Cache-Control / X-Accel-Buffering）',
+      String(s.cacheControl || '').includes('no-cache') && s.noBuffer === 'no',
+      `cache-control=${s.cacheControl} x-accel-buffering=${s.noBuffer}`);
+    check('事件序列完整：≥1 个 delta + ≥1 个 citation + 1 个 done，且 done 收尾、无 error',
+      deltas.length >= 1 && citationEvents.length >= 1 && doneEvents.length === 1
+      && lastEvent === 'done' && errorEvents.length === 0,
+      `delta=${deltas.length} citation=${citationEvents.length} done=${doneEvents.length} error=${errorEvents.length}`);
+    check('每个 delta 都带非空 text', deltas.every((e) => typeof (parse(e) || {}).text === 'string'
+      && (parse(e) || {}).text.length > 0));
+    check('delta 拼接正文非空且含 [1] 引用标记',
+      streamedText.length > 0 && streamedText.includes('[1]'),
+      `spliced=${streamedText.slice(0, 40)}`);
+    check('done 事件携带完整回答（含 citations / grounded / chatModel）',
+      done !== null && done.answer === streamedText && done.grounded === true
+      && Array.isArray(done.citations) && done.citations.length >= 1
+      && done.chatModel === 'fake-chat-v1',
+      `answer=${String(done?.answer || '').slice(0, 30)} citations=${done?.citations?.length}`);
+    check('citation 事件先于 done，且结构与非流式一致',
+      citationEvents.length >= 1
+      && citationEvents.every((e) => e.atMs <= doneEvents[0].atMs)
+      && (parse(citationEvents[0]) || {}).index === 1
+      && String((parse(citationEvents[0]) || {}).chunkId || '').startsWith('rc_')
+      && ['basics', 'educations', 'experiences', 'projects', 'skills']
+        .includes((parse(citationEvents[0]) || {}).section),
+      `firstSection=${(parse(citationEvents[0]) || {}).section}`);
+
+    // ============================== T-AI3 §流式问答：无依据 ==============================
+    console.log('== §流式问答：简历外问题如实说明 ==');
+    s = await sse(hrApp, { token: hrToken, ...askBody('What is their experience with quantum chromodynamics?') });
+    const nsDeltas = s.events.filter((e) => e.event === 'delta');
+    const nsCitations = s.events.filter((e) => e.event === 'citation');
+    const nsDone = s.events.filter((e) => e.event === 'done');
+    const nsAnswer = nsDone.length === 1 ? parse(nsDone[0]) : null;
+    check('无依据流式 → done 为固定话术且 grounded=false、无 citation 事件',
+      s.status === 200 && nsDone.length === 1 && nsAnswer?.answer === '简历中没有相关信息。'
+      && nsAnswer?.grounded === false && nsCitations.length === 0 && nsDeltas.length >= 1,
+      `answer=${nsAnswer?.answer} grounded=${nsAnswer?.grounded} citation=${nsCitations.length}`);
 
     // ============================== T-AI2 §问答后索引仍就绪 ==============================
     r = await GET('/api/v1/hr/applications/app-hr-01/ai/index-status', { token: hrToken });

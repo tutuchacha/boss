@@ -1,7 +1,9 @@
 package com.pinliao.backend.ai.spi;
 
+import java.util.function.Consumer;
+
 /**
- * 对话模型 SPI（Step 4 T-AI2）。
+ * 对话模型 SPI（Step 4 T-AI2 / T-AI3）。
  *
  * <p>与 {@link AiEmbeddingModel} 同样的目的：业务代码（RAG / 问答）只依赖本接口，
  * 不直接依赖 Spring AI / LangChain4j。切换框架或升级时只需替换 {@code ai/provider} 下的实现。</p>
@@ -21,6 +23,17 @@ public interface AiChatClient {
      * @param userPrompt   用户消息（编号资料 + HR 问题）
      */
     ChatResult chat(String systemPrompt, String userPrompt);
+
+    /**
+     * 单轮对话（流式，T-AI3）：每收到一段增量文本立即回调 {@code onDelta}，
+     * 全部结束后返回与 {@link #chat} 相同结构的完整结果。
+     *
+     * <p>约束：实现必须保证「回调的增量拼接 == 返回的完整文本」，下游据此边推边渲染、
+     * 结束后再用完整文本做引用装配（模型漏标兜底会改写正文，见 {@code CitationAssembler}）。</p>
+     *
+     * @param onDelta 增量文本回调；可能被调用多次，单次内容非空
+     */
+    ChatResult stream(String systemPrompt, String userPrompt, Consumer<String> onDelta);
 
     /**
      * @param text       模型回答正文

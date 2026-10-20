@@ -55,8 +55,12 @@ interface RequestOptions {
 }
 
 function buildUrl(path: string, query?: RequestOptions['query']): string {
+  // 以 `/api/` 开头的路径视为**站点根路径**（如 T-AI3 的 SSE 代理 `/api/ai/qa-stream/...`），
+  // 不拼 API_BASE_URL；其余路径按 API_BASE_URL（默认 /api/v1）拼接。
+  const target =
+    path.startsWith('http') || path.startsWith('/api/') ? path : `${API_BASE_URL}${path}`
   const url = new URL(
-    path.startsWith('http') ? path : `${API_BASE_URL}${path}`,
+    target,
     typeof window === 'undefined' ? 'http://localhost' : window.location.origin,
   )
   if (query) {
@@ -87,27 +91,7 @@ export async function request<T = unknown>(
     })
   }
 
-  const method = opts.method ?? 'GET'
-  const url = buildUrl(path, opts.query)
-  const headers: Record<string, string> = {
-    Accept: 'application/json',
-    ...(opts.headers ?? {}),
-  }
-  if (opts.body !== undefined) {
-    headers['Content-Type'] = 'application/json'
-  }
-  if (!opts.noAuth) {
-    const token = getToken()
-    if (token) headers.Authorization = `Bearer ${token}`
-  }
-
-  const res = await fetch(url, {
-    method,
-    headers,
-    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-    signal: opts.signal,
-    credentials: 'same-origin',
-  })
+  const res = await send(path, opts, 'application/json')
 
   let envelope: ApiEnvelope<T> | null = null
   try {
@@ -139,4 +123,68 @@ export async function request<T = unknown>(
   }
 
   return envelope.data
+}
+
+/** 发起请求（统一带鉴权头 / JSON body），返回原始 Response，不解包。 */
+function send(path: string, opts: RequestOptions, accept: string): Promise<Response> {
+  const method = opts.method ?? 'GET'
+  const url = buildUrl(path, opts.query)
+  const headers: Record<string, string> = {
+    Accept: accept,
+    ...(opts.headers ?? {}),
+  }
+  if (opts.body !== undefined) {
+    headers['Content-Type'] = 'application/json'
+  }
+  if (!opts.noAuth) {
+    const token = getToken()
+    if (token) headers.Authorization = `Bearer ${token}`
+  }
+  return fetch(url, {
+    method,
+    headers,
+    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+    signal: opts.signal,
+    credentials: 'same-origin',
+  })
+}
+
+/**
+ * 流式请求（SSE，Step 4 T-AI3）：返回原始 Response，由调用方读 ReadableStream。
+ *
+ * <p>为什么不复用 {@link request}：SSE 响应不是 JSON 包络，且必须边到边读。
+ * 校验类错误仍由后端返回普通 JSON 包络（非 2xx），调用方用 {@link toApiError} 转换。</p>
+ */
+export function requestStream(path: string, opts: RequestOptions = {}): Promise<Response> {
+  if (USE_MOCK) {
+    throw new ApiError({
+      code: 50000,
+      message: `Mock 模式下不应走 client.requestStream：${path}`,
+      status: 500,
+    })
+  }
+  return send(path, opts, 'text/event-stream')
+}
+
+/** 把失败响应（JSON 包络）转成 {@link ApiError}；无法解析时按 HTTP 状态兜底。 */
+export async function toApiError(res: Response): Promise<ApiError> {
+  try {
+    const envelope = (await res.json()) as ApiEnvelope<unknown>
+    if (envelope && typeof envelope.code === 'number' && envelope.code !== 0) {
+      return new ApiError({
+        code: envelope.code,
+        message: envelope.message,
+        status: res.status,
+        errors: envelope.errors,
+        traceId: envelope.traceId,
+      })
+    }
+  } catch {
+    // 非 JSON（如代理层 502）：落到下面的 HTTP 兜底
+  }
+  return new ApiError({
+    code: 50000,
+    message: `请求失败：HTTP ${res.status}`,
+    status: res.status,
+  })
 }

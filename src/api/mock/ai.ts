@@ -214,3 +214,33 @@ export function mockAskResumeQuestion(applicationId: string, question: string): 
     retrieved: ranked.length,
   }
 }
+
+// ============================================================
+// 流式（T-AI3）
+// ============================================================
+
+/** 假流式：每段字数与段间停顿（总时长 < 1s，e2e 的 1.5s 等待窗口内可完成） */
+const STREAM_DELTA_CHARS = 4
+const STREAM_DELAY_MS = 18
+
+/**
+ * Mock 版流式问答：先复用规则回答（校验与引用口径完全一致），再把正文按段回放。
+ *
+ * <p>与后端 provider=fake 的行为对齐：若干 delta → 若干 citation → 返回完整回答。
+ * 引用在文本结束后才回调，避免前端渲染到一半就去匹配还没出现的 `[n]`。</p>
+ */
+export async function mockAskResumeQuestionStream(
+  applicationId: string,
+  question: string,
+  handlers: { onDelta?: (text: string) => void; onCitation?: (citation: AiCitation) => void } = {},
+  signal?: AbortSignal,
+): Promise<AiQaAnswer> {
+  const result = mockAskResumeQuestion(applicationId, question)
+  for (let i = 0; i < result.answer.length; i += STREAM_DELTA_CHARS) {
+    if (signal?.aborted) break
+    await new Promise(resolve => setTimeout(resolve, STREAM_DELAY_MS))
+    handlers.onDelta?.(result.answer.slice(i, i + STREAM_DELTA_CHARS))
+  }
+  result.citations.forEach(citation => handlers.onCitation?.(citation))
+  return result
+}
